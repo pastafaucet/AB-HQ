@@ -1,9 +1,10 @@
 // ============================================================
-// AB HQ — V1 data model (scope §4) + mock data for static UI.
-// Priority is DERIVED from the Eisenhower flags, never stored.
+// AB HQ — V1 data model (types + a little static data).
+// Priority is an explicit P1–P4. Domains are Work / Personal.
+// A task has a single "do date" plus an optional time.
 // ============================================================
 
-export type Domain = "Work" | "Personal" | "Health";
+export type Domain = "Work" | "Personal";
 export type TaskType = "Task" | "Event" | "Deadline";
 export type TaskStatus =
   | "Inbox"
@@ -12,6 +13,7 @@ export type TaskStatus =
   | "Done"
   | "Someday"
   | "Cancelled";
+export type Priority = 1 | 2 | 3 | 4;
 
 export interface Task {
   id: string;
@@ -19,13 +21,12 @@ export interface Task {
   status: TaskStatus;
   domain: Domain;
   type: TaskType;
-  important: boolean;
-  urgent: boolean;
+  priority: Priority;
   mit: boolean;
-  doDate?: string;
-  deadline?: string;
+  doDate?: string; // YYYY-MM-DD
+  doTime?: string; // HH:MM
   matterId?: string;
-  dueTag?: string; // display-only, e.g. "TODAY"
+  dueTag?: string; // display-only (time / date)
 }
 
 export interface Matter {
@@ -33,7 +34,7 @@ export interface Matter {
   name: string;
   client: string;
   stage: string;
-  status: string; // Trial / Discovery / Settlement / Probate / On hold
+  status: string;
   next?: string;
   nextColor?: string;
 }
@@ -42,7 +43,7 @@ export interface Delegation {
   id: string;
   title: string;
   who: string;
-  waiting: string; // e.g. "2d"
+  waiting: string;
 }
 
 export interface ScheduleItem {
@@ -53,23 +54,17 @@ export interface ScheduleItem {
   dot: string;
 }
 
-// --- Derived priority (Eisenhower → one label, scope §5) ---
-export type PriorityLabel = "DO NOW" | "DEEP WORK" | "DELEGATE" | "LOW";
-
-export function derivePriority(important: boolean, urgent: boolean): {
-  label: PriorityLabel;
-  cls: string; // priority chip class
-} {
-  if (important && urgent) return { label: "DO NOW", cls: "pri-p1" };
-  if (important && !urgent) return { label: "DEEP WORK", cls: "pri-p3" };
-  if (!important && urgent) return { label: "DELEGATE", cls: "pri-p2" };
-  return { label: "LOW", cls: "pri-p4" };
-}
+// P1 red · P2 green · P3 yellow · P4 gray
+export const PRIORITY_META: Record<Priority, { label: string; cls: string }> = {
+  1: { label: "P1", cls: "pri-p1" },
+  2: { label: "P2", cls: "pri-p2" },
+  3: { label: "P3", cls: "pri-p3" },
+  4: { label: "P4", cls: "pri-p4" },
+};
 
 export const DOMAIN_DOT: Record<Domain, string> = {
   Work: "#5b8cff",
   Personal: "#8b7cf0",
-  Health: "#d88a6a",
 };
 
 export function kindClass(type: TaskType): string {
@@ -78,35 +73,7 @@ export function kindClass(type: TaskType): string {
   return "kind-task";
 }
 
-// ============================================================
-// Mock data — today is Saturday, July 5
-// ============================================================
-
-export const MATTERS: Matter[] = [
-  { id: "m1", name: "Henderson v. Coastal", client: "R. Henderson", stage: "Trial", status: "Trial", next: "reply brief · today", nextColor: "var(--orange)" },
-  { id: "m2", name: "Delgado v. Metro", client: "L. Delgado", stage: "Discovery", status: "Discovery", next: "depo · Jul 9", nextColor: "var(--muted)" },
-  { id: "m3", name: "Whitfield Estate", client: "Whitfield", stage: "Probate", status: "Probate", next: "hearing · Jul 14", nextColor: "var(--muted)" },
-  { id: "m4", name: "Okafor v. Summit", client: "D. Okafor", stage: "Discovery", status: "Discovery", next: "meet & confer · today", nextColor: "var(--orange)" },
-];
-
-// The three protected MITs for today (scope: max 3).
-export const MITS: Task[] = [
-  { id: "t1", title: "Finish reply brief — Henderson v. Coastal", status: "In Progress", domain: "Work", type: "Deadline", important: true, urgent: true, mit: true, matterId: "m1", dueTag: "DUE TODAY" },
-  { id: "t2", title: "Prep Delgado deposition outline", status: "To Do", domain: "Work", type: "Task", important: true, urgent: false, mit: true, matterId: "m2" },
-  { id: "t3", title: "Call Dr. Reyes re: expert report", status: "Done", domain: "Work", type: "Task", important: true, urgent: true, mit: true, matterId: "m3" },
-];
-
-export const ALSO_TODAY: Task[] = [
-  { id: "t4", title: "Review discovery responses — Okafor", status: "To Do", domain: "Work", type: "Task", important: true, urgent: false, mit: false, matterId: "m4" },
-  { id: "t5", title: "Sign engagement letter — Pearson intake", status: "To Do", domain: "Work", type: "Task", important: false, urgent: true, mit: false },
-  { id: "t6", title: "Meet & confer call — Okafor", status: "To Do", domain: "Work", type: "Event", important: false, urgent: true, mit: false, matterId: "m4", dueTag: "4:30P" },
-  { id: "t7", title: "Renew bar membership", status: "To Do", domain: "Personal", type: "Deadline", important: false, urgent: false, mit: false, dueTag: "JUL 31" },
-];
-
-export const IN_PROGRESS: Task[] = [
-  { id: "t8", title: "Draft MSJ opposition — Coastal", status: "In Progress", domain: "Work", type: "Task", important: true, urgent: false, mit: false, matterId: "m1" },
-  { id: "t9", title: "Outline settlement terms — Delgado", status: "In Progress", domain: "Work", type: "Task", important: false, urgent: false, mit: false, matterId: "m2" },
-];
+// --- Static rail data (not in the V1 data model yet) ---
 
 export const SCHEDULE: ScheduleItem[] = [
   { id: "s1", time: "9:30a", title: "Motion hearing — Henderson", place: "Superior Ct · Dept 12", dot: "#5b8cff" },

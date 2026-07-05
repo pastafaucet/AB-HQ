@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import type { Task, Matter, Domain, TaskStatus, TaskType } from "@/lib/data";
-import { derivePriority, DOMAIN_DOT } from "@/lib/data";
+import type { Task, Matter, Domain, TaskStatus, TaskType, Priority } from "@/lib/data";
+import { PRIORITY_META, DOMAIN_DOT } from "@/lib/data";
 import { dueTagFor } from "@/lib/task-map";
 import {
   setTaskDone,
@@ -18,17 +18,16 @@ const DRAFT = "draft";
 function applyPatch(t: Task, p: TaskPatch, today: string): Task {
   const next: Task = { ...t };
   if (p.title !== undefined) next.title = p.title;
-  if (p.important !== undefined) next.important = p.important;
-  if (p.urgent !== undefined) next.urgent = p.urgent;
+  if (p.priority !== undefined) next.priority = p.priority as Priority;
   if (p.mit !== undefined) next.mit = p.mit;
   if (p.status !== undefined) next.status = p.status as TaskStatus;
   if (p.domain !== undefined) next.domain = p.domain as Domain;
   if (p.type !== undefined) next.type = p.type as TaskType;
   if (p.matterId !== undefined) next.matterId = p.matterId ?? undefined;
   if (p.doDate !== undefined) next.doDate = p.doDate ?? undefined;
-  if (p.deadline !== undefined) {
-    next.deadline = p.deadline ?? undefined;
-    next.dueTag = dueTagFor(p.deadline ?? null, today);
+  if (p.doTime !== undefined) next.doTime = p.doTime ?? undefined;
+  if (p.doDate !== undefined || p.doTime !== undefined) {
+    next.dueTag = dueTagFor(next.doDate ?? null, next.doTime ?? null, today);
   }
   return next;
 }
@@ -36,15 +35,14 @@ function applyPatch(t: Task, p: TaskPatch, today: string): Task {
 function fullPatch(t: Task): TaskPatch {
   return {
     title: t.title,
-    important: t.important,
-    urgent: t.urgent,
+    priority: t.priority,
     mit: t.mit,
     status: t.status,
     domain: t.domain,
     type: t.type,
     matterId: t.matterId ?? null,
     doDate: t.doDate ?? null,
-    deadline: t.deadline ?? null,
+    doTime: t.doTime ?? null,
   };
 }
 
@@ -172,8 +170,7 @@ export default function TaskListClient({
       status: "To Do",
       domain: "Work",
       type: "Task",
-      important: false,
-      urgent: false,
+      priority: 3,
       mit: false,
       doDate: today,
       ...prefill,
@@ -227,7 +224,7 @@ export default function TaskListClient({
   }
 
   function Meta({ t }: { t: Task }) {
-    const pri = derivePriority(t.important, t.urgent);
+    const pm = PRIORITY_META[t.priority];
     const scope = t.matterId
       ? matters.find((m) => m.id === t.matterId)?.name.toUpperCase() ?? t.domain.toUpperCase()
       : t.domain.toUpperCase();
@@ -235,11 +232,11 @@ export default function TaskListClient({
       t.type === "Event" ? "kind-event" : t.type === "Deadline" ? "kind-deadline" : "kind-task";
     return (
       <div className="meta">
-        <span className={`pri ${pri.cls}`}>{pri.label}</span>
+        <span className={`pri ${pm.cls}`}>{pm.label}</span>
         <span className="cat-dot" style={{ background: DOMAIN_DOT[t.domain] }} />
         <span className="meta-scope">{scope}</span>
         <span className={kindCls}>{t.type.toUpperCase()}</span>
-        {t.dueTag && <span className="due-tag">{t.dueTag}</span>}
+        {t.dueTag && <span className="time-tag">{t.dueTag}</span>}
       </div>
     );
   }

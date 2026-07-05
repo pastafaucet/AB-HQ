@@ -1,9 +1,9 @@
-import type { Task, Matter, Domain, TaskType, TaskStatus } from "@/lib/data";
+import type { Task, Matter, Domain, TaskType, TaskStatus, Priority } from "@/lib/data";
 
 // Shared DB-row → app-object mapping (used by queries and task actions).
 
 export const TASK_COLUMNS =
-  "id,title,status,domain,type,important,urgent,mit,do_date,deadline,matter_id,completed_at";
+  "id,title,status,domain,type,priority,mit,do_date,do_time,matter_id,completed_at";
 
 export interface TaskRowDB {
   id: string;
@@ -11,11 +11,10 @@ export interface TaskRowDB {
   status: TaskStatus;
   domain: Domain;
   type: TaskType;
-  important: boolean;
-  urgent: boolean;
+  priority: number;
   mit: boolean;
   do_date: string | null;
-  deadline: string | null;
+  do_time: string | null;
   matter_id: string | null;
   completed_at: string | null;
 }
@@ -38,29 +37,47 @@ export function todayISO(): string {
   return `${y}-${m}-${d}`;
 }
 
-export function dueTagFor(deadline: string | null, today: string): string | undefined {
-  if (!deadline) return undefined;
-  if (deadline === today) return "DUE TODAY";
-  const parts = deadline.split("-");
-  const mi = Number(parts[1]) - 1;
-  if (mi < 0 || mi > 11) return undefined;
-  return `${MONTHS[mi]} ${Number(parts[2])}`;
+/** "09:30" → "9:30A" */
+export function formatTime(hhmm: string | null | undefined): string | undefined {
+  if (!hhmm) return undefined;
+  const [hStr, mStr] = hhmm.split(":");
+  let h = Number(hStr);
+  const m = mStr ?? "00";
+  const ap = h >= 12 ? "P" : "A";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${m}${ap}`;
+}
+
+/** Display tag for a task row: the time if set, else a future date. */
+export function dueTagFor(
+  doDate: string | null,
+  doTime: string | null,
+  today: string
+): string | undefined {
+  if (doTime) return formatTime(doTime);
+  if (doDate && doDate !== today) {
+    const parts = doDate.split("-");
+    const mi = Number(parts[1]) - 1;
+    if (mi >= 0 && mi <= 11) return `${MONTHS[mi]} ${Number(parts[2])}`;
+  }
+  return undefined;
 }
 
 export function rowToTask(row: TaskRowDB, today: string): Task {
+  const p = (row.priority >= 1 && row.priority <= 4 ? row.priority : 3) as Priority;
   return {
     id: row.id,
     title: row.title,
     status: row.status,
     domain: row.domain,
     type: row.type,
-    important: row.important,
-    urgent: row.urgent,
+    priority: p,
     mit: row.mit,
     doDate: row.do_date ?? undefined,
-    deadline: row.deadline ?? undefined,
+    doTime: row.do_time ? row.do_time.slice(0, 5) : undefined,
     matterId: row.matter_id ?? undefined,
-    dueTag: dueTagFor(row.deadline, today),
+    dueTag: dueTagFor(row.do_date, row.do_time ? row.do_time.slice(0, 5) : null, today),
   };
 }
 

@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import type { Task, Matter, Domain, TaskType, TaskStatus } from "@/lib/data";
-import { derivePriority } from "@/lib/data";
+import type { Task, Matter, Domain, TaskType, TaskStatus, Priority } from "@/lib/data";
 import type { TaskPatch } from "@/app/(app)/task-actions";
 
 const STATUSES: TaskStatus[] = ["Inbox", "To Do", "In Progress", "Done", "Someday", "Cancelled"];
-const DOMAINS: Domain[] = ["Work", "Personal", "Health"];
+const DOMAINS: Domain[] = ["Work", "Personal"];
 const TYPES: TaskType[] = ["Task", "Event", "Deadline"];
+const PRIORITIES: Priority[] = [1, 2, 3, 4];
 
 export default function TaskDrawer({
   task,
@@ -38,7 +38,6 @@ export default function TaskDrawer({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const pri = derivePriority(task.important, task.urgent);
   const mitDisabled = !task.mit && mitCount >= 3;
 
   return (
@@ -67,24 +66,18 @@ export default function TaskDrawer({
 
         <div className="drawer-field">
           <div className="drawer-label">PRIORITY</div>
-          <div className="eisen-row">
-            <button
-              type="button"
-              className={`eisen${task.important ? " on" : ""}`}
-              onClick={() => onField({ important: !task.important })}
-            >
-              <span className="eisen-box">{task.important ? "✓" : ""}</span> Important
-            </button>
-            <button
-              type="button"
-              className={`eisen${task.urgent ? " on" : ""}`}
-              onClick={() => onField({ urgent: !task.urgent })}
-            >
-              <span className="eisen-box">{task.urgent ? "✓" : ""}</span> Urgent
-            </button>
-          </div>
-          <div className="eisen-derived">
-            → <span className={`pri ${pri.cls}`}>{pri.label}</span>
+          <div className="pri-select">
+            {PRIORITIES.map((p) => (
+              <button
+                key={p}
+                type="button"
+                className={`pri-opt${task.priority === p ? " is-sel" : ""}`}
+                data-p={p}
+                onClick={() => onField({ priority: p })}
+              >
+                P{p}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -93,15 +86,13 @@ export default function TaskDrawer({
             type="button"
             className={`mit-toggle${task.mit ? " on" : ""}`}
             disabled={mitDisabled}
+            title={mitDisabled ? "You already have 3 protected" : undefined}
             onClick={() => !mitDisabled && onField({ mit: !task.mit })}
           >
             <span className="mit-star">★</span>
-            <span className="mit-toggle-label">Protect as a Top-3 (MIT)</span>
+            <span className="mit-toggle-label">MIT</span>
             <span className="mit-switch" aria-hidden />
           </button>
-          {mitDisabled && (
-            <div className="drawer-hint">You already have 3 protected — clear one first.</div>
-          )}
         </div>
 
         <div className="drawer-grid">
@@ -154,24 +145,24 @@ export default function TaskDrawer({
               ))}
             </select>
           </label>
-          <label className="drawer-field">
-            <div className="drawer-label">DO DATE</div>
+        </div>
+
+        <div className="drawer-field">
+          <div className="drawer-label">DO DATE</div>
+          <div className="date-time-row">
             <input
               type="date"
               className="drawer-input"
               value={task.doDate ?? ""}
               onChange={(e) => onField({ doDate: e.target.value || null })}
             />
-          </label>
-          <label className="drawer-field">
-            <div className="drawer-label">DEADLINE</div>
             <input
-              type="date"
-              className="drawer-input"
-              value={task.deadline ?? ""}
-              onChange={(e) => onField({ deadline: e.target.value || null })}
+              type="time"
+              className="drawer-input drawer-time"
+              value={task.doTime ?? ""}
+              onChange={(e) => onField({ doTime: e.target.value || null })}
             />
-          </label>
+          </div>
         </div>
 
         <div className="drawer-footer">

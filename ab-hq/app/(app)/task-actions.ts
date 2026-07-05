@@ -7,15 +7,14 @@ import type { Task } from "@/lib/data";
 
 export interface TaskPatch {
   title?: string;
-  important?: boolean;
-  urgent?: boolean;
+  priority?: number;
   mit?: boolean;
   status?: string;
   domain?: string;
   type?: string;
   matterId?: string | null;
   doDate?: string | null;
-  deadline?: string | null;
+  doTime?: string | null;
 }
 
 export interface ActionResult {
@@ -37,15 +36,14 @@ async function protectedCount(excludeId?: string): Promise<number> {
 function toDbPatch(patch: TaskPatch): Record<string, unknown> {
   const db: Record<string, unknown> = {};
   if (patch.title !== undefined) db.title = patch.title;
-  if (patch.important !== undefined) db.important = patch.important;
-  if (patch.urgent !== undefined) db.urgent = patch.urgent;
+  if (patch.priority !== undefined) db.priority = patch.priority;
   if (patch.mit !== undefined) db.mit = patch.mit;
   if (patch.status !== undefined) db.status = patch.status;
   if (patch.domain !== undefined) db.domain = patch.domain;
   if (patch.type !== undefined) db.type = patch.type;
   if (patch.matterId !== undefined) db.matter_id = patch.matterId;
   if (patch.doDate !== undefined) db.do_date = patch.doDate;
-  if (patch.deadline !== undefined) db.deadline = patch.deadline;
+  if (patch.doTime !== undefined) db.do_time = patch.doTime;
   if (patch.status === "Done") db.completed_at = new Date().toISOString();
   if (patch.status && patch.status !== "Done") db.completed_at = null;
   return db;
@@ -84,11 +82,10 @@ export async function createTask(input: TaskPatch & { title: string }): Promise<
     status: input.status ?? "To Do",
     domain: input.domain ?? "Work",
     type: input.type ?? "Task",
-    important: input.important ?? false,
-    urgent: input.urgent ?? false,
+    priority: input.priority ?? 3,
     mit,
     do_date: input.doDate ?? null,
-    deadline: input.deadline ?? null,
+    do_time: input.doTime ?? null,
     matter_id: input.matterId ?? null,
   };
 
