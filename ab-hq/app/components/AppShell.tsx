@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV, isActive } from "@/lib/nav";
+import { logout } from "@/app/auth-actions";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -96,9 +97,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <div className="who">
                 <div className="who-name">Andy Baum</div>
               </div>
-              <button className="gear" type="button" aria-label="Settings">
-                ⚙
-              </button>
+              <form action={logout}>
+                <button className="gear" type="submit" aria-label="Sign out" title="Sign out">
+                  ⏻
+                </button>
+              </form>
             </div>
           </>
         )}
