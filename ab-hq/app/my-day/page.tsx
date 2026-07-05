@@ -1,20 +1,18 @@
 import TaskRow, { TaskMeta } from "@/app/components/TaskRow";
-import {
-  MITS,
-  ALSO_TODAY,
-  IN_PROGRESS,
-  SCHEDULE,
-  MATTERS,
-  DELEGATIONS,
-} from "@/lib/data";
+import { SCHEDULE, DELEGATIONS } from "@/lib/data";
+import { getMyDayData } from "@/lib/queries";
 
 export const metadata = { title: "My Day · AB HQ" };
+// Always reflect the current database state.
+export const dynamic = "force-dynamic";
 
-export default function MyDayPage() {
+export default async function MyDayPage() {
+  const { mits, alsoToday, inProgress, matters } = await getMyDayData();
+
   // Pad MITs to three protected slots (scope: up to 3, always visible).
-  const mitSlots = [0, 1, 2].map((i) => MITS[i] ?? null);
-  const mitsDone = MITS.filter((t) => t.status === "Done").length;
-  const openCount = ALSO_TODAY.length + IN_PROGRESS.length;
+  const mitSlots = [0, 1, 2].map((i) => mits[i] ?? null);
+  const mitsDone = mits.filter((t) => t.status === "Done").length;
+  const openCount = alsoToday.length + inProgress.length;
 
   return (
     <>
@@ -33,7 +31,7 @@ export default function MyDayPage() {
 
         {/* --- Protected Top 3 MITs --- */}
         <div className="section-label tight">
-          TODAY&rsquo;S 3 · {mitsDone}/{MITS.length} DONE
+          TODAY&rsquo;S 3 · {mitsDone}/{mits.length} DONE
         </div>
         <div className="mit-list">
           {mitSlots.map((task, i) =>
@@ -75,14 +73,14 @@ export default function MyDayPage() {
         </div>
 
         {/* --- Also today --- */}
-        <div className="section-label">ALSO TODAY · {ALSO_TODAY.length}</div>
-        {ALSO_TODAY.map((task) => (
+        <div className="section-label">ALSO TODAY · {alsoToday.length}</div>
+        {alsoToday.map((task) => (
           <TaskRow key={task.id} task={task} />
         ))}
 
         {/* --- In progress --- */}
-        <div className="section-label">IN PROGRESS · {IN_PROGRESS.length}</div>
-        {IN_PROGRESS.map((task) => (
+        <div className="section-label">IN PROGRESS · {inProgress.length}</div>
+        {inProgress.map((task) => (
           <TaskRow key={task.id} task={task} />
         ))}
 
@@ -100,7 +98,7 @@ export default function MyDayPage() {
       </section>
 
       <aside className="rail">
-        {/* Schedule */}
+        {/* Schedule (static until an Outlook/Graph decision — scope §11) */}
         <div className="rail-block">
           <div className="rail-head">
             <div className="rail-label">SCHEDULE</div>
@@ -118,13 +116,13 @@ export default function MyDayPage() {
           ))}
         </div>
 
-        {/* Active matters */}
+        {/* Active matters (from the database) */}
         <div className="rail-block">
           <div className="rail-head">
             <div className="rail-label">ACTIVE MATTERS</div>
             <span className="section-link">All →</span>
           </div>
-          {MATTERS.map((m) => (
+          {matters.map((m) => (
             <div className="matter-row" key={m.id}>
               <span className="agenda-dot" style={{ background: "#5b8cff" }} />
               <div className="matter-body">
@@ -140,7 +138,7 @@ export default function MyDayPage() {
           ))}
         </div>
 
-        {/* Delegations awaiting */}
+        {/* Delegations awaiting (static — not in the V1 data model yet) */}
         <div className="rail-block">
           <div className="rail-label">DELEGATIONS AWAITING · {DELEGATIONS.length}</div>
           {DELEGATIONS.map((d) => (
