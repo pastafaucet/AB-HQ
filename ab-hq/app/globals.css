@@ -1372,6 +1372,48 @@ button.check {
 .pri-opt.is-sel[data-p="3"] { background: rgba(216, 166, 87, 0.16); }
 .pri-opt.is-sel[data-p="4"] { background: rgba(111, 119, 135, 0.16); }
 
+/* Segmented button group (Type, Domain) */
+.seg-select {
+  display: flex;
+  gap: 8px;
+}
+.seg-opt {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 9px 0;
+  border-radius: 8px;
+  border: 1px solid var(--line-field);
+  background: var(--inset);
+  color: var(--ink-2);
+  cursor: pointer;
+  text-align: center;
+}
+.seg-opt:hover {
+  color: var(--ink-body-2);
+}
+.seg-opt.is-sel {
+  color: var(--ink);
+  background: #1e2733;
+  border-color: var(--line-raised-2);
+}
+
+/* MIT + domain on one row */
+.mit-domain-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+.mit-domain-row .mit-toggle {
+  flex: 1;
+  width: auto;
+}
+.mit-domain-row .domain-seg {
+  flex: 1;
+}
+
 /* Do date + time */
 .date-time-row {
   display: flex;

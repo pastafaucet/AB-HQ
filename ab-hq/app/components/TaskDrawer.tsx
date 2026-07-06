@@ -6,7 +6,7 @@ import type { TaskPatch } from "@/app/(app)/task-actions";
 
 const STATUSES: TaskStatus[] = ["Inbox", "To Do", "In Progress", "Done", "Someday", "Cancelled"];
 const DOMAINS: Domain[] = ["Work", "Personal"];
-const TYPES: TaskType[] = ["Task", "Event", "Deadline"];
+const TYPES: TaskType[] = ["Task", "Deadline", "Event"];
 const PRIORITIES: Priority[] = [1, 2, 3, 4];
 
 export default function TaskDrawer({
@@ -82,17 +82,47 @@ export default function TaskDrawer({
         </div>
 
         <div className="drawer-field">
-          <button
-            type="button"
-            className={`mit-toggle${task.mit ? " on" : ""}`}
-            disabled={mitDisabled}
-            title={mitDisabled ? "You already have 3 protected" : undefined}
-            onClick={() => !mitDisabled && onField({ mit: !task.mit })}
-          >
-            <span className="mit-star">★</span>
-            <span className="mit-toggle-label">MIT</span>
-            <span className="mit-switch" aria-hidden />
-          </button>
+          <div className="drawer-label">TYPE</div>
+          <div className="seg-select">
+            {TYPES.map((ty) => (
+              <button
+                key={ty}
+                type="button"
+                className={`seg-opt${task.type === ty ? " is-sel" : ""}`}
+                onClick={() => onField({ type: ty })}
+              >
+                {ty}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="drawer-field">
+          <div className="mit-domain-row">
+            <button
+              type="button"
+              className={`mit-toggle${task.mit ? " on" : ""}`}
+              disabled={mitDisabled}
+              title={mitDisabled ? "You already have 3 protected" : undefined}
+              onClick={() => !mitDisabled && onField({ mit: !task.mit })}
+            >
+              <span className="mit-star">★</span>
+              <span className="mit-toggle-label">MIT</span>
+              <span className="mit-switch" aria-hidden />
+            </button>
+            <div className="seg-select domain-seg">
+              {DOMAINS.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  className={`seg-opt${task.domain === d ? " is-sel" : ""}`}
+                  onClick={() => onField({ domain: d })}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="drawer-grid">
@@ -118,30 +148,6 @@ export default function TaskDrawer({
               <option value="">— None —</option>
               {matters.map((m) => (
                 <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
-          </label>
-          <label className="drawer-field">
-            <div className="drawer-label">DOMAIN</div>
-            <select
-              className="drawer-select"
-              value={task.domain}
-              onChange={(e) => onField({ domain: e.target.value })}
-            >
-              {DOMAINS.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          </label>
-          <label className="drawer-field">
-            <div className="drawer-label">TYPE</div>
-            <select
-              className="drawer-select"
-              value={task.type}
-              onChange={(e) => onField({ type: e.target.value })}
-            >
-              {TYPES.map((t) => (
-                <option key={t} value={t}>{t}</option>
               ))}
             </select>
           </label>
