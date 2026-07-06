@@ -3,7 +3,7 @@ import type { Task, Matter, Domain, TaskType, TaskStatus, Priority } from "@/lib
 // Shared DB-row → app-object mapping (used by queries and task actions).
 
 export const TASK_COLUMNS =
-  "id,title,status,domain,type,priority,mit,do_date,do_time,matter_id,completed_at";
+  "id,title,status,domain,type,priority,mit,do_date,do_time,matter_id,notes,completed_at";
 
 export interface TaskRowDB {
   id: string;
@@ -16,6 +16,7 @@ export interface TaskRowDB {
   do_date: string | null;
   do_time: string | null;
   matter_id: string | null;
+  notes: string | null;
   completed_at: string | null;
 }
 
@@ -77,6 +78,7 @@ export function rowToTask(row: TaskRowDB, today: string): Task {
     doDate: row.do_date ?? undefined,
     doTime: row.do_time ? row.do_time.slice(0, 5) : undefined,
     matterId: row.matter_id ?? undefined,
+    notes: row.notes ?? undefined,
     dueTag: dueTagFor(row.do_date, row.do_time ? row.do_time.slice(0, 5) : null, today),
   };
 }

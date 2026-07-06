@@ -26,6 +26,7 @@ export interface Task {
   doDate?: string; // YYYY-MM-DD
   doTime?: string; // HH:MM
   matterId?: string;
+  notes?: string;
   dueTag?: string; // display-only (time / date)
 }
 

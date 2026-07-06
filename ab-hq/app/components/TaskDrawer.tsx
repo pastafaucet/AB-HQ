@@ -171,6 +171,17 @@ export default function TaskDrawer({
           </div>
         </div>
 
+        <div className="drawer-field">
+          <div className="drawer-label">NOTES</div>
+          <textarea
+            className="drawer-notes"
+            placeholder="A few notes…"
+            value={task.notes ?? ""}
+            rows={4}
+            onChange={(e) => onField({ notes: e.target.value })}
+          />
+        </div>
+
         <div className="drawer-footer">
           <span className="drawer-saved">
             {isNew ? "Type a title to save" : saving ? "Saving…" : saved ? "Saved ✓" : ""}

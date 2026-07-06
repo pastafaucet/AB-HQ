@@ -1419,6 +1419,28 @@ button.check {
   display: flex;
   gap: 10px;
 }
+
+/* Task notes */
+.drawer-notes {
+  width: 100%;
+  background: var(--inset);
+  border: 1px solid var(--line-field);
+  border-radius: 9px;
+  padding: 10px 12px;
+  color: var(--ink-body);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 84px;
+  outline: none;
+}
+.drawer-notes:focus {
+  border-color: var(--accent);
+}
+.drawer-notes::placeholder {
+  color: var(--faint);
+}
 .date-time-row .drawer-input {
   flex: 1;
 }

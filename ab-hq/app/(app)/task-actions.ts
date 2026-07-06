@@ -15,6 +15,7 @@ export interface TaskPatch {
   matterId?: string | null;
   doDate?: string | null;
   doTime?: string | null;
+  notes?: string | null;
 }
 
 export interface ActionResult {
@@ -44,6 +45,7 @@ function toDbPatch(patch: TaskPatch): Record<string, unknown> {
   if (patch.matterId !== undefined) db.matter_id = patch.matterId;
   if (patch.doDate !== undefined) db.do_date = patch.doDate;
   if (patch.doTime !== undefined) db.do_time = patch.doTime;
+  if (patch.notes !== undefined) db.notes = patch.notes;
   if (patch.status === "Done") db.completed_at = new Date().toISOString();
   if (patch.status && patch.status !== "Done") db.completed_at = null;
   return db;
@@ -87,6 +89,7 @@ export async function createTask(input: TaskPatch & { title: string }): Promise<
     do_date: input.doDate ?? null,
     do_time: input.doTime ?? null,
     matter_id: input.matterId ?? null,
+    notes: input.notes ?? null,
   };
 
   const { data, error } = await sb.from("tasks").insert(row).select(TASK_COLUMNS).single();

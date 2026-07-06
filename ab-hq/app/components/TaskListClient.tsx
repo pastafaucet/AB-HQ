@@ -26,6 +26,7 @@ function applyPatch(t: Task, p: TaskPatch, today: string): Task {
   if (p.matterId !== undefined) next.matterId = p.matterId ?? undefined;
   if (p.doDate !== undefined) next.doDate = p.doDate ?? undefined;
   if (p.doTime !== undefined) next.doTime = p.doTime ?? undefined;
+  if (p.notes !== undefined) next.notes = p.notes ?? undefined;
   if (p.doDate !== undefined || p.doTime !== undefined) {
     next.dueTag = dueTagFor(next.doDate ?? null, next.doTime ?? null, today);
   }
@@ -43,6 +44,7 @@ function fullPatch(t: Task): TaskPatch {
     matterId: t.matterId ?? null,
     doDate: t.doDate ?? null,
     doTime: t.doTime ?? null,
+    notes: t.notes ?? null,
   };
 }
 
