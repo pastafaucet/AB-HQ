@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV, isActive } from "@/lib/nav";
@@ -9,6 +9,24 @@ import { logout } from "@/app/auth-actions";
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname() ?? "/";
+
+  // Live header clock (empty on first render to avoid hydration mismatch).
+  const [clock, setClock] = useState("");
+  useEffect(() => {
+    const WD = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+    const MO = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const upd = () => {
+      const d = new Date();
+      setClock(
+        `${WD[d.getDay()]} · ${MO[d.getMonth()]} ${d.getDate()} · ${d.getHours()}:${String(
+          d.getMinutes()
+        ).padStart(2, "0")}`
+      );
+    };
+    upd();
+    const t = setInterval(upd, 30000);
+    return () => clearInterval(t);
+  }, []);
 
   return (
     <div className="shell">
@@ -134,7 +152,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <span className="keycap">⌘K</span>
           </div>
           <div className="header-spacer" />
-          <div className="header-datetime">SAT · JUL 5 · 9:14</div>
+          <div className="header-datetime">{clock}</div>
           <div className="header-divider" />
           <div className="status-chip">
             <span className="dot" />

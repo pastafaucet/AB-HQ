@@ -47,12 +47,24 @@ export interface Delegation {
   waiting: string;
 }
 
-export interface ScheduleItem {
+export type BlockKind = "event" | "lunch" | "focus" | "personal";
+
+export interface DayBlock {
   id: string;
-  time: string;
   title: string;
-  place: string;
-  dot: string;
+  sub?: string;
+  start: string; // "HH:MM" 24h
+  end: string;
+  kind: BlockKind;
+  num?: number; // MIT number when a focus block is a Top-3
+  dot?: string; // accent dot for events
+}
+
+export interface Capacity {
+  meetings: number; // hours
+  focus: number;
+  slack: number;
+  note: string;
 }
 
 // P1 red · P2 green · P3 yellow · P4 gray
@@ -74,13 +86,27 @@ export function kindClass(type: TaskType): string {
   return "kind-task";
 }
 
-// --- Static rail data (not in the V1 data model yet) ---
+// --- Static rail data (placeholder until an events/time model exists) ---
 
-export const SCHEDULE: ScheduleItem[] = [
-  { id: "s1", time: "9:30a", title: "Motion hearing — Henderson", place: "Superior Ct · Dept 12", dot: "#5b8cff" },
-  { id: "s2", time: "12:00p", title: "Lunch with co-counsel", place: "The Grill", dot: "#8b7cf0" },
-  { id: "s3", time: "2:00p", title: "Delgado depo prep call", place: "Zoom", dot: "#5b8cff" },
-  { id: "s4", time: "4:30p", title: "Meet & confer — Okafor", place: "Phone", dot: "#5b8cff" },
+// Day-timeline bounds (whole hours).
+export const DAY_START_HOUR = 8; // 8a
+export const DAY_END_HOUR = 19; // 7p
+
+export const CAPACITY: Capacity = {
+  meetings: 2.3,
+  focus: 4.0,
+  slack: 3.3,
+  note: "heavy — all high-stakes",
+};
+
+export const DAY_SCHEDULE: DayBlock[] = [
+  { id: "b1", title: "Motion hearing — Castillo", sub: "9:30a · Dept 4", start: "09:30", end: "10:30", kind: "event", dot: "#5b8cff" },
+  { id: "b2", title: "Call expert — Dr. Mehta", start: "11:00", end: "11:30", kind: "event", dot: "#5b8cff" },
+  { id: "b3", title: "Lunch", start: "12:00", end: "12:45", kind: "lunch" },
+  { id: "b4", title: "Client call — Ana Reyes", sub: "1p · Coastal Freight", start: "13:00", end: "13:45", kind: "event", dot: "#8b7cf0" },
+  { id: "b5", title: "Finalize reply brief", start: "14:00", end: "16:30", kind: "focus", num: 1 },
+  { id: "b6", title: "Depo prep outline", start: "17:00", end: "18:00", kind: "focus", num: 2 },
+  { id: "b7", title: "Dive club — gear check", start: "18:30", end: "19:00", kind: "personal" },
 ];
 
 export const DELEGATIONS: Delegation[] = [

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import type { Task, Matter, Domain, TaskStatus, TaskType, Priority } from "@/lib/data";
 import { PRIORITY_META, DOMAIN_DOT } from "@/lib/data";
 import { dueTagFor } from "@/lib/task-map";
@@ -14,6 +14,13 @@ import {
 import TaskDrawer from "./TaskDrawer";
 
 const DRAFT = "draft";
+
+const PRI_COLOR: Record<number, string> = {
+  1: "#e0665a",
+  2: "#5fbf8f",
+  3: "#d8a657",
+  4: "#6f7787",
+};
 
 function applyPatch(t: Task, p: TaskPatch, today: string): Task {
   const next: Task = { ...t };
@@ -72,6 +79,32 @@ export default function TaskListClient({
   draftRef.current = draft;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const creating = useRef(false);
+
+  // --- lightweight time tracker (client-side for now; not yet persisted) ---
+  const [runningId, setRunningId] = useState<string | null>(null);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [nowTs, setNowTs] = useState(0);
+  useEffect(() => {
+    if (runningId == null) return;
+    setNowTs(Date.now());
+    const t = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [runningId]);
+  function toggleTimer(t: Task) {
+    if (runningId === t.id) {
+      setRunningId(null);
+      setStartedAt(null);
+    } else {
+      setRunningId(t.id);
+      setStartedAt(Date.now());
+      setNowTs(Date.now());
+    }
+  }
+  function elapsedLabel(): string {
+    if (startedAt == null) return "0:00";
+    const s = Math.max(0, Math.floor((nowTs - startedAt) / 1000));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
 
   const isNew = openId === DRAFT;
   const openTask = isNew ? draft : tasks.find((t) => t.id === openId) ?? null;
@@ -257,6 +290,25 @@ export default function TaskListClient({
     );
   }
 
+  function Timer({ t }: { t: Task }) {
+    if (t.type === "Deadline") return null;
+    const running = runningId === t.id;
+    return (
+      <button
+        type="button"
+        className={`timer-btn${running ? " running" : ""}`}
+        title={running ? "Stop timer" : "Start timer"}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleTimer(t);
+        }}
+      >
+        {running && <span className="timer-elapsed">{elapsedLabel()}</span>}
+        <span className="timer-glyph">{running ? "⏹" : "▶"}</span>
+      </button>
+    );
+  }
+
   function Row({ t }: { t: Task }) {
     const done = t.status === "Done";
     return (
@@ -266,6 +318,7 @@ export default function TaskListClient({
           <div className={`task-title${done ? " is-done" : ""}`}>{t.title}</div>
           <Meta t={t} />
         </div>
+        <Timer t={t} />
       </div>
     );
   }
@@ -295,15 +348,20 @@ export default function TaskListClient({
       <div className="mit-list">
         {mitSlots.map((t, i) =>
           t ? (
-            <div key={t.id} className={`mit-row${t.status === "Done" ? " is-done" : ""}`}>
-              <div className="mit-num">{t.status === "Done" ? "✓" : i + 1}</div>
+            <div
+              key={t.id}
+              className={`mit-row${t.status === "Done" ? " is-done" : ""}`}
+              style={{ borderLeftColor: PRI_COLOR[t.priority] }}
+            >
+              <Check t={t} className="mit-check-left" />
+              <div className="mit-num">{i + 1}</div>
               <div className="mit-body clickable" onClick={() => openExisting(t)}>
                 <div className={`mit-title${t.status === "Done" ? " is-done" : ""}`}>
                   {t.title}
                 </div>
                 <Meta t={t} />
               </div>
-              <Check t={t} className="mit-check" />
+              <Timer t={t} />
             </div>
           ) : (
             <button

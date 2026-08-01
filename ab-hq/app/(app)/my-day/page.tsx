@@ -1,5 +1,7 @@
 import TaskListClient from "@/app/components/TaskListClient";
-import { SCHEDULE, DELEGATIONS } from "@/lib/data";
+import CapacityBar from "@/app/components/CapacityBar";
+import ScheduleGrid from "@/app/components/ScheduleGrid";
+import { DELEGATIONS } from "@/lib/data";
 import { getMyDayData } from "@/lib/queries";
 
 export const metadata = { title: "My Day · AB HQ" };
@@ -7,6 +9,11 @@ export const dynamic = "force-dynamic";
 
 export default async function MyDayPage() {
   const { tasks, matters, today } = await getMyDayData();
+  const dateLabel = new Date(`${today}T12:00:00`).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
 
   return (
     <>
@@ -14,7 +21,7 @@ export default async function MyDayPage() {
         <div className="day-head">
           <div>
             <div className="kicker">MY DAY</div>
-            <h1 className="display-h1">Saturday, July 5</h1>
+            <h1 className="display-h1">{dateLabel}</h1>
           </div>
           <div className="day-head-summary">
             2 DUE · 1 OVERDUE
@@ -27,23 +34,8 @@ export default async function MyDayPage() {
       </section>
 
       <aside className="rail">
-        {/* Schedule (static until an Outlook/Graph decision — scope §11) */}
-        <div className="rail-block">
-          <div className="rail-head">
-            <div className="rail-label">SCHEDULE</div>
-            <span className="section-link">Calendar →</span>
-          </div>
-          {SCHEDULE.map((s) => (
-            <div className="agenda-row" key={s.id}>
-              <div className="agenda-time">{s.time}</div>
-              <span className="agenda-dot" style={{ background: s.dot }} />
-              <div className="agenda-body">
-                <div className="agenda-title">{s.title}</div>
-                <div className="agenda-place">{s.place}</div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <CapacityBar />
+        <ScheduleGrid />
 
         {/* Active matters (from the database) */}
         <div className="rail-block">
