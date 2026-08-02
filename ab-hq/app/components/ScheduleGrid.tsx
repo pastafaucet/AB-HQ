@@ -1,17 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { DAY_SCHEDULE, DAY_START_HOUR, DAY_END_HOUR } from "@/lib/data";
+import { useEffect, useState } from "react";
+import { DAY_START_HOUR, DAY_END_HOUR } from "@/lib/data";
 
 const HOUR_PX = 52;
-const SNAP = 15; // minutes
-const STORE_POS = "abhq.schedule.overrides";
-const STORE_HIDDEN = "abhq.schedule.hidden";
+const SNAP = 15;
 
-function toMin(hhmm: string): number {
-  const [h, m] = hhmm.split(":").map(Number);
-  return h * 60 + m;
+export interface SchedItem {
+  id: string;
+  title: string;
+  sub?: string;
+  startMin: number;
+  durMin: number;
+  kind: "event" | "focus" | "task";
+  num?: number;
+  dot?: string;
+  done: boolean;
+  canTimer: boolean;
 }
+
 function fmtHour(h: number): string {
   const ap = h >= 12 ? "p" : "a";
   let x = h % 12;
@@ -28,9 +35,27 @@ function fmtTime(min: number): string {
 }
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-type Drag = { id: string; startY: number; orig: number; cur: number };
+type Drag = { id: string; startY: number; orig: number; cur: number; moved: boolean };
 
-export default function ScheduleGrid() {
+export default function ScheduleGrid({
+  items,
+  runningId,
+  elapsed,
+  onOpen,
+  onToggle,
+  onTimer,
+  onUnschedule,
+  onReschedule,
+}: {
+  items: SchedItem[];
+  runningId: string | null;
+  elapsed: string;
+  onOpen: (id: string) => void;
+  onToggle: (id: string) => void;
+  onTimer: (id: string) => void;
+  onUnschedule: (id: string) => void;
+  onReschedule: (id: string, startMin: number) => void;
+}) {
   const startMin = DAY_START_HOUR * 60;
   const endMin = DAY_END_HOUR * 60;
   const height = ((endMin - startMin) / 60) * HOUR_PX;
@@ -38,13 +63,7 @@ export default function ScheduleGrid() {
   const hours: number[] = [];
   for (let h = DAY_START_HOUR; h <= DAY_END_HOUR; h++) hours.push(h);
 
-  const durById = useRef<Record<string, number>>({});
-  DAY_SCHEDULE.forEach((b) => (durById.current[b.id] = toMin(b.end) - toMin(b.start)));
-
-  const [overrides, setOverrides] = useState<Record<string, number>>({});
-  const [hidden, setHidden] = useState<string[]>([]);
   const [drag, setDrag] = useState<Drag | null>(null);
-
   const [nowTop, setNowTop] = useState<number | null>(null);
   useEffect(() => {
     const upd = () => {
@@ -57,73 +76,33 @@ export default function ScheduleGrid() {
     return () => clearInterval(t);
   }, [startMin, endMin]);
 
-  // load saved positions + removals (client only)
-  useEffect(() => {
-    try {
-      const pos = localStorage.getItem(STORE_POS);
-      if (pos) setOverrides(JSON.parse(pos));
-      const hid = localStorage.getItem(STORE_HIDDEN);
-      if (hid) setHidden(JSON.parse(hid));
-    } catch {}
-  }, []);
-
-  const dirty = Object.keys(overrides).length > 0 || hidden.length > 0;
-
-  function startAt(id: string, base: number): number {
-    if (drag && drag.id === id) return drag.cur;
-    return overrides[id] ?? base;
-  }
-
-  function onPointerDown(e: React.PointerEvent, id: string, cur: number) {
+  function down(e: React.PointerEvent, it: SchedItem) {
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    setDrag({ id, startY: e.clientY, orig: cur, cur });
+    setDrag({ id: it.id, startY: e.clientY, orig: it.startMin, cur: it.startMin, moved: false });
   }
-  function onPointerMove(e: React.PointerEvent) {
+  function move(e: React.PointerEvent, dur: number) {
     if (!drag) return;
-    const deltaMin = Math.round(((e.clientY - drag.startY) / HOUR_PX) * 60 / SNAP) * SNAP;
-    const dur = durById.current[drag.id] ?? 30;
-    const cur = clamp(drag.orig + deltaMin, startMin, endMin - dur);
-    setDrag((d) => (d ? { ...d, cur } : d));
+    const dm = Math.round(((e.clientY - drag.startY) / HOUR_PX) * 60 / SNAP) * SNAP;
+    const cur = clamp(drag.orig + dm, startMin, endMin - dur);
+    setDrag((d) => (d ? { ...d, cur, moved: d.moved || Math.abs(e.clientY - d.startY) > 3 } : d));
   }
-  function onPointerUp() {
+  function up() {
     if (!drag) return;
-    const next = { ...overrides, [drag.id]: drag.cur };
-    setOverrides(next);
-    try {
-      localStorage.setItem(STORE_POS, JSON.stringify(next));
-    } catch {}
+    if (drag.moved) onReschedule(drag.id, drag.cur);
+    else onOpen(drag.id);
     setDrag(null);
-  }
-
-  function removeBlock(id: string) {
-    const next = hidden.includes(id) ? hidden : [...hidden, id];
-    setHidden(next);
-    try {
-      localStorage.setItem(STORE_HIDDEN, JSON.stringify(next));
-    } catch {}
-  }
-  function reset() {
-    setHidden([]);
-    setOverrides({});
-    try {
-      localStorage.removeItem(STORE_HIDDEN);
-      localStorage.removeItem(STORE_POS);
-    } catch {}
   }
 
   return (
     <div className="rail-block">
       <div className="rail-head">
         <div className="rail-label">SCHEDULE</div>
-        {dirty ? (
-          <span className="section-link" role="button" onClick={reset}>
-            Reset
-          </span>
-        ) : (
-          <span className="section-link">Calendar →</span>
-        )}
+        <span className="section-link">Calendar →</span>
       </div>
+      {items.length === 0 && (
+        <div className="sched-empty">Set a time on a task to place it here.</div>
+      )}
       <div className={`sched${drag ? " is-dragging" : ""}`} style={{ height }}>
         {hours.map((h) => (
           <div key={h} className="sched-hour" style={{ top: (h - DAY_START_HOUR) * HOUR_PX }}>
@@ -131,42 +110,69 @@ export default function ScheduleGrid() {
             <div className="sched-hourline" />
           </div>
         ))}
-        {DAY_SCHEDULE.filter((b) => !hidden.includes(b.id)).map((b) => {
-          const s = startAt(b.id, toMin(b.start));
-          const dur = durById.current[b.id];
+        {items.map((it) => {
+          const s = drag?.id === it.id ? drag.cur : it.startMin;
           const top = ((s - startMin) / 60) * HOUR_PX;
-          const h = Math.max((dur / 60) * HOUR_PX, 20);
+          const h = Math.max((it.durMin / 60) * HOUR_PX, 26);
           const style: { top: number; height: number; borderLeftColor?: string } = { top, height: h };
-          if (b.dot) style.borderLeftColor = b.dot;
-          const dragging = drag?.id === b.id;
+          if (it.dot) style.borderLeftColor = it.dot;
+          const dragging = drag?.id === it.id;
+          const running = runningId === it.id;
           return (
             <div
-              key={b.id}
-              className={`sched-block sched-${b.kind}${dragging ? " dragging" : ""}`}
+              key={it.id}
+              className={`sched-block sched-${it.kind}${dragging ? " dragging" : ""}${it.done ? " done" : ""}`}
               style={style}
-              onPointerDown={(e) => onPointerDown(e, b.id, s)}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
+              onPointerDown={(e) => down(e, it)}
+              onPointerMove={(e) => move(e, it.durMin)}
+              onPointerUp={up}
             >
-              {b.num != null && <span className="sched-num">{b.num}</span>}
+              <button
+                className={`check sched-check${it.done ? " is-done" : ""}`}
+                title={it.done ? "Mark not done" : "Mark done"}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle(it.id);
+                }}
+              >
+                {it.done ? "✓" : ""}
+              </button>
+              {it.num != null && <span className="sched-num">{it.num}</span>}
               <div className="sched-block-body">
-                <div className="sched-block-title">{b.title}</div>
-                {b.sub && !dragging && <div className="sched-block-sub">{b.sub}</div>}
+                <div className={`sched-block-title${it.done ? " done" : ""}`}>{it.title}</div>
+                {it.sub && !dragging && <div className="sched-block-sub">{it.sub}</div>}
               </div>
               {dragging ? (
                 <span className="sched-drag-time">{fmtTime(s)}</span>
               ) : (
-                <button
-                  className="sched-remove"
-                  title="Remove from schedule"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeBlock(b.id);
-                  }}
-                >
-                  ✕
-                </button>
+                <div className="sched-tools">
+                  {it.canTimer && (
+                    <button
+                      className={`timer-btn sched-timer${running ? " running" : ""}`}
+                      title={running ? "Stop timer" : "Start timer"}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTimer(it.id);
+                      }}
+                    >
+                      {running && <span className="timer-elapsed">{elapsed}</span>}
+                      <span className="timer-glyph">{running ? "⏹" : "▶"}</span>
+                    </button>
+                  )}
+                  <button
+                    className="sched-remove"
+                    title="Remove from schedule"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUnschedule(it.id);
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
               )}
             </div>
           );

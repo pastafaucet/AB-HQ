@@ -25,6 +25,7 @@ export interface Task {
   mit: boolean;
   doDate?: string; // YYYY-MM-DD
   doTime?: string; // HH:MM
+  durationMin?: number; // block length on the schedule
   matterId?: string;
   notes?: string;
   dueTag?: string; // display-only (time / date)
@@ -38,26 +39,6 @@ export interface Matter {
   status: string;
   next?: string;
   nextColor?: string;
-}
-
-export interface Delegation {
-  id: string;
-  title: string;
-  who: string;
-  waiting: string;
-}
-
-export type BlockKind = "event" | "lunch" | "focus" | "personal";
-
-export interface DayBlock {
-  id: string;
-  title: string;
-  sub?: string;
-  start: string; // "HH:MM" 24h
-  end: string;
-  kind: BlockKind;
-  num?: number; // MIT number when a focus block is a Top-3
-  dot?: string; // accent dot for events
 }
 
 export interface Capacity {
@@ -98,19 +79,3 @@ export const CAPACITY: Capacity = {
   slack: 3.3,
   note: "heavy — all high-stakes",
 };
-
-export const DAY_SCHEDULE: DayBlock[] = [
-  { id: "b1", title: "Motion hearing — Castillo", sub: "9:30a · Dept 4", start: "09:30", end: "10:30", kind: "event", dot: "#5b8cff" },
-  { id: "b2", title: "Call expert — Dr. Mehta", start: "11:00", end: "11:30", kind: "event", dot: "#5b8cff" },
-  { id: "b3", title: "Lunch", start: "12:00", end: "12:45", kind: "lunch" },
-  { id: "b4", title: "Client call — Ana Reyes", sub: "1p · Coastal Freight", start: "13:00", end: "13:45", kind: "event", dot: "#8b7cf0" },
-  { id: "b5", title: "Finalize reply brief", start: "14:00", end: "16:30", kind: "focus", num: 1 },
-  { id: "b6", title: "Depo prep outline", start: "17:00", end: "18:00", kind: "focus", num: 2 },
-  { id: "b7", title: "Dive club — gear check", start: "18:30", end: "19:00", kind: "personal" },
-];
-
-export const DELEGATIONS: Delegation[] = [
-  { id: "d1", title: "Cite-check reply brief", who: "→ K. PARK", waiting: "2d" },
-  { id: "d2", title: "Pull medical records — Delgado", who: "→ J. LIU", waiting: "4d" },
-  { id: "d3", title: "Draft subpoena — Summit", who: "→ M. ORTIZ", waiting: "1d" },
-];

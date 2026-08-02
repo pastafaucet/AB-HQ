@@ -168,6 +168,25 @@ export default function TaskDrawer({
               value={task.doTime ?? ""}
               onChange={(e) => onField({ doTime: e.target.value || null })}
             />
+            <select
+              className="drawer-input drawer-dur"
+              value={task.durationMin ?? ""}
+              onChange={(e) =>
+                onField({ durationMin: e.target.value ? Number(e.target.value) : null })
+              }
+              title="Duration on the schedule"
+            >
+              <option value="">— dur —</option>
+              <option value="15">15m</option>
+              <option value="30">30m</option>
+              <option value="45">45m</option>
+              <option value="60">1h</option>
+              <option value="90">1.5h</option>
+              <option value="120">2h</option>
+            </select>
+          </div>
+          <div className="drawer-hint-quiet">
+            Set a time to place this on today&rsquo;s schedule.
           </div>
         </div>
 

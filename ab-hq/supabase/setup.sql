@@ -33,6 +33,7 @@ create table if not exists public.tasks (
   mit          boolean not null default false,
   do_date      date,
   do_time      time,
+  duration_min int,
   matter_id    uuid references public.matters(id) on delete set null,
   notes        text,
   effort       text,

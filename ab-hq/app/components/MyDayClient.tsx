@@ -12,15 +12,19 @@ import {
   type TaskPatch,
 } from "@/app/(app)/task-actions";
 import TaskDrawer from "./TaskDrawer";
+import CapacityBar from "./CapacityBar";
+import ScheduleGrid, { type SchedItem } from "./ScheduleGrid";
 
 const DRAFT = "draft";
+const PRI_COLOR: Record<number, string> = { 1: "#e0665a", 2: "#5fbf8f", 3: "#d8a657", 4: "#6f7787" };
 
-const PRI_COLOR: Record<number, string> = {
-  1: "#e0665a",
-  2: "#5fbf8f",
-  3: "#d8a657",
-  4: "#6f7787",
-};
+function toMin(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+function minToHHMM(min: number): string {
+  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+}
 
 function applyPatch(t: Task, p: TaskPatch, today: string): Task {
   const next: Task = { ...t };
@@ -33,6 +37,7 @@ function applyPatch(t: Task, p: TaskPatch, today: string): Task {
   if (p.matterId !== undefined) next.matterId = p.matterId ?? undefined;
   if (p.doDate !== undefined) next.doDate = p.doDate ?? undefined;
   if (p.doTime !== undefined) next.doTime = p.doTime ?? undefined;
+  if (p.durationMin !== undefined) next.durationMin = p.durationMin ?? undefined;
   if (p.notes !== undefined) next.notes = p.notes ?? undefined;
   if (p.doDate !== undefined || p.doTime !== undefined) {
     next.dueTag = dueTagFor(next.doDate ?? null, next.doTime ?? null, today);
@@ -51,18 +56,21 @@ function fullPatch(t: Task): TaskPatch {
     matterId: t.matterId ?? null,
     doDate: t.doDate ?? null,
     doTime: t.doTime ?? null,
+    durationMin: t.durationMin ?? null,
     notes: t.notes ?? null,
   };
 }
 
-export default function TaskListClient({
+export default function MyDayClient({
   initialTasks,
   matters,
   today,
+  dateLabel,
 }: {
   initialTasks: Task[];
   matters: Matter[];
   today: string;
+  dateLabel: string;
 }) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [draft, setDraft] = useState<Task | null>(null);
@@ -80,7 +88,7 @@ export default function TaskListClient({
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const creating = useRef(false);
 
-  // --- lightweight time tracker (client-side for now; not yet persisted) ---
+  // --- time tracker (client-side for now) ---
   const [runningId, setRunningId] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [nowTs, setNowTs] = useState(0);
@@ -90,12 +98,12 @@ export default function TaskListClient({
     const t = setInterval(() => setNowTs(Date.now()), 1000);
     return () => clearInterval(t);
   }, [runningId]);
-  function toggleTimer(t: Task) {
-    if (runningId === t.id) {
+  function toggleTimer(id: string) {
+    if (runningId === id) {
       setRunningId(null);
       setStartedAt(null);
     } else {
-      setRunningId(t.id);
+      setRunningId(id);
       setStartedAt(Date.now());
       setNowTs(Date.now());
     }
@@ -118,6 +126,25 @@ export default function TaskListClient({
   const mitsDone = mits.filter((t) => t.status === "Done").length;
   const openCount = alsoToday.length + inProgress.length;
 
+  // --- schedule items: tasks with a time, on today ---
+  const mitNum: Record<string, number> = {};
+  mits.forEach((t, i) => (mitNum[t.id] = i + 1));
+  const schedItems: SchedItem[] = tasks
+    .filter((t) => t.doTime && t.doDate === today)
+    .map((t) => ({
+      id: t.id,
+      title: t.title,
+      sub: t.matterId ? matters.find((m) => m.id === t.matterId)?.name : undefined,
+      startMin: toMin(t.doTime as string),
+      durMin: t.durationMin ?? 60,
+      kind: (t.type === "Event" ? "event" : t.mit ? "focus" : "task") as SchedItem["kind"],
+      num: t.mit ? mitNum[t.id] : undefined,
+      dot: t.type === "Event" ? DOMAIN_DOT[t.domain] : undefined,
+      done: t.status === "Done",
+      canTimer: t.type !== "Deadline",
+    }))
+    .sort((a, b) => a.startMin - b.startMin);
+
   function flash(msg: string) {
     setError(msg);
     setTimeout(() => setError(null), 3500);
@@ -134,6 +161,15 @@ export default function TaskListClient({
         setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, status: t.status } : x)));
         flash(r.error ?? "Couldn't save.");
       }
+    });
+  }
+
+  // discrete save (used by schedule reschedule/unschedule)
+  function savePatch(id: string, patch: TaskPatch) {
+    setTasks((prev) => prev.map((x) => (x.id === id ? applyPatch(x, patch, today) : x)));
+    startTransition(async () => {
+      const r = await updateTask(id, patch);
+      if (!r.ok) flash(r.error ?? "Couldn't save.");
     });
   }
 
@@ -192,8 +228,8 @@ export default function TaskListClient({
     }
   }
 
-  function openExisting(t: Task) {
-    setOpenId(t.id);
+  function openExisting(id: string) {
+    setOpenId(id);
     setSaved(false);
     setSaving(false);
   }
@@ -300,7 +336,7 @@ export default function TaskListClient({
         title={running ? "Stop timer" : "Start timer"}
         onClick={(e) => {
           e.stopPropagation();
-          toggleTimer(t);
+          toggleTimer(t.id);
         }}
       >
         {running && <span className="timer-elapsed">{elapsedLabel()}</span>}
@@ -314,7 +350,7 @@ export default function TaskListClient({
     return (
       <div className="task-row">
         <Check t={t} className="task-check" />
-        <div className="task-body clickable" onClick={() => openExisting(t)}>
+        <div className="task-body clickable" onClick={() => openExisting(t.id)}>
           <div className={`task-title${done ? " is-done" : ""}`}>{t.title}</div>
           <Meta t={t} />
         </div>
@@ -325,72 +361,97 @@ export default function TaskListClient({
 
   return (
     <>
-      {/* Quick capture */}
-      <div className="capture-row">
-        <input
-          className="quick-add"
-          placeholder="+  Add a task…"
-          value={quick}
-          onChange={(e) => setQuick(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") submitQuick();
-          }}
-        />
-        <button className="btn-add" type="button" onClick={() => openDraft()}>
-          + Task
-        </button>
-      </div>
+      <section className="pane">
+        <div className="day-head">
+          <div>
+            <div className="kicker">MY DAY</div>
+            <h1 className="display-h1">{dateLabel}</h1>
+          </div>
+          <div className="day-head-summary">
+            {openCount} OPEN · {mitsDone}/{mits.length} MIT DONE
+          </div>
+        </div>
 
-      {/* Protected Top 3 MITs */}
-      <div className="section-label tight">
-        TODAY&rsquo;S 3 · {mitsDone}/{mits.length} DONE
-      </div>
-      <div className="mit-list">
-        {mitSlots.map((t, i) =>
-          t ? (
-            <div
-              key={t.id}
-              className={`mit-row${t.status === "Done" ? " is-done" : ""}`}
-              style={{ borderLeftColor: PRI_COLOR[t.priority] }}
-            >
-              <Check t={t} className="mit-check-left" />
-              <div className="mit-num">{i + 1}</div>
-              <div className="mit-body clickable" onClick={() => openExisting(t)}>
-                <div className={`mit-title${t.status === "Done" ? " is-done" : ""}`}>
-                  {t.title}
+        <div className="capture-row">
+          <input
+            className="quick-add"
+            placeholder="+  Add a task…"
+            value={quick}
+            onChange={(e) => setQuick(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitQuick();
+            }}
+          />
+          <button className="btn-add" type="button" onClick={() => openDraft()}>
+            + Task
+          </button>
+        </div>
+
+        <div className="section-label tight">
+          TODAY&rsquo;S 3 · {mitsDone}/{mits.length} DONE
+        </div>
+        <div className="mit-list">
+          {mitSlots.map((t, i) =>
+            t ? (
+              <div
+                key={t.id}
+                className={`mit-row${t.status === "Done" ? " is-done" : ""}`}
+                style={{ borderLeftColor: PRI_COLOR[t.priority] }}
+              >
+                <Check t={t} className="mit-check-left" />
+                <div className="mit-num">{i + 1}</div>
+                <div className="mit-body clickable" onClick={() => openExisting(t.id)}>
+                  <div className={`mit-title${t.status === "Done" ? " is-done" : ""}`}>
+                    {t.title}
+                  </div>
+                  <Meta t={t} />
                 </div>
-                <Meta t={t} />
+                <Timer t={t} />
               </div>
-              <Timer t={t} />
-            </div>
-          ) : (
-            <button
-              key={`empty-${i}`}
-              className="mit-empty clickable-slot"
-              onClick={() => openDraft({ mit: true })}
-            >
-              <div className="mit-empty-num">{i + 1}</div>
-              <div className="mit-empty-text">Protect a task for slot {i + 1}</div>
-            </button>
-          )
-        )}
-      </div>
+            ) : (
+              <button
+                key={`empty-${i}`}
+                className="mit-empty clickable-slot"
+                onClick={() => openDraft({ mit: true })}
+              >
+                <div className="mit-empty-num">{i + 1}</div>
+                <div className="mit-empty-text">Protect a task for slot {i + 1}</div>
+              </button>
+            )
+          )}
+        </div>
 
-      {/* Also today */}
-      <div className="section-label">ALSO TODAY · {alsoToday.length}</div>
-      {alsoToday.map((t) => (
-        <Row key={t.id} t={t} />
-      ))}
-      {alsoToday.length === 0 && <div className="empty-note">Nothing else queued for today.</div>}
+        <div className="section-label">ALSO TODAY · {alsoToday.length}</div>
+        {alsoToday.map((t) => (
+          <Row key={t.id} t={t} />
+        ))}
+        {alsoToday.length === 0 && <div className="empty-note">Nothing else queued for today.</div>}
 
-      {/* In progress */}
-      <div className="section-label">IN PROGRESS · {inProgress.length}</div>
-      {inProgress.map((t) => (
-        <Row key={t.id} t={t} />
-      ))}
-      {inProgress.length === 0 && <div className="empty-note">Nothing in progress.</div>}
+        <div className="section-label">IN PROGRESS · {inProgress.length}</div>
+        {inProgress.map((t) => (
+          <Row key={t.id} t={t} />
+        ))}
+        {inProgress.length === 0 && <div className="empty-note">Nothing in progress.</div>}
 
-      <div className="open-note">{openCount} OPEN · KEEP THE THREE PROTECTED.</div>
+        <div className="open-note">{openCount} OPEN · KEEP THE THREE PROTECTED.</div>
+      </section>
+
+      <aside className="rail">
+        <CapacityBar />
+        <ScheduleGrid
+          items={schedItems}
+          runningId={runningId}
+          elapsed={elapsedLabel()}
+          onOpen={openExisting}
+          onToggle={(id) => {
+            const t = tasksRef.current.find((x) => x.id === id);
+            if (t) toggleDone(t);
+          }}
+          onTimer={toggleTimer}
+          onUnschedule={(id) => savePatch(id, { doTime: null })}
+          onReschedule={(id, startMin) => savePatch(id, { doTime: minToHHMM(startMin) })}
+        />
+      </aside>
 
       {openTask && (
         <TaskDrawer
