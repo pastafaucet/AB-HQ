@@ -73,9 +73,3 @@ export function kindClass(type: TaskType): string {
 export const DAY_START_HOUR = 8; // 8a
 export const DAY_END_HOUR = 19; // 7p
 
-export const CAPACITY: Capacity = {
-  meetings: 2.3,
-  focus: 4.0,
-  slack: 3.3,
-  note: "heavy — all high-stakes",
-};

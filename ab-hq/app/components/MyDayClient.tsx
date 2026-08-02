@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { Task, Matter, Domain, TaskStatus, TaskType, Priority } from "@/lib/data";
-import { PRIORITY_META, DOMAIN_DOT } from "@/lib/data";
+import { PRIORITY_META, DOMAIN_DOT, DAY_START_HOUR, DAY_END_HOUR } from "@/lib/data";
 import { dueTagFor } from "@/lib/task-map";
 import {
   setTaskDone,
@@ -144,6 +144,26 @@ export default function MyDayClient({
       canTimer: t.type !== "Deadline",
     }))
     .sort((a, b) => a.startMin - b.startMin);
+
+  // --- capacity, computed from today's timed tasks ---
+  const timedToday = tasks.filter((t) => t.doTime && t.doDate === today);
+  const sumH = (pred: (t: Task) => boolean) =>
+    timedToday.filter(pred).reduce((a, t) => a + (t.durationMin ?? 60), 0) / 60;
+  const meetingsH = sumH((t) => t.type === "Event");
+  const focusH = sumH((t) => t.type === "Task");
+  const windowH = DAY_END_HOUR - DAY_START_HOUR;
+  const slackH = Math.max(0, windowH - meetingsH - focusH);
+  const booked = meetingsH + focusH;
+  const ratio = windowH ? booked / windowH : 0;
+  const capNote =
+    booked === 0
+      ? "wide open"
+      : ratio >= 0.7
+        ? "heavy day"
+        : ratio >= 0.4
+          ? "a full plate"
+          : "room to think";
+  const capacity = { meetings: meetingsH, focus: focusH, slack: slackH, note: capNote };
 
   function flash(msg: string) {
     setError(msg);
@@ -437,7 +457,7 @@ export default function MyDayClient({
       </section>
 
       <aside className="rail">
-        <CapacityBar />
+        <CapacityBar data={capacity} />
         <ScheduleGrid
           items={schedItems}
           runningId={runningId}

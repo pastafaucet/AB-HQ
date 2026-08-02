@@ -1,8 +1,8 @@
-import { CAPACITY } from "@/lib/data";
+import type { Capacity } from "@/lib/data";
 
-// Placeholder capacity widget — static until a time model feeds it.
-export default function CapacityBar() {
-  const { meetings, focus, slack, note } = CAPACITY;
+// Computed from the day's scheduled tasks (see MyDayClient).
+export default function CapacityBar({ data }: { data: Capacity }) {
+  const { meetings, focus, slack, note } = data;
   const total = meetings + focus + slack || 1;
   const pct = (h: number) => `${(h / total) * 100}%`;
   return (
