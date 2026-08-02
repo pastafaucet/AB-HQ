@@ -41,6 +41,20 @@ export interface Matter {
   nextColor?: string;
 }
 
+export interface TimeSession {
+  id: string;
+  taskId: string;
+  startedAt: string; // ISO
+  endedAt: string | null; // null = running
+  note: string | null;
+}
+
+export interface RunningTimer {
+  sessionId: string;
+  taskId: string;
+  startedAt: string;
+}
+
 export interface Capacity {
   meetings: number; // hours
   focus: number;

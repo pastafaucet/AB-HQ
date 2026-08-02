@@ -1,13 +1,47 @@
 "use client";
 
 import { useEffect } from "react";
-import type { Task, Matter, Domain, TaskType, TaskStatus, Priority } from "@/lib/data";
+import type {
+  Task,
+  Matter,
+  Domain,
+  TaskType,
+  TaskStatus,
+  Priority,
+  TimeSession,
+} from "@/lib/data";
 import type { TaskPatch } from "@/app/(app)/task-actions";
 
 const STATUSES: TaskStatus[] = ["Inbox", "To Do", "In Progress", "Done", "Someday", "Cancelled"];
 const DOMAINS: Domain[] = ["Work", "Personal"];
 const TYPES: TaskType[] = ["Task", "Deadline", "Event"];
 const PRIORITIES: Priority[] = [1, 2, 3, 4];
+
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function fromLocalInput(v: string): string {
+  return new Date(v).toISOString();
+}
+function fmtDur(startIso: string, endIso: string | null): string {
+  const end = endIso ? new Date(endIso).getTime() : Date.now();
+  const s = Math.max(0, Math.floor((end - new Date(startIso).getTime()) / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+function fmtTotal(list: TimeSession[]): string {
+  let sec = 0;
+  for (const s of list) {
+    const end = s.endedAt ? new Date(s.endedAt).getTime() : Date.now();
+    sec += Math.max(0, (end - new Date(s.startedAt).getTime()) / 1000);
+  }
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
 
 export default function TaskDrawer({
   task,
@@ -19,6 +53,13 @@ export default function TaskDrawer({
   onField,
   onDelete,
   onClose,
+  sessions,
+  sessionsLoading,
+  isRunning,
+  liveElapsed,
+  onStartStop,
+  onSessionPatch,
+  onSessionDelete,
 }: {
   task: Task;
   matters: Matter[];
@@ -29,6 +70,16 @@ export default function TaskDrawer({
   onField: (patch: TaskPatch) => void;
   onDelete: () => void;
   onClose: () => void;
+  sessions: TimeSession[];
+  sessionsLoading: boolean;
+  isRunning: boolean;
+  liveElapsed: string | null;
+  onStartStop: () => void;
+  onSessionPatch: (
+    id: string,
+    patch: { startedAt?: string; endedAt?: string | null; note?: string | null }
+  ) => void;
+  onSessionDelete: (id: string) => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -200,6 +251,75 @@ export default function TaskDrawer({
             onChange={(e) => onField({ notes: e.target.value })}
           />
         </div>
+
+        {!isNew && (
+          <div className="drawer-field">
+            <div className="drawer-label">TIME</div>
+            <button
+              type="button"
+              className={`time-startstop${isRunning ? " on" : ""}`}
+              onClick={onStartStop}
+            >
+              <span className="timer-glyph">{isRunning ? "⏹" : "▶"}</span>
+              {isRunning ? `Stop · ${liveElapsed ?? ""}` : "Start timer"}
+            </button>
+
+            {sessionsLoading ? (
+              <div className="drawer-hint-quiet">Loading sessions…</div>
+            ) : sessions.length === 0 ? (
+              <div className="drawer-hint-quiet">No sessions yet.</div>
+            ) : (
+              <div className="sess-list">
+                {sessions.map((s) => (
+                  <div className="sess-row" key={s.id}>
+                    <div className="sess-times">
+                      <input
+                        type="datetime-local"
+                        className="sess-input"
+                        value={toLocalInput(s.startedAt)}
+                        onChange={(e) =>
+                          e.target.value &&
+                          onSessionPatch(s.id, { startedAt: fromLocalInput(e.target.value) })
+                        }
+                      />
+                      <span className="sess-dash">→</span>
+                      {s.endedAt ? (
+                        <input
+                          type="datetime-local"
+                          className="sess-input"
+                          value={toLocalInput(s.endedAt)}
+                          onChange={(e) =>
+                            onSessionPatch(s.id, {
+                              endedAt: e.target.value ? fromLocalInput(e.target.value) : null,
+                            })
+                          }
+                        />
+                      ) : (
+                        <span className="sess-running">running</span>
+                      )}
+                      <span className="sess-dur">{fmtDur(s.startedAt, s.endedAt)}</span>
+                      <button
+                        type="button"
+                        className="sess-del"
+                        title="Delete session"
+                        onClick={() => onSessionDelete(s.id)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <input
+                      className="sess-note"
+                      placeholder="What did you work on?"
+                      defaultValue={s.note ?? ""}
+                      onBlur={(e) => onSessionPatch(s.id, { note: e.target.value || null })}
+                    />
+                  </div>
+                ))}
+                <div className="sess-total">Total {fmtTotal(sessions)}</div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="drawer-footer">
           <span className="drawer-saved">

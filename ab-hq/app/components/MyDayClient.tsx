@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import type { Task, Matter, Domain, TaskStatus, TaskType, Priority } from "@/lib/data";
+import type {
+  Task,
+  Matter,
+  Domain,
+  TaskStatus,
+  TaskType,
+  Priority,
+  RunningTimer,
+  TimeSession,
+} from "@/lib/data";
 import { PRIORITY_META, DOMAIN_DOT, DAY_START_HOUR, DAY_END_HOUR } from "@/lib/data";
 import { dueTagFor } from "@/lib/task-map";
 import {
@@ -11,6 +20,13 @@ import {
   deleteTask,
   type TaskPatch,
 } from "@/app/(app)/task-actions";
+import {
+  startTimer,
+  stopTimer,
+  listSessions,
+  updateSession,
+  deleteSession,
+} from "@/app/(app)/time-actions";
 import TaskDrawer from "./TaskDrawer";
 import CapacityBar from "./CapacityBar";
 import ScheduleGrid, { type SchedItem } from "./ScheduleGrid";
@@ -66,11 +82,13 @@ export default function MyDayClient({
   matters,
   today,
   dateLabel,
+  initialRunning,
 }: {
   initialTasks: Task[];
   matters: Matter[];
   today: string;
   dateLabel: string;
+  initialRunning: RunningTimer | null;
 }) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [draft, setDraft] = useState<Task | null>(null);
@@ -85,33 +103,83 @@ export default function MyDayClient({
   tasksRef.current = tasks;
   const draftRef = useRef(draft);
   draftRef.current = draft;
+  const openIdRef = useRef(openId);
+  openIdRef.current = openId;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const creating = useRef(false);
 
-  // --- time tracker (client-side for now) ---
-  const [runningId, setRunningId] = useState<string | null>(null);
-  const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [nowTs, setNowTs] = useState(0);
+  // --- persisted time tracker (DB-backed, cross-device) ---
+  const [running, setRunning] = useState<RunningTimer | null>(initialRunning);
+  const [nowTs, setNowTs] = useState<number>(() => Date.now());
   useEffect(() => {
-    if (runningId == null) return;
+    if (!running) return;
     setNowTs(Date.now());
     const t = setInterval(() => setNowTs(Date.now()), 1000);
     return () => clearInterval(t);
-  }, [runningId]);
-  function toggleTimer(id: string) {
-    if (runningId === id) {
-      setRunningId(null);
-      setStartedAt(null);
+  }, [running]);
+  function elapsedLabel(startedAtIso: string): string {
+    const s = Math.max(0, Math.floor((nowTs - new Date(startedAtIso).getTime()) / 1000));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    return h > 0
+      ? `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
+      : `${m}:${String(ss).padStart(2, "0")}`;
+  }
+  async function toggleTimer(taskId: string) {
+    if (running?.taskId === taskId) {
+      setRunning(null);
+      startTransition(async () => {
+        const r = await stopTimer();
+        if (!r.ok) flash(r.error ?? "Couldn't stop.");
+        if (openIdRef.current === taskId) refreshSessions(taskId);
+      });
     } else {
-      setRunningId(id);
-      setStartedAt(Date.now());
+      setRunning({ taskId, sessionId: "pending", startedAt: new Date().toISOString() });
       setNowTs(Date.now());
+      startTransition(async () => {
+        const r = await startTimer(taskId);
+        if (r.ok && r.session) {
+          setRunning({ taskId, sessionId: r.session.id, startedAt: r.session.startedAt });
+          if (openIdRef.current === taskId) refreshSessions(taskId);
+        } else {
+          setRunning(null);
+          flash(r.error ?? "Couldn't start.");
+        }
+      });
     }
   }
-  function elapsedLabel(): string {
-    if (startedAt == null) return "0:00";
-    const s = Math.max(0, Math.floor((nowTs - startedAt) / 1000));
-    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+  // --- sessions for the currently open task ---
+  const [sessions, setSessions] = useState<TimeSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  async function refreshSessions(taskId: string) {
+    setSessionsLoading(true);
+    const r = await listSessions(taskId);
+    setSessionsLoading(false);
+    if (r.ok) setSessions(r.sessions);
+  }
+  useEffect(() => {
+    if (openId && openId !== DRAFT) refreshSessions(openId);
+    else setSessions([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId]);
+  function onSessionPatch(
+    id: string,
+    patch: { startedAt?: string; endedAt?: string | null; note?: string | null }
+  ) {
+    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+    startTransition(async () => {
+      const r = await updateSession(id, patch);
+      if (!r.ok) flash(r.error ?? "Couldn't save.");
+    });
+  }
+  function onSessionDelete(id: string) {
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    startTransition(async () => {
+      const r = await deleteSession(id);
+      if (!r.ok) flash(r.error ?? "Couldn't delete.");
+    });
   }
 
   const isNew = openId === DRAFT;
@@ -348,19 +416,21 @@ export default function MyDayClient({
 
   function Timer({ t }: { t: Task }) {
     if (t.type === "Deadline") return null;
-    const running = runningId === t.id;
+    const isRunning = running?.taskId === t.id;
     return (
       <button
         type="button"
-        className={`timer-btn${running ? " running" : ""}`}
-        title={running ? "Stop timer" : "Start timer"}
+        className={`timer-btn${isRunning ? " running" : ""}`}
+        title={isRunning ? "Stop timer" : "Start timer"}
         onClick={(e) => {
           e.stopPropagation();
           toggleTimer(t.id);
         }}
       >
-        {running && <span className="timer-elapsed">{elapsedLabel()}</span>}
-        <span className="timer-glyph">{running ? "⏹" : "▶"}</span>
+        {isRunning && running && (
+          <span className="timer-elapsed">{elapsedLabel(running.startedAt)}</span>
+        )}
+        <span className="timer-glyph">{isRunning ? "⏹" : "▶"}</span>
       </button>
     );
   }
@@ -460,8 +530,8 @@ export default function MyDayClient({
         <CapacityBar data={capacity} />
         <ScheduleGrid
           items={schedItems}
-          runningId={runningId}
-          elapsed={elapsedLabel()}
+          runningId={running?.taskId ?? null}
+          elapsed={running ? elapsedLabel(running.startedAt) : ""}
           onOpen={openExisting}
           onToggle={(id) => {
             const t = tasksRef.current.find((x) => x.id === id);
@@ -484,6 +554,15 @@ export default function MyDayClient({
           onField={onField}
           onDelete={onDelete}
           onClose={closeDrawer}
+          sessions={sessions}
+          sessionsLoading={sessionsLoading}
+          isRunning={!isNew && running?.taskId === openTask.id}
+          liveElapsed={
+            !isNew && running?.taskId === openTask.id ? elapsedLabel(running.startedAt) : null
+          }
+          onStartStop={() => !isNew && toggleTimer(openTask.id)}
+          onSessionPatch={onSessionPatch}
+          onSessionDelete={onSessionDelete}
         />
       )}
 

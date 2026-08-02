@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C '/Users/andybaum/Desktop/AB HQ' add -A)",
+      "Bash(git -C '/Users/andybaum/Desktop/AB HQ' commit -q -m 'feat\\(time\\): persistent, cross-device time tracking with sessions *)",
+      "Bash(git -C '/Users/andybaum/Desktop/AB HQ' push origin main)"
+    ]
+  }
+}
