@@ -1565,6 +1565,31 @@ button.check {
   display: flex;
   gap: 8px;
   align-items: flex-start;
+  cursor: grab;
+  touch-action: none;
+  transition: top 0.08s ease, box-shadow 0.12s ease;
+}
+.sched-block:hover {
+  border-color: var(--line-raised-2);
+}
+.sched.is-dragging {
+  user-select: none;
+}
+.sched-block.dragging {
+  cursor: grabbing;
+  transition: none;
+  z-index: 5;
+  box-shadow: 0 10px 26px -10px rgba(0, 0, 0, 0.7);
+  opacity: 0.97;
+}
+.sched-drag-time {
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink);
 }
 .sched-event {
   background: #11161e;
