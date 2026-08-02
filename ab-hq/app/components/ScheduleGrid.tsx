@@ -5,7 +5,8 @@ import { DAY_SCHEDULE, DAY_START_HOUR, DAY_END_HOUR } from "@/lib/data";
 
 const HOUR_PX = 52;
 const SNAP = 15; // minutes
-const STORE_KEY = "abhq.schedule.overrides";
+const STORE_POS = "abhq.schedule.overrides";
+const STORE_HIDDEN = "abhq.schedule.hidden";
 
 function toMin(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
@@ -37,11 +38,11 @@ export default function ScheduleGrid() {
   const hours: number[] = [];
   for (let h = DAY_START_HOUR; h <= DAY_END_HOUR; h++) hours.push(h);
 
-  // duration per block (fixed) + the current start (override-able)
   const durById = useRef<Record<string, number>>({});
   DAY_SCHEDULE.forEach((b) => (durById.current[b.id] = toMin(b.end) - toMin(b.start)));
 
   const [overrides, setOverrides] = useState<Record<string, number>>({});
+  const [hidden, setHidden] = useState<string[]>([]);
   const [drag, setDrag] = useState<Drag | null>(null);
 
   const [nowTop, setNowTop] = useState<number | null>(null);
@@ -56,13 +57,17 @@ export default function ScheduleGrid() {
     return () => clearInterval(t);
   }, [startMin, endMin]);
 
-  // load saved positions (client only — avoids hydration mismatch)
+  // load saved positions + removals (client only)
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORE_KEY);
-      if (raw) setOverrides(JSON.parse(raw));
+      const pos = localStorage.getItem(STORE_POS);
+      if (pos) setOverrides(JSON.parse(pos));
+      const hid = localStorage.getItem(STORE_HIDDEN);
+      if (hid) setHidden(JSON.parse(hid));
     } catch {}
   }, []);
+
+  const dirty = Object.keys(overrides).length > 0 || hidden.length > 0;
 
   function startAt(id: string, base: number): number {
     if (drag && drag.id === id) return drag.cur;
@@ -86,16 +91,38 @@ export default function ScheduleGrid() {
     const next = { ...overrides, [drag.id]: drag.cur };
     setOverrides(next);
     try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(next));
+      localStorage.setItem(STORE_POS, JSON.stringify(next));
     } catch {}
     setDrag(null);
+  }
+
+  function removeBlock(id: string) {
+    const next = hidden.includes(id) ? hidden : [...hidden, id];
+    setHidden(next);
+    try {
+      localStorage.setItem(STORE_HIDDEN, JSON.stringify(next));
+    } catch {}
+  }
+  function reset() {
+    setHidden([]);
+    setOverrides({});
+    try {
+      localStorage.removeItem(STORE_HIDDEN);
+      localStorage.removeItem(STORE_POS);
+    } catch {}
   }
 
   return (
     <div className="rail-block">
       <div className="rail-head">
         <div className="rail-label">SCHEDULE</div>
-        <span className="section-link">Calendar →</span>
+        {dirty ? (
+          <span className="section-link" role="button" onClick={reset}>
+            Reset
+          </span>
+        ) : (
+          <span className="section-link">Calendar →</span>
+        )}
       </div>
       <div className={`sched${drag ? " is-dragging" : ""}`} style={{ height }}>
         {hours.map((h) => (
@@ -104,7 +131,7 @@ export default function ScheduleGrid() {
             <div className="sched-hourline" />
           </div>
         ))}
-        {DAY_SCHEDULE.map((b) => {
+        {DAY_SCHEDULE.filter((b) => !hidden.includes(b.id)).map((b) => {
           const s = startAt(b.id, toMin(b.start));
           const dur = durById.current[b.id];
           const top = ((s - startMin) / 60) * HOUR_PX;
@@ -126,7 +153,21 @@ export default function ScheduleGrid() {
                 <div className="sched-block-title">{b.title}</div>
                 {b.sub && !dragging && <div className="sched-block-sub">{b.sub}</div>}
               </div>
-              {dragging && <span className="sched-drag-time">{fmtTime(s)}</span>}
+              {dragging ? (
+                <span className="sched-drag-time">{fmtTime(s)}</span>
+              ) : (
+                <button
+                  className="sched-remove"
+                  title="Remove from schedule"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeBlock(b.id);
+                  }}
+                >
+                  ✕
+                </button>
+              )}
             </div>
           );
         })}
