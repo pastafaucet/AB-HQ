@@ -51,6 +51,19 @@ export async function stopTimer() {
   return { ok: !error, error: error?.message, endedAt: nowIso };
 }
 
+/** Manually add a completed session (for logging past work). */
+export async function addSession(taskId: string, startedAt: string, endedAt: string) {
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("time_sessions")
+    .insert({ task_id: taskId, started_at: startedAt, ended_at: endedAt })
+    .select(COLS)
+    .single();
+  revalidatePath("/my-day");
+  if (error || !data) return { ok: false, error: error?.message ?? "Add failed" };
+  return { ok: true, session: map(data as Row) };
+}
+
 export async function updateSession(
   id: string,
   patch: { startedAt?: string; endedAt?: string | null; note?: string | null }

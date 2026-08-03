@@ -3,7 +3,28 @@
 import { revalidatePath } from "next/cache";
 import { getSupabase } from "@/lib/supabase";
 import { rowToTask, TASK_COLUMNS, todayISO } from "@/lib/task-map";
-import type { Task } from "@/lib/data";
+import type { Task, ActivityItem } from "@/lib/data";
+
+async function logActivity(taskId: string, detail: string) {
+  const sb = getSupabase();
+  await sb.from("task_activity").insert({ task_id: taskId, detail });
+}
+
+export async function listActivity(taskId: string) {
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("task_activity")
+    .select("id,task_id,detail,created_at")
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: false });
+  if (error) return { ok: false, error: error.message, activity: [] as ActivityItem[] };
+  return {
+    ok: true,
+    activity: (data as { id: string; task_id: string; detail: string; created_at: string }[]).map(
+      (r) => ({ id: r.id, taskId: r.task_id, detail: r.detail, createdAt: r.created_at })
+    ),
+  };
+}
 
 export interface TaskPatch {
   title?: string;
@@ -62,6 +83,7 @@ export async function setTaskDone(id: string, done: boolean): Promise<ActionResu
       completed_at: done ? new Date().toISOString() : null,
     })
     .eq("id", id);
+  if (!error) await logActivity(id, done ? "Completed" : "Reopened");
   revalidatePath("/my-day");
   return { ok: !error, error: error?.message };
 }
@@ -71,7 +93,23 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<ActionRe
     return { ok: false, error: `You already have ${MIT_CAP} protected tasks — clear one first.` };
   }
   const sb = getSupabase();
+  const { data: cur } = await sb
+    .from("tasks")
+    .select("priority,status,do_date,mit")
+    .eq("id", id)
+    .single();
   const { error } = await sb.from("tasks").update(toDbPatch(patch)).eq("id", id);
+  if (!error && cur) {
+    const today = todayISO();
+    if (patch.priority !== undefined && patch.priority !== cur.priority)
+      await logActivity(id, `Priority set to P${patch.priority}`);
+    if (patch.status !== undefined && patch.status !== cur.status)
+      await logActivity(id, patch.status === "Done" ? "Completed" : `Status → ${patch.status}`);
+    if (patch.doDate !== undefined && patch.doDate === today && cur.do_date !== today)
+      await logActivity(id, "Moved to today");
+    if (patch.mit !== undefined && patch.mit !== cur.mit)
+      await logActivity(id, patch.mit ? "Added to Top-3" : "Removed from Top-3");
+  }
   revalidatePath("/my-day");
   return { ok: !error, error: error?.message };
 }
@@ -96,8 +134,12 @@ export async function createTask(input: TaskPatch & { title: string }): Promise<
   };
 
   const { data, error } = await sb.from("tasks").insert(row).select(TASK_COLUMNS).single();
+  if (error || !data) {
+    revalidatePath("/my-day");
+    return { ok: false, error: error?.message ?? "Insert failed" };
+  }
+  await logActivity((data as { id: string }).id, "Created");
   revalidatePath("/my-day");
-  if (error || !data) return { ok: false, error: error?.message ?? "Insert failed" };
   return { ok: true, task: rowToTask(data as never, todayISO()) };
 }
 

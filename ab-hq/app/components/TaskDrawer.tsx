@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type {
   Task,
   Matter,
@@ -9,12 +9,13 @@ import type {
   TaskStatus,
   Priority,
   TimeSession,
+  ActivityItem,
 } from "@/lib/data";
 import type { TaskPatch } from "@/app/(app)/task-actions";
 
 const STATUSES: TaskStatus[] = ["Inbox", "To Do", "In Progress", "Done", "Someday", "Cancelled"];
 const DOMAINS: Domain[] = ["Work", "Personal"];
-const TYPES: TaskType[] = ["Task", "Deadline", "Event"];
+const TYPES: TaskType[] = ["Task", "Event", "Deadline"];
 const PRIORITIES: Priority[] = [1, 2, 3, 4];
 
 function toLocalInput(iso: string): string {
@@ -25,22 +26,29 @@ function toLocalInput(iso: string): string {
 function fromLocalInput(v: string): string {
   return new Date(v).toISOString();
 }
-function fmtDur(startIso: string, endIso: string | null): string {
+function secBetween(startIso: string, endIso: string | null): number {
   const end = endIso ? new Date(endIso).getTime() : Date.now();
-  const s = Math.max(0, Math.floor((end - new Date(startIso).getTime()) / 1000));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  return Math.max(0, (end - new Date(startIso).getTime()) / 1000);
 }
-function fmtTotal(list: TimeSession[]): string {
-  let sec = 0;
-  for (const s of list) {
-    const end = s.endedAt ? new Date(s.endedAt).getTime() : Date.now();
-    sec += Math.max(0, (end - new Date(s.startedAt).getTime()) / 1000);
-  }
+function fmtHM(sec: number): string {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+function isToday(iso: string): boolean {
+  const d = new Date(iso);
+  const n = new Date();
+  return (
+    d.getFullYear() === n.getFullYear() &&
+    d.getMonth() === n.getMonth() &&
+    d.getDate() === n.getDate()
+  );
+}
+function fmtActDate(iso: string): string {
+  return isToday(iso)
+    ? "Today"
+    : new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 export default function TaskDrawer({
@@ -58,8 +66,12 @@ export default function TaskDrawer({
   isRunning,
   liveElapsed,
   onStartStop,
+  onAddEntry,
   onSessionPatch,
   onSessionDelete,
+  onMarkComplete,
+  activity,
+  activityLoading,
 }: {
   task: Task;
   matters: Matter[];
@@ -75,12 +87,17 @@ export default function TaskDrawer({
   isRunning: boolean;
   liveElapsed: string | null;
   onStartStop: () => void;
+  onAddEntry: () => void;
   onSessionPatch: (
     id: string,
     patch: { startedAt?: string; endedAt?: string | null; note?: string | null }
   ) => void;
   onSessionDelete: (id: string) => void;
+  onMarkComplete: () => void;
+  activity: ActivityItem[];
+  activityLoading: boolean;
 }) {
+  const [historyOpen, setHistoryOpen] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -90,6 +107,11 @@ export default function TaskDrawer({
   }, [onClose]);
 
   const mitDisabled = !task.mit && mitCount >= 3;
+  const done = task.status === "Done";
+  const totalSec = sessions.reduce((a, s) => a + secBetween(s.startedAt, s.endedAt), 0);
+  const todaySec = sessions
+    .filter((s) => isToday(s.startedAt))
+    .reduce((a, s) => a + secBetween(s.startedAt, s.endedAt), 0);
 
   return (
     <div className="drawer-scrim" onClick={onClose}>
@@ -101,6 +123,11 @@ export default function TaskDrawer({
       >
         <div className="drawer-head">
           <span className="drawer-title-label">{isNew ? "NEW TASK" : "EDIT TASK"}</span>
+          <span className="drawer-savestate">
+            {isNew ? "Type a title to save" : saving ? "Saving…" : saved ? "Saved ✓" : ""}
+          </span>
+          <span className="head-spacer" />
+          <span className="esc-keycap">ESC</span>
           <button className="drawer-close" onClick={onClose} aria-label="Close">
             ✕
           </button>
@@ -116,6 +143,22 @@ export default function TaskDrawer({
         />
 
         <div className="drawer-field">
+          <div className="drawer-label">TYPE</div>
+          <div className="seg-select">
+            {TYPES.map((ty) => (
+              <button
+                key={ty}
+                type="button"
+                className={`seg-opt${task.type === ty ? " is-sel" : ""}`}
+                onClick={() => onField({ type: ty })}
+              >
+                {ty}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="drawer-field">
           <div className="drawer-label">PRIORITY</div>
           <div className="pri-select">
             {PRIORITIES.map((p) => (
@@ -127,22 +170,6 @@ export default function TaskDrawer({
                 onClick={() => onField({ priority: p })}
               >
                 P{p}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="drawer-field">
-          <div className="drawer-label">TYPE</div>
-          <div className="seg-select">
-            {TYPES.map((ty) => (
-              <button
-                key={ty}
-                type="button"
-                className={`seg-opt${task.type === ty ? " is-sel" : ""}`}
-                onClick={() => onField({ type: ty })}
-              >
-                {ty}
               </button>
             ))}
           </div>
@@ -178,19 +205,7 @@ export default function TaskDrawer({
 
         <div className="drawer-grid">
           <label className="drawer-field">
-            <div className="drawer-label">STATUS</div>
-            <select
-              className="drawer-select"
-              value={task.status}
-              onChange={(e) => onField({ status: e.target.value })}
-            >
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </label>
-          <label className="drawer-field">
-            <div className="drawer-label">MATTER</div>
+            <div className="drawer-label">MATTER / PROJECT</div>
             <select
               className="drawer-select"
               value={task.matterId ?? ""}
@@ -202,44 +217,37 @@ export default function TaskDrawer({
               ))}
             </select>
           </label>
+          <div className="drawer-field">
+            <div className="drawer-label">DUE</div>
+            <div className="due-cell">
+              <input
+                type="date"
+                className="drawer-input"
+                value={task.doDate ?? ""}
+                onChange={(e) => onField({ doDate: e.target.value || null })}
+              />
+              <input
+                type="time"
+                className="drawer-input"
+                value={task.doTime ?? ""}
+                onChange={(e) => onField({ doTime: e.target.value || null })}
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="drawer-field">
-          <div className="drawer-label">DO DATE</div>
-          <div className="date-time-row">
-            <input
-              type="date"
-              className="drawer-input"
-              value={task.doDate ?? ""}
-              onChange={(e) => onField({ doDate: e.target.value || null })}
-            />
-            <input
-              type="time"
-              className="drawer-input drawer-time"
-              value={task.doTime ?? ""}
-              onChange={(e) => onField({ doTime: e.target.value || null })}
-            />
-            <select
-              className="drawer-input drawer-dur"
-              value={task.durationMin ?? ""}
-              onChange={(e) =>
-                onField({ durationMin: e.target.value ? Number(e.target.value) : null })
-              }
-              title="Duration on the schedule"
-            >
-              <option value="">— dur —</option>
-              <option value="15">15m</option>
-              <option value="30">30m</option>
-              <option value="45">45m</option>
-              <option value="60">1h</option>
-              <option value="90">1.5h</option>
-              <option value="120">2h</option>
-            </select>
-          </div>
-          <div className="drawer-hint-quiet">
-            Set a time to place this on today&rsquo;s schedule.
-          </div>
-        </div>
+        <label className="drawer-field">
+          <div className="drawer-label">STATUS</div>
+          <select
+            className="drawer-select"
+            value={task.status}
+            onChange={(e) => onField({ status: e.target.value })}
+          >
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </label>
 
         <div className="drawer-field">
           <div className="drawer-label">NOTES</div>
@@ -255,82 +263,137 @@ export default function TaskDrawer({
         {!isNew && (
           <div className="drawer-field">
             <div className="drawer-label">TIME</div>
-            <button
-              type="button"
-              className={`time-startstop${isRunning ? " on" : ""}`}
-              onClick={onStartStop}
-            >
-              <span className="timer-glyph">{isRunning ? "⏹" : "▶"}</span>
-              {isRunning ? `Stop · ${liveElapsed ?? ""}` : "Start timer"}
-            </button>
-
-            {sessionsLoading ? (
-              <div className="drawer-hint-quiet">Loading sessions…</div>
-            ) : sessions.length === 0 ? (
-              <div className="drawer-hint-quiet">No sessions yet.</div>
-            ) : (
-              <div className="sess-list">
-                {sessions.map((s) => (
-                  <div className="sess-row" key={s.id}>
-                    <div className="sess-times">
-                      <input
-                        type="datetime-local"
-                        className="sess-input"
-                        value={toLocalInput(s.startedAt)}
-                        onChange={(e) =>
-                          e.target.value &&
-                          onSessionPatch(s.id, { startedAt: fromLocalInput(e.target.value) })
-                        }
-                      />
-                      <span className="sess-dash">→</span>
-                      {s.endedAt ? (
+            <div className="time-card">
+              <div className="time-card-top">
+                <div>
+                  <div className="time-card-cap">TOTAL LOGGED</div>
+                  <div className="time-card-total">{fmtHM(totalSec)}</div>
+                  <div className="time-card-sub">
+                    {todaySec > 0 ? `${fmtHM(todaySec)} logged today` : "nothing logged today"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className={`time-startstop${isRunning ? " on" : ""}`}
+                  onClick={onStartStop}
+                >
+                  <span className="timer-glyph">{isRunning ? "⏹" : "▶"}</span>
+                  {isRunning ? `Stop · ${liveElapsed ?? ""}` : "Start timer"}
+                </button>
+              </div>
+              <div className="time-card-foot">
+                <button
+                  type="button"
+                  className="time-history-toggle"
+                  onClick={() => setHistoryOpen((o) => !o)}
+                >
+                  {historyOpen ? "▾" : "▸"} {historyOpen ? "Hide history" : "Show history"} ·{" "}
+                  {sessions.length}
+                </button>
+                <button
+                  type="button"
+                  className="time-add-entry"
+                  onClick={() => {
+                    onAddEntry();
+                    setHistoryOpen(true);
+                  }}
+                >
+                  + Add entry
+                </button>
+              </div>
+              {historyOpen &&
+                (sessionsLoading ? (
+                  <div className="drawer-hint-quiet">Loading…</div>
+                ) : sessions.length === 0 ? (
+                  <div className="drawer-hint-quiet">No sessions yet.</div>
+                ) : (
+                  <div className="sess-list">
+                    {sessions.map((s) => (
+                      <div className="sess-row" key={s.id}>
+                        <div className="sess-times">
+                          <input
+                            type="datetime-local"
+                            className="sess-input"
+                            value={toLocalInput(s.startedAt)}
+                            onChange={(e) =>
+                              e.target.value &&
+                              onSessionPatch(s.id, { startedAt: fromLocalInput(e.target.value) })
+                            }
+                          />
+                          <span className="sess-dash">→</span>
+                          {s.endedAt ? (
+                            <input
+                              type="datetime-local"
+                              className="sess-input"
+                              value={toLocalInput(s.endedAt)}
+                              onChange={(e) =>
+                                onSessionPatch(s.id, {
+                                  endedAt: e.target.value ? fromLocalInput(e.target.value) : null,
+                                })
+                              }
+                            />
+                          ) : (
+                            <span className="sess-running">running</span>
+                          )}
+                          <span className="sess-dur">{fmtHM(secBetween(s.startedAt, s.endedAt))}</span>
+                          <button
+                            type="button"
+                            className="sess-del"
+                            title="Delete session"
+                            onClick={() => onSessionDelete(s.id)}
+                          >
+                            ✕
+                          </button>
+                        </div>
                         <input
-                          type="datetime-local"
-                          className="sess-input"
-                          value={toLocalInput(s.endedAt)}
-                          onChange={(e) =>
-                            onSessionPatch(s.id, {
-                              endedAt: e.target.value ? fromLocalInput(e.target.value) : null,
-                            })
-                          }
+                          className="sess-note"
+                          placeholder="What did you work on?"
+                          defaultValue={s.note ?? ""}
+                          onBlur={(e) => onSessionPatch(s.id, { note: e.target.value || null })}
                         />
-                      ) : (
-                        <span className="sess-running">running</span>
-                      )}
-                      <span className="sess-dur">{fmtDur(s.startedAt, s.endedAt)}</span>
-                      <button
-                        type="button"
-                        className="sess-del"
-                        title="Delete session"
-                        onClick={() => onSessionDelete(s.id)}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <input
-                      className="sess-note"
-                      placeholder="What did you work on?"
-                      defaultValue={s.note ?? ""}
-                      onBlur={(e) => onSessionPatch(s.id, { note: e.target.value || null })}
-                    />
+                      </div>
+                    ))}
                   </div>
                 ))}
-                <div className="sess-total">Total {fmtTotal(sessions)}</div>
+            </div>
+          </div>
+        )}
+
+        {!isNew && (
+          <div className="drawer-field">
+            <div className="drawer-label">ACTIVITY</div>
+            {activityLoading ? (
+              <div className="drawer-hint-quiet">Loading…</div>
+            ) : activity.length === 0 ? (
+              <div className="drawer-hint-quiet">No activity yet.</div>
+            ) : (
+              <div className="act-list">
+                {activity.map((a) => (
+                  <div className="act-row" key={a.id}>
+                    <span className="act-dot" />
+                    <span className="act-detail">{a.detail}</span>
+                    <span className="act-date">{fmtActDate(a.createdAt)}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         )}
 
-        <div className="drawer-footer">
-          <span className="drawer-saved">
-            {isNew ? "Type a title to save" : saving ? "Saving…" : saved ? "Saved ✓" : ""}
-          </span>
-          {!isNew && (
-            <button className="drawer-delete" onClick={onDelete}>
-              Delete task
+        {!isNew && (
+          <div className="mark-footer">
+            <button
+              type="button"
+              className={`mark-complete${done ? " is-done" : ""}`}
+              onClick={onMarkComplete}
+            >
+              {done ? "Reopen task" : "Mark complete"}
             </button>
-          )}
-        </div>
+            <button type="button" className="trash-btn" title="Delete task" onClick={onDelete}>
+              🗑
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

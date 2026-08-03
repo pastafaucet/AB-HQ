@@ -10,6 +10,7 @@ import type {
   Priority,
   RunningTimer,
   TimeSession,
+  ActivityItem,
 } from "@/lib/data";
 import { PRIORITY_META, DOMAIN_DOT, DAY_START_HOUR, DAY_END_HOUR } from "@/lib/data";
 import { dueTagFor } from "@/lib/task-map";
@@ -18,12 +19,14 @@ import {
   updateTask,
   createTask,
   deleteTask,
+  listActivity,
   type TaskPatch,
 } from "@/app/(app)/task-actions";
 import {
   startTimer,
   stopTimer,
   listSessions,
+  addSession,
   updateSession,
   deleteSession,
 } from "@/app/(app)/time-actions";
@@ -150,20 +153,44 @@ export default function MyDayClient({
     }
   }
 
-  // --- sessions for the currently open task ---
+  // --- sessions + activity for the currently open task ---
   const [sessions, setSessions] = useState<TimeSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
   async function refreshSessions(taskId: string) {
     setSessionsLoading(true);
     const r = await listSessions(taskId);
     setSessionsLoading(false);
     if (r.ok) setSessions(r.sessions);
   }
+  async function refreshActivity(taskId: string) {
+    setActivityLoading(true);
+    const r = await listActivity(taskId);
+    setActivityLoading(false);
+    if (r.ok) setActivity(r.activity);
+  }
   useEffect(() => {
-    if (openId && openId !== DRAFT) refreshSessions(openId);
-    else setSessions([]);
+    if (openId && openId !== DRAFT) {
+      refreshSessions(openId);
+      refreshActivity(openId);
+    } else {
+      setSessions([]);
+      setActivity([]);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openId]);
+  function onAddEntry() {
+    const id = openIdRef.current;
+    if (!id || id === DRAFT) return;
+    const end = new Date();
+    const start = new Date(end.getTime() - 30 * 60000);
+    startTransition(async () => {
+      const r = await addSession(id, start.toISOString(), end.toISOString());
+      if (r.ok) refreshSessions(id);
+      else flash(r.error ?? "Couldn't add entry.");
+    });
+  }
   function onSessionPatch(
     id: string,
     patch: { startedAt?: string; endedAt?: string | null; note?: string | null }
@@ -248,6 +275,8 @@ export default function MyDayClient({
       if (!r.ok) {
         setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, status: t.status } : x)));
         flash(r.error ?? "Couldn't save.");
+      } else if (openIdRef.current === t.id) {
+        refreshActivity(t.id);
       }
     });
   }
@@ -274,6 +303,7 @@ export default function MyDayClient({
         if (r.ok) {
           setSaved(true);
           setTimeout(() => setSaved(false), 1500);
+          if (openIdRef.current === id) refreshActivity(id);
         } else flash(r.error ?? "Couldn't save.");
       });
     }, 450);
@@ -561,8 +591,15 @@ export default function MyDayClient({
             !isNew && running?.taskId === openTask.id ? elapsedLabel(running.startedAt) : null
           }
           onStartStop={() => !isNew && toggleTimer(openTask.id)}
+          onAddEntry={onAddEntry}
           onSessionPatch={onSessionPatch}
           onSessionDelete={onSessionDelete}
+          onMarkComplete={() => {
+            const t = tasksRef.current.find((x) => x.id === openTask.id);
+            if (t) toggleDone(t);
+          }}
+          activity={activity}
+          activityLoading={activityLoading}
         />
       )}
 

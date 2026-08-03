@@ -1729,23 +1729,25 @@ button.check {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--inset);
-  border: 1px solid var(--line-field);
-  color: var(--ink-body);
+  background: var(--green);
+  border: 1px solid transparent;
+  color: #0b0e13;
   border-radius: 9px;
-  padding: 9px 13px;
+  padding: 10px 14px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
+  flex: none;
+  white-space: nowrap;
 }
 .time-startstop:hover {
-  border-color: var(--line-raised-2);
+  filter: brightness(1.05);
 }
 .time-startstop.on {
-  color: var(--green);
-  border-color: rgba(95, 191, 143, 0.4);
-  background: rgba(95, 191, 143, 0.1);
+  background: rgba(224, 102, 90, 0.14);
+  color: var(--orange);
+  border-color: rgba(224, 102, 90, 0.4);
 }
 .time-startstop .timer-glyph {
   font-size: 11px;
@@ -1831,6 +1833,182 @@ button.check {
   color: var(--ink-2);
   letter-spacing: 0.06em;
   padding-top: 4px;
+}
+
+/* Header save-state + ESC keycap */
+.drawer-savestate {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  margin-left: 10px;
+}
+.head-spacer {
+  flex: 1;
+}
+.esc-keycap {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+  background: var(--inset);
+  border: 1px solid var(--line-field);
+  border-radius: 4px;
+  padding: 2px 5px;
+  margin-right: 8px;
+}
+
+/* DUE cell (date + time) */
+.due-cell {
+  display: flex;
+  gap: 8px;
+}
+.due-cell .drawer-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* TIME card */
+.time-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+}
+.time-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.time-card-cap {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+}
+.time-card-total {
+  font-family: var(--font-serif);
+  font-size: 30px;
+  color: var(--ink);
+  line-height: 1.1;
+  margin-top: 2px;
+}
+.time-card-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.time-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--line);
+  margin-top: 14px;
+  padding-top: 12px;
+}
+.time-history-toggle {
+  background: none;
+  border: none;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  cursor: pointer;
+  padding: 0;
+}
+.time-history-toggle:hover {
+  color: var(--ink);
+}
+.time-add-entry {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  cursor: pointer;
+  padding: 0;
+}
+.time-add-entry:hover {
+  filter: brightness(1.1);
+}
+.time-card .sess-list {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+/* Activity log */
+.act-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.act-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 2px;
+}
+.act-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line-raised-2);
+  flex: none;
+}
+.act-detail {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink-body);
+}
+.act-date {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--faint);
+  flex: none;
+}
+
+/* Mark complete footer */
+.mark-footer {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+}
+.mark-complete {
+  flex: 1;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 13px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 18px -8px var(--accent);
+}
+.mark-complete:hover {
+  filter: brightness(1.08);
+}
+.mark-complete.is-done {
+  background: var(--inset);
+  color: var(--ink-2);
+  box-shadow: none;
+  border: 1px solid var(--line-field);
+}
+.trash-btn {
+  flex: none;
+  width: 46px;
+  border-radius: 10px;
+  background: var(--inset);
+  border: 1px solid var(--line-field);
+  color: var(--ink-2);
+  font-size: 15px;
+  cursor: pointer;
+}
+.trash-btn:hover {
+  color: var(--orange);
+  border-color: var(--line-raised-2);
 }
 .drawer-hint-quiet {
   margin-top: 8px;

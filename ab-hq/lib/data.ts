@@ -55,6 +55,13 @@ export interface RunningTimer {
   startedAt: string;
 }
 
+export interface ActivityItem {
+  id: string;
+  taskId: string;
+  detail: string;
+  createdAt: string;
+}
+
 export interface Capacity {
   meetings: number; // hours
   focus: number;
