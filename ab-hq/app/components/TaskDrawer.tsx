@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import type {
   Task,
   Matter,
@@ -33,6 +33,16 @@ function combineDT(dateStr: string, timeStr: string): string {
 }
 function fmtDatePill(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+function openPicker(e: MouseEvent<HTMLElement>) {
+  const inp = e.currentTarget.querySelector("input") as
+    | (HTMLInputElement & { showPicker?: () => void })
+    | null;
+  try {
+    inp?.showPicker?.();
+  } catch {
+    inp?.focus();
+  }
 }
 function fmtTimeShort(iso: string): string {
   const d = new Date(iso);
@@ -358,7 +368,7 @@ export default function TaskDrawer({
                     {sessions.map((s) => (
                       <div className="sess-row" key={s.id}>
                         <div className="sess-line">
-                          <span className="ts-field ts-date">
+                          <span className="ts-field ts-date" onClick={openPicker}>
                             <span className="ts-text">{fmtDatePill(s.startedAt)}</span>
                             <input
                               type="date"
@@ -376,7 +386,7 @@ export default function TaskDrawer({
                               }}
                             />
                           </span>
-                          <span className="ts-field">
+                          <span className="ts-field" onClick={openPicker}>
                             <span className="ts-text">{fmtTimeShort(s.startedAt)}</span>
                             <input
                               type="time"

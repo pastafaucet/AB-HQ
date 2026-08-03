@@ -1793,6 +1793,7 @@ button.check {
   position: relative;
   display: inline-flex;
   align-items: center;
+  cursor: pointer;
 }
 .ts-text {
   font-family: var(--font-mono);
@@ -1822,10 +1823,10 @@ button.check {
   width: 100%;
   height: 100%;
   opacity: 0;
-  cursor: pointer;
   border: none;
   padding: 0;
   margin: 0;
+  pointer-events: none; /* clicks go to the field, which calls showPicker() */
   color-scheme: dark;
 }
 .sess-dash {
