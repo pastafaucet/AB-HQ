@@ -34,6 +34,7 @@ export interface TaskPatch {
   domain?: string;
   type?: string;
   matterId?: string | null;
+  project?: string | null;
   doDate?: string | null;
   doTime?: string | null;
   durationMin?: number | null;
@@ -65,6 +66,7 @@ function toDbPatch(patch: TaskPatch): Record<string, unknown> {
   if (patch.domain !== undefined) db.domain = patch.domain;
   if (patch.type !== undefined) db.type = patch.type;
   if (patch.matterId !== undefined) db.matter_id = patch.matterId;
+  if (patch.project !== undefined) db.project = patch.project;
   if (patch.doDate !== undefined) db.do_date = patch.doDate;
   if (patch.doTime !== undefined) db.do_time = patch.doTime;
   if (patch.durationMin !== undefined) db.duration_min = patch.durationMin;
@@ -130,6 +132,7 @@ export async function createTask(input: TaskPatch & { title: string }): Promise<
     do_time: input.doTime ?? null,
     duration_min: input.durationMin ?? null,
     matter_id: input.matterId ?? null,
+    project: input.project ?? null,
     notes: input.notes ?? null,
   };
 

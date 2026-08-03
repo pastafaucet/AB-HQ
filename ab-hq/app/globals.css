@@ -1417,6 +1417,30 @@ button.check {
   flex: 1;
 }
 
+/* MIT · Status · Work/Personal on one row */
+.mit-status-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+.mit-toggle.mit-compact {
+  flex: none;
+  width: auto;
+  gap: 8px;
+  padding: 9px 12px;
+}
+.mit-toggle.mit-compact .mit-toggle-label {
+  flex: none;
+}
+.status-inline {
+  flex: 1;
+  min-width: 96px;
+}
+.mit-status-row .domain-seg {
+  flex: none;
+}
+
 /* Do date + time */
 .date-time-row {
   display: flex;
@@ -1568,6 +1592,9 @@ button.check {
   cursor: grab;
   touch-action: none;
   transition: top 0.08s ease, box-shadow 0.12s ease;
+  background: var(--inset);
+  border: 1px solid var(--line-raised);
+  border-left: 3px solid var(--accent);
 }
 .sched-block:hover {
   border-color: var(--line-raised-2);
@@ -1615,22 +1642,9 @@ button.check {
   color: var(--orange);
   background: rgba(0, 0, 0, 0.4);
 }
-.sched-event {
-  background: #11161e;
-  border: 1px solid var(--line-raised);
-  border-left: 2px solid #5b8cff;
-}
-.sched-lunch {
-  background: transparent;
-  border: 1px dashed var(--line-field);
-}
+/* MITs get a subtle indigo wash; all blocks share the base card + priority left border */
 .sched-focus {
-  background: rgba(91, 140, 255, 0.12);
-  border: 1px solid rgba(91, 140, 255, 0.32);
-}
-.sched-personal {
-  background: transparent;
-  border: 1px dashed var(--line-raised-2);
+  background: rgba(91, 140, 255, 0.1);
 }
 .sched-block-body {
   min-width: 0;

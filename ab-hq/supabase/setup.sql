@@ -35,6 +35,7 @@ create table if not exists public.tasks (
   do_time      time,
   duration_min int,
   matter_id    uuid references public.matters(id) on delete set null,
+  project      text,
   notes        text,
   effort       text,
   created_at   timestamptz not null default now(),

@@ -14,7 +14,7 @@ export interface SchedItem {
   durMin: number;
   kind: "event" | "focus" | "task";
   num?: number;
-  dot?: string;
+  accent: string; // priority color for the left border
   done: boolean;
   canTimer: boolean;
 }
@@ -114,8 +114,11 @@ export default function ScheduleGrid({
           const s = drag?.id === it.id ? drag.cur : it.startMin;
           const top = ((s - startMin) / 60) * HOUR_PX;
           const h = Math.max((it.durMin / 60) * HOUR_PX, 26);
-          const style: { top: number; height: number; borderLeftColor?: string } = { top, height: h };
-          if (it.dot) style.borderLeftColor = it.dot;
+          const style: { top: number; height: number; borderLeftColor: string } = {
+            top,
+            height: h,
+            borderLeftColor: it.accent,
+          };
           const dragging = drag?.id === it.id;
           const running = runningId === it.id;
           return (

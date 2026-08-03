@@ -176,10 +176,10 @@ export default function TaskDrawer({
         </div>
 
         <div className="drawer-field">
-          <div className="mit-domain-row">
+          <div className="mit-status-row">
             <button
               type="button"
-              className={`mit-toggle${task.mit ? " on" : ""}`}
+              className={`mit-toggle mit-compact${task.mit ? " on" : ""}`}
               disabled={mitDisabled}
               title={mitDisabled ? "You already have 3 protected" : undefined}
               onClick={() => !mitDisabled && onField({ mit: !task.mit })}
@@ -188,6 +188,16 @@ export default function TaskDrawer({
               <span className="mit-toggle-label">MIT</span>
               <span className="mit-switch" aria-hidden />
             </button>
+            <select
+              className="drawer-select status-inline"
+              value={task.status}
+              aria-label="Status"
+              onChange={(e) => onField({ status: e.target.value })}
+            >
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
             <div className="seg-select domain-seg">
               {DOMAINS.map((d) => (
                 <button
@@ -205,7 +215,7 @@ export default function TaskDrawer({
 
         <div className="drawer-grid">
           <label className="drawer-field">
-            <div className="drawer-label">MATTER / PROJECT</div>
+            <div className="drawer-label">MATTER</div>
             <select
               className="drawer-select"
               value={task.matterId ?? ""}
@@ -217,37 +227,35 @@ export default function TaskDrawer({
               ))}
             </select>
           </label>
-          <div className="drawer-field">
-            <div className="drawer-label">DUE</div>
-            <div className="due-cell">
-              <input
-                type="date"
-                className="drawer-input"
-                value={task.doDate ?? ""}
-                onChange={(e) => onField({ doDate: e.target.value || null })}
-              />
-              <input
-                type="time"
-                className="drawer-input"
-                value={task.doTime ?? ""}
-                onChange={(e) => onField({ doTime: e.target.value || null })}
-              />
-            </div>
-          </div>
+          <label className="drawer-field">
+            <div className="drawer-label">PROJECT</div>
+            <input
+              type="text"
+              className="drawer-select"
+              placeholder="—"
+              value={task.project ?? ""}
+              onChange={(e) => onField({ project: e.target.value || null })}
+            />
+          </label>
         </div>
 
-        <label className="drawer-field">
-          <div className="drawer-label">STATUS</div>
-          <select
-            className="drawer-select"
-            value={task.status}
-            onChange={(e) => onField({ status: e.target.value })}
-          >
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </label>
+        <div className="drawer-field">
+          <div className="drawer-label">DUE</div>
+          <div className="due-cell">
+            <input
+              type="date"
+              className="drawer-input"
+              value={task.doDate ?? ""}
+              onChange={(e) => onField({ doDate: e.target.value || null })}
+            />
+            <input
+              type="time"
+              className="drawer-input"
+              value={task.doTime ?? ""}
+              onChange={(e) => onField({ doTime: e.target.value || null })}
+            />
+          </div>
+        </div>
 
         <div className="drawer-field">
           <div className="drawer-label">NOTES</div>

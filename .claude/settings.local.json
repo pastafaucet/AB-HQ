@@ -4,7 +4,8 @@
       "Bash(git -C '/Users/andybaum/Desktop/AB HQ' add -A)",
       "Bash(git -C '/Users/andybaum/Desktop/AB HQ' commit -q -m 'feat\\(time\\): persistent, cross-device time tracking with sessions *)",
       "Bash(git -C '/Users/andybaum/Desktop/AB HQ' push origin main)",
-      "Bash(git -C '/Users/andybaum/Desktop/AB HQ' commit -q -m 'feat\\(drawer\\): rebuilt tray — TIME card, activity log, manual entry, mark complete *)"
+      "Bash(git -C '/Users/andybaum/Desktop/AB HQ' commit -q -m 'feat\\(drawer\\): rebuilt tray — TIME card, activity log, manual entry, mark complete *)",
+      "Bash(git -C '/Users/andybaum/Desktop/AB HQ' commit -q -m 'fix\\(today\\): schedule block borders \\(priority left edge\\); split Matter/Project; MIT·Status·Domain row *)"
     ]
   }
 }

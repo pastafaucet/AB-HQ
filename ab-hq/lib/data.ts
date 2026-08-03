@@ -27,6 +27,7 @@ export interface Task {
   doTime?: string; // HH:MM
   durationMin?: number; // block length on the schedule
   matterId?: string;
+  project?: string;
   notes?: string;
   dueTag?: string; // display-only (time / date)
 }
