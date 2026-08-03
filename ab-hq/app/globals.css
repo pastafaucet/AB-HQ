@@ -1504,6 +1504,14 @@ button.check {
   font-weight: 600;
   letter-spacing: 0.04em;
 }
+.row-spent {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  flex: none;
+  align-self: center;
+  white-space: nowrap;
+}
 
 /* ============================================================
    Capacity widget

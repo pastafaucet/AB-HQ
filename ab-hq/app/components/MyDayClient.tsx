@@ -44,6 +44,11 @@ function toMin(hhmm: string): number {
 function minToHHMM(min: number): string {
   return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 }
+function fmtSpent(sec: number): string {
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
 
 function applyPatch(t: Task, p: TaskPatch, today: string): Task {
   const next: Task = { ...t };
@@ -88,12 +93,14 @@ export default function MyDayClient({
   today,
   dateLabel,
   initialRunning,
+  initialLogged,
 }: {
   initialTasks: Task[];
   matters: Matter[];
   today: string;
   dateLabel: string;
   initialRunning: RunningTimer | null;
+  initialLogged: Record<string, number>;
 }) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [draft, setDraft] = useState<Task | null>(null);
@@ -102,6 +109,7 @@ export default function MyDayClient({
   const [saved, setSaved] = useState(false);
   const [quick, setQuick] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [logged, setLogged] = useState<Record<string, number>>(initialLogged);
   const [, startTransition] = useTransition();
 
   const tasksRef = useRef(tasks);
@@ -133,6 +141,8 @@ export default function MyDayClient({
   }
   async function toggleTimer(taskId: string) {
     if (running?.taskId === taskId) {
+      const add = Math.max(0, (Date.now() - new Date(running.startedAt).getTime()) / 1000);
+      setLogged((prev) => ({ ...prev, [taskId]: (prev[taskId] ?? 0) + add }));
       setRunning(null);
       startTransition(async () => {
         const r = await stopTimer();
@@ -187,6 +197,7 @@ export default function MyDayClient({
     if (!id || id === DRAFT) return;
     const end = new Date();
     const start = new Date(end.getTime() - 30 * 60000);
+    setLogged((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 30 * 60 }));
     startTransition(async () => {
       const r = await addSession(id, start.toISOString(), end.toISOString());
       if (r.ok) refreshSessions(id);
@@ -242,12 +253,13 @@ export default function MyDayClient({
     }))
     .sort((a, b) => a.startMin - b.startMin);
 
-  // --- capacity, computed from today's timed tasks ---
-  const timedToday = tasks.filter((t) => t.doTime && t.doDate === today);
-  const sumH = (pred: (t: Task) => boolean) =>
-    timedToday.filter(pred).reduce((a, t) => a + (t.durationMin ?? 60), 0) / 60;
-  const meetingsH = sumH((t) => t.type === "Event");
-  const focusH = sumH((t) => t.type === "Task");
+  // --- capacity, from today's task estimates (meetings = events, focus = tasks) ---
+  const todayTasks = tasks.filter((t) => t.doDate === today);
+  const meetingsH =
+    todayTasks.filter((t) => t.type === "Event").reduce((a, t) => a + (t.durationMin ?? 60), 0) /
+    60;
+  const focusH =
+    todayTasks.filter((t) => t.type === "Task").reduce((a, t) => a + (t.durationMin ?? 0), 0) / 60;
   const windowH = DAY_END_HOUR - DAY_START_HOUR;
   const slackH = Math.max(0, windowH - meetingsH - focusH);
   const booked = meetingsH + focusH;
@@ -446,6 +458,21 @@ export default function MyDayClient({
     );
   }
 
+  function Spent({ id }: { id: string }) {
+    const base = logged[id] ?? 0;
+    const live =
+      running?.taskId === id
+        ? Math.max(0, (nowTs - new Date(running.startedAt).getTime()) / 1000)
+        : 0;
+    const sec = base + live;
+    if (sec < 60) return null;
+    return (
+      <span className="row-spent" title="Time logged">
+        {fmtSpent(sec)}
+      </span>
+    );
+  }
+
   function Timer({ t }: { t: Task }) {
     if (t.type === "Deadline") return null;
     const isRunning = running?.taskId === t.id;
@@ -476,6 +503,7 @@ export default function MyDayClient({
           <div className={`task-title${done ? " is-done" : ""}`}>{t.title}</div>
           <Meta t={t} />
         </div>
+        <Spent id={t.id} />
         <Timer t={t} />
       </div>
     );
@@ -528,6 +556,7 @@ export default function MyDayClient({
                   </div>
                   <Meta t={t} />
                 </div>
+                <Spent id={t.id} />
                 <Timer t={t} />
               </div>
             ) : (

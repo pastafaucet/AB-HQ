@@ -15,6 +15,7 @@ export interface MyDayData {
   matters: Matter[];
   today: string;
   running: RunningTimer | null;
+  logged: Record<string, number>; // taskId → completed seconds tracked
 }
 
 /** All data the My Day (Today) surface needs, for the current calendar day. */
@@ -58,5 +59,23 @@ export async function getMyDayData(): Promise<MyDayData> {
     (t) => t.mit || t.status === "In Progress" || t.doDate === today
   );
 
-  return { tasks, matters, today, running };
+  // Completed time tracked per task (running session excluded — the client adds it live).
+  const logged: Record<string, number> = {};
+  const taskIds = tasks.map((t) => t.id);
+  if (taskIds.length) {
+    const { data: sess } = await sb
+      .from("time_sessions")
+      .select("task_id,started_at,ended_at")
+      .in("task_id", taskIds);
+    for (const s of (sess ?? []) as { task_id: string; started_at: string; ended_at: string | null }[]) {
+      if (!s.ended_at) continue;
+      const sec = Math.max(
+        0,
+        (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 1000
+      );
+      logged[s.task_id] = (logged[s.task_id] ?? 0) + sec;
+    }
+  }
+
+  return { tasks, matters, today, running, logged };
 }
