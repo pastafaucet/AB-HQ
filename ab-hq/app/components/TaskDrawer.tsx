@@ -402,7 +402,7 @@ export default function TaskDrawer({
                           </span>
                           <span className="sess-dash">–</span>
                           {s.endedAt ? (
-                            <span className="ts-field">
+                            <span className="ts-field" onClick={openPicker}>
                               <span className="ts-text">{fmtTimeShort(s.endedAt)}</span>
                               <input
                                 type="time"
