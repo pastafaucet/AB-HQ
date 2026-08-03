@@ -18,13 +18,30 @@ const DOMAINS: Domain[] = ["Work", "Personal"];
 const TYPES: TaskType[] = ["Task", "Event", "Deadline"];
 const PRIORITIES: Priority[] = [1, 2, 3, 4];
 
-function toLocalInput(iso: string): string {
+function toDateInput(iso: string): string {
   const d = new Date(iso);
   const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
-function fromLocalInput(v: string): string {
-  return new Date(v).toISOString();
+function toTimeInput(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function combineDT(dateStr: string, timeStr: string): string {
+  return new Date(`${dateStr}T${timeStr}`).toISOString();
+}
+function fmtDatePill(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+function fmtTimeShort(iso: string): string {
+  const d = new Date(iso);
+  let h = d.getHours();
+  const m = d.getMinutes();
+  const ap = h >= 12 ? "p" : "a";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${String(m).padStart(2, "0")}${ap}`;
 }
 function secBetween(startIso: string, endIso: string | null): number {
   const end = endIso ? new Date(endIso).getTime() : Date.now();
@@ -340,28 +357,55 @@ export default function TaskDrawer({
                   <div className="sess-list">
                     {sessions.map((s) => (
                       <div className="sess-row" key={s.id}>
-                        <div className="sess-times">
-                          <input
-                            type="datetime-local"
-                            className="sess-input"
-                            value={toLocalInput(s.startedAt)}
-                            onChange={(e) =>
-                              e.target.value &&
-                              onSessionPatch(s.id, { startedAt: fromLocalInput(e.target.value) })
-                            }
-                          />
-                          <span className="sess-dash">→</span>
-                          {s.endedAt ? (
+                        <div className="sess-line">
+                          <span className="ts-field ts-date">
+                            <span className="ts-text">{fmtDatePill(s.startedAt)}</span>
                             <input
-                              type="datetime-local"
-                              className="sess-input"
-                              value={toLocalInput(s.endedAt)}
+                              type="date"
+                              className="ts-native"
+                              value={toDateInput(s.startedAt)}
+                              onChange={(e) => {
+                                if (!e.target.value) return;
+                                const startedAt = combineDT(e.target.value, toTimeInput(s.startedAt));
+                                if (s.endedAt)
+                                  onSessionPatch(s.id, {
+                                    startedAt,
+                                    endedAt: combineDT(e.target.value, toTimeInput(s.endedAt)),
+                                  });
+                                else onSessionPatch(s.id, { startedAt });
+                              }}
+                            />
+                          </span>
+                          <span className="ts-field">
+                            <span className="ts-text">{fmtTimeShort(s.startedAt)}</span>
+                            <input
+                              type="time"
+                              className="ts-native"
+                              value={toTimeInput(s.startedAt)}
                               onChange={(e) =>
+                                e.target.value &&
                                 onSessionPatch(s.id, {
-                                  endedAt: e.target.value ? fromLocalInput(e.target.value) : null,
+                                  startedAt: combineDT(toDateInput(s.startedAt), e.target.value),
                                 })
                               }
                             />
+                          </span>
+                          <span className="sess-dash">–</span>
+                          {s.endedAt ? (
+                            <span className="ts-field">
+                              <span className="ts-text">{fmtTimeShort(s.endedAt)}</span>
+                              <input
+                                type="time"
+                                className="ts-native"
+                                value={toTimeInput(s.endedAt)}
+                                onChange={(e) =>
+                                  e.target.value &&
+                                  onSessionPatch(s.id, {
+                                    endedAt: combineDT(toDateInput(s.endedAt!), e.target.value),
+                                  })
+                                }
+                              />
+                            </span>
                           ) : (
                             <span className="sess-running">running</span>
                           )}
@@ -377,7 +421,7 @@ export default function TaskDrawer({
                         </div>
                         <input
                           className="sess-note"
-                          placeholder="What did you work on?"
+                          placeholder="Add a note…"
                           defaultValue={s.note ?? ""}
                           onBlur={(e) => onSessionPatch(s.id, { note: e.target.value || null })}
                         />
