@@ -284,15 +284,14 @@ export default function MyDayClient({
     }))
     .sort((a, b) => a.startMin - b.startMin);
 
-  // --- capacity, from today's task estimates (meetings = events, focus = tasks) ---
-  const todayTasks = tasks.filter((t) => t.doDate === today);
-  // Capacity counts only explicit estimates (unestimated items contribute nothing).
+  // --- capacity, from estimates on everything on My Day (MITs + Also Today + In Progress) ---
+  // `tasks` is already the My Day set; count only items that carry an explicit estimate.
   const meetingsH =
-    todayTasks
+    tasks
       .filter((t) => t.type === "Event" && t.durationMin != null)
       .reduce((a, t) => a + (t.durationMin ?? 0), 0) / 60;
   const focusH =
-    todayTasks
+    tasks
       .filter((t) => t.type === "Task" && t.durationMin != null)
       .reduce((a, t) => a + (t.durationMin ?? 0), 0) / 60;
   const windowH = Math.max(0, dayEnd - dayStart);
