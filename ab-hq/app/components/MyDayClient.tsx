@@ -225,10 +225,14 @@ export default function MyDayClient({
   const isNew = openId === DRAFT;
   const openTask = isNew ? draft : tasks.find((t) => t.id === openId) ?? null;
 
+  // An item belongs on the calendar only if it's an Event with a time (today).
+  const onSched = (t: Task) => t.type === "Event" && !!t.doTime && t.doDate === today;
   const mits = tasks.filter((t) => t.mit);
-  const inProgress = tasks.filter((t) => !t.mit && t.status === "In Progress");
+  const inProgress = tasks.filter(
+    (t) => !t.mit && t.status === "In Progress" && !onSched(t)
+  );
   const alsoToday = tasks.filter(
-    (t) => !t.mit && t.status !== "In Progress" && t.doDate === today
+    (t) => !t.mit && t.status !== "In Progress" && t.doDate === today && !onSched(t)
   );
   const mitSlots = [0, 1, 2].map((i) => mits[i] ?? null);
   const mitsDone = mits.filter((t) => t.status === "Done").length;
@@ -238,7 +242,7 @@ export default function MyDayClient({
   const mitNum: Record<string, number> = {};
   mits.forEach((t, i) => (mitNum[t.id] = i + 1));
   const schedItems: SchedItem[] = tasks
-    .filter((t) => t.doTime && t.doDate === today)
+    .filter((t) => t.type === "Event" && t.doTime && t.doDate === today)
     .map((t) => ({
       id: t.id,
       title: t.title,

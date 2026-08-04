@@ -303,7 +303,7 @@ export default function TaskDrawer({
             <option value="180">3h</option>
             <option value="240">4h</option>
           </select>
-          <div className="drawer-hint-quiet">Drives the schedule block size and today&rsquo;s capacity.</div>
+          <div className="drawer-hint-quiet">Drives today&rsquo;s capacity (and, for events, the calendar block size).</div>
         </label>
 
         <div className="drawer-field">

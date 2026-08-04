@@ -101,7 +101,7 @@ export default function ScheduleGrid({
         <span className="section-link">Calendar →</span>
       </div>
       {items.length === 0 && (
-        <div className="sched-empty">Set a time on a task to place it here.</div>
+        <div className="sched-empty">Add an event with a time to see it here.</div>
       )}
       <div className={`sched${drag ? " is-dragging" : ""}`} style={{ height }}>
         {hours.map((h) => (
