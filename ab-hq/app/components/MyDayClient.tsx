@@ -12,7 +12,7 @@ import type {
   TimeSession,
   ActivityItem,
 } from "@/lib/data";
-import { PRIORITY_META, DOMAIN_DOT, DAY_START_HOUR, DAY_END_HOUR } from "@/lib/data";
+import { PRIORITY_META, DOMAIN_DOT } from "@/lib/data";
 import { dueTagFor } from "@/lib/task-map";
 import {
   setTaskDone,
@@ -48,6 +48,13 @@ function fmtSpent(sec: number): string {
   const m = Math.floor(sec / 60);
   if (m < 60) return `${m}m`;
   return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+const WINDOW_HOURS = Array.from({ length: 19 }, (_, i) => i + 5); // 5a … 11p
+function fmtHourLabel(h: number): string {
+  const ap = h >= 12 ? "p" : "a";
+  let x = h % 12;
+  if (x === 0) x = 12;
+  return `${x}${ap}`;
 }
 
 function applyPatch(t: Task, p: TaskPatch, today: string): Task {
@@ -110,7 +117,27 @@ export default function MyDayClient({
   const [quick, setQuick] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [logged, setLogged] = useState<Record<string, number>>(initialLogged);
+  const [dayStart, setDayStart] = useState(8);
+  const [dayEnd, setDayEnd] = useState(19);
   const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    try {
+      const r = localStorage.getItem("abhq.dayWindow");
+      if (r) {
+        const o = JSON.parse(r);
+        if (typeof o.start === "number") setDayStart(o.start);
+        if (typeof o.end === "number") setDayEnd(o.end);
+      }
+    } catch {}
+  }, []);
+  function setWindow(start: number, end: number) {
+    setDayStart(start);
+    setDayEnd(end);
+    try {
+      localStorage.setItem("abhq.dayWindow", JSON.stringify({ start, end }));
+    } catch {}
+  }
 
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
@@ -248,7 +275,7 @@ export default function MyDayClient({
       title: t.title,
       sub: t.matterId ? matters.find((m) => m.id === t.matterId)?.name : undefined,
       startMin: toMin(t.doTime as string),
-      durMin: t.durationMin ?? 60,
+      durMin: t.durationMin ?? 15,
       kind: (t.type === "Event" ? "event" : t.mit ? "focus" : "task") as SchedItem["kind"],
       num: t.mit ? mitNum[t.id] : undefined,
       accent: PRI_COLOR[t.priority],
@@ -260,11 +287,11 @@ export default function MyDayClient({
   // --- capacity, from today's task estimates (meetings = events, focus = tasks) ---
   const todayTasks = tasks.filter((t) => t.doDate === today);
   const meetingsH =
-    todayTasks.filter((t) => t.type === "Event").reduce((a, t) => a + (t.durationMin ?? 60), 0) /
+    todayTasks.filter((t) => t.type === "Event").reduce((a, t) => a + (t.durationMin ?? 15), 0) /
     60;
   const focusH =
     todayTasks.filter((t) => t.type === "Task").reduce((a, t) => a + (t.durationMin ?? 0), 0) / 60;
-  const windowH = DAY_END_HOUR - DAY_START_HOUR;
+  const windowH = Math.max(0, dayEnd - dayStart);
   const slackH = Math.max(0, windowH - meetingsH - focusH);
   const booked = meetingsH + focusH;
   const ratio = windowH ? booked / windowH : 0;
@@ -500,8 +527,21 @@ export default function MyDayClient({
 
   function Row({ t }: { t: Task }) {
     const done = t.status === "Done";
+    const draggable = t.type === "Event" && !t.doTime;
     return (
-      <div className="task-row">
+      <div
+        className={`task-row${draggable ? " draggable-event" : ""}`}
+        draggable={draggable}
+        onDragStart={
+          draggable
+            ? (e) => {
+                e.dataTransfer.setData("text/plain", t.id);
+                e.dataTransfer.effectAllowed = "move";
+              }
+            : undefined
+        }
+        title={draggable ? "Drag onto the schedule to set a time" : undefined}
+      >
         <Check t={t} className="task-check" />
         <div className="task-body clickable" onClick={() => openExisting(t.id)}>
           <div className={`task-title${done ? " is-done" : ""}`}>{t.title}</div>
@@ -593,8 +633,32 @@ export default function MyDayClient({
 
       <aside className="rail">
         <CapacityBar data={capacity} />
+        <div className="daywindow">
+          <span className="dw-label">WORKDAY</span>
+          <select
+            className="dw-select"
+            value={dayStart}
+            onChange={(e) => setWindow(Number(e.target.value), dayEnd)}
+          >
+            {WINDOW_HOURS.map((h) => (
+              <option key={h} value={h}>{fmtHourLabel(h)}</option>
+            ))}
+          </select>
+          <span className="dw-dash">–</span>
+          <select
+            className="dw-select"
+            value={dayEnd}
+            onChange={(e) => setWindow(dayStart, Number(e.target.value))}
+          >
+            {WINDOW_HOURS.map((h) => (
+              <option key={h} value={h}>{fmtHourLabel(h)}</option>
+            ))}
+          </select>
+        </div>
         <ScheduleGrid
           items={schedItems}
+          dayStartHour={dayStart}
+          dayEndHour={dayEnd}
           runningId={running?.taskId ?? null}
           elapsed={running ? elapsedLabel(running.startedAt) : ""}
           onOpen={openExisting}
@@ -605,6 +669,10 @@ export default function MyDayClient({
           onTimer={toggleTimer}
           onUnschedule={(id) => savePatch(id, { doTime: null })}
           onReschedule={(id, startMin) => savePatch(id, { doTime: minToHHMM(startMin) })}
+          onResize={(id, dur) => savePatch(id, { durationMin: dur })}
+          onExternalDrop={(id, startMin) =>
+            savePatch(id, { doDate: today, doTime: minToHHMM(startMin) })
+          }
         />
       </aside>
 
