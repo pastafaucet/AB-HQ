@@ -286,11 +286,15 @@ export default function MyDayClient({
 
   // --- capacity, from today's task estimates (meetings = events, focus = tasks) ---
   const todayTasks = tasks.filter((t) => t.doDate === today);
+  // Capacity counts only explicit estimates (unestimated items contribute nothing).
   const meetingsH =
-    todayTasks.filter((t) => t.type === "Event").reduce((a, t) => a + (t.durationMin ?? 15), 0) /
-    60;
+    todayTasks
+      .filter((t) => t.type === "Event" && t.durationMin != null)
+      .reduce((a, t) => a + (t.durationMin ?? 0), 0) / 60;
   const focusH =
-    todayTasks.filter((t) => t.type === "Task").reduce((a, t) => a + (t.durationMin ?? 0), 0) / 60;
+    todayTasks
+      .filter((t) => t.type === "Task" && t.durationMin != null)
+      .reduce((a, t) => a + (t.durationMin ?? 0), 0) / 60;
   const windowH = Math.max(0, dayEnd - dayStart);
   const slackH = Math.max(0, windowH - meetingsH - focusH);
   const booked = meetingsH + focusH;
