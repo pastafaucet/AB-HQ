@@ -1042,6 +1042,17 @@ button.check {
 .quick-add::placeholder {
   color: var(--faint);
 }
+.quick-parse-hint {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: -18px 4px 22px;
+}
+.quick-parse-hint .qp-chip {
+  color: var(--accent);
+  font-weight: 600;
+}
 .btn-add {
   flex: none;
   background: var(--accent);

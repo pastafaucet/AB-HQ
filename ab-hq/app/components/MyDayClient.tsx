@@ -14,6 +14,7 @@ import type {
 } from "@/lib/data";
 import { PRIORITY_META, DOMAIN_DOT } from "@/lib/data";
 import { dueTagFor } from "@/lib/task-map";
+import { parseQuickAdd } from "@/lib/quick-parse";
 import {
   setTaskDone,
   updateTask,
@@ -449,14 +450,24 @@ export default function MyDayClient({
     });
   }
 
+  const quickParsed = quick.trim() ? parseQuickAdd(quick.trim(), today) : null;
+
   function submitQuick() {
-    const title = quick.trim();
-    if (!title) return;
+    if (!quick.trim()) return;
+    const p = parseQuickAdd(quick.trim(), today);
     setQuick("");
     startTransition(async () => {
-      const r = await createTask({ title, status: "To Do", doDate: today });
-      if (r.ok && r.task) setTasks((prev) => [...prev, r.task!]);
-      else flash(r.error ?? "Couldn't add.");
+      const r = await createTask({
+        title: p.title,
+        status: "To Do",
+        doDate: p.doDate ?? today,
+        doTime: p.doTime ?? null,
+      });
+      if (r.ok && r.task) {
+        setTasks((prev) => [...prev, r.task!]);
+        if (p.doDate && p.doDate !== today)
+          flash(`Added “${p.title}” — scheduled for ${p.dateLabel}.`);
+      } else flash(r.error ?? "Couldn't add.");
     });
   }
 
@@ -583,6 +594,13 @@ export default function MyDayClient({
             + Task
           </button>
         </div>
+        {quickParsed && (quickParsed.dateLabel || quickParsed.timeLabel) && (
+          <div className="quick-parse-hint">
+            ↳ {quickParsed.title || "…"}
+            {quickParsed.dateLabel && <span className="qp-chip"> · {quickParsed.dateLabel}</span>}
+            {quickParsed.timeLabel && <span className="qp-chip"> · {quickParsed.timeLabel}</span>}
+          </div>
+        )}
 
         <div className="section-label tight">
           TODAY&rsquo;S 3 · {mitsDone}/{mits.length} DONE
