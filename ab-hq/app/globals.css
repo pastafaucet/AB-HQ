@@ -1192,57 +1192,73 @@ button.check {
 .skel-row { height: 52px; margin-bottom: 10px; }
 .skel-row.short { width: 60%; }
 
-/* --- Cases hub --- */
+/* --- Cases hub (card grid) --- */
 .case-search {
-  width: 220px;
+  flex: 1;
+  min-width: 180px;
 }
-.case-row {
+.case-life {
+  margin: 0;
+}
+.case-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(225px, 1fr));
+  gap: 10px;
+}
+.case-card {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 13px 14px;
+  flex-direction: column;
+  gap: 7px;
+  padding: 13px 14px 11px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 11px;
   background: var(--panel);
-  margin-bottom: 8px;
-}
-.case-row:hover {
-  border-color: var(--line-raised-2);
-}
-.case-main {
   min-width: 0;
 }
+.case-card:hover {
+  border-color: var(--line-raised-2);
+}
+.case-card.is-closed {
+  opacity: 0.65;
+}
 .case-name {
-  font-size: 14px;
+  font-size: 13.5px;
+  line-height: 1.35;
   color: var(--ink);
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
+  min-height: 2.6em;
 }
 .case-sub {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 9px;
   letter-spacing: 0.07em;
   color: var(--faint);
-  margin-top: 4px;
 }
 .case-stage {
   color: var(--ink-2);
 }
-.case-cols {
-  flex: none;
+.case-disposition {
+  color: var(--gold, #d8a657);
+}
+.case-card-mid {
   display: flex;
   align-items: center;
-  gap: 18px;
+  justify-content: space-between;
+  gap: 8px;
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 10px;
   letter-spacing: 0.05em;
+  margin-top: auto;
 }
 .case-count {
   color: var(--ink-2);
+  white-space: nowrap;
 }
 .case-overdue {
   color: var(--orange);
@@ -1251,19 +1267,125 @@ button.check {
   color: var(--orange);
   border: 1px solid var(--orange);
   border-radius: 999px;
-  padding: 2px 9px;
-  font-size: 9.5px;
+  padding: 1px 8px;
+  font-size: 8.5px;
   font-weight: 700;
+  white-space: nowrap;
 }
 .case-deadline {
-  min-width: 130px;
-  text-align: right;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .case-deadline.dl-over { color: var(--orange); font-weight: 700; }
 .case-deadline.dl-today { color: var(--orange); }
 .case-deadline.dl-soon { color: var(--ink); }
 .case-deadline.dl-far { color: var(--ink-2); }
 .case-deadline.dl-none { color: var(--disabled); }
+.case-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--disabled-2);
+}
+.case-num {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.case-tasks-link {
+  flex: none;
+  background: none;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+}
+
+/* --- Case drawer: people + fields --- */
+.disp-wrap {
+  flex-wrap: wrap;
+}
+.disp-wrap .seg-opt {
+  flex: none;
+  padding: 7px 12px;
+}
+.case-tasks-btn {
+  text-align: left;
+  cursor: pointer;
+  color: var(--accent);
+}
+.person-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+}
+.person-role {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+  min-width: 110px;
+}
+.person-name {
+  color: var(--ink);
+}
+.person-org {
+  color: var(--muted);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.person-remove {
+  margin-left: auto;
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--faint);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 4px;
+}
+.person-remove:hover {
+  color: var(--orange);
+}
+.person-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.person-add-name {
+  flex: 1.4;
+  min-width: 110px;
+}
+.person-add-org {
+  flex: 1;
+  min-width: 90px;
+}
+.person-add-role {
+  flex: none;
+  width: auto;
+}
+.person-add-btn {
+  padding: 7px 14px;
+  font-size: 12px;
+}
 
 /* --- Tasks hub: priority board --- */
 .kb-board {

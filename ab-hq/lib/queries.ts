@@ -23,6 +23,10 @@ export interface CaseRow {
   name: string;
   client: string;
   stage: string;
+  status: string;
+  caseNumber: string | null;
+  court: string | null;
+  disposition: string | null;
   nextDeadline: string | null; // YYYY-MM-DD; may be in the past (overdue)
   deadlineTitle: string | null; // the deadline task it came from, if any
   openCount: number;
@@ -34,8 +38,10 @@ export async function getCasesPageData(): Promise<{ cases: CaseRow[]; today: str
   const sb = getSupabase();
   const today = todayISO();
 
-  const [mattersRes, tasksRes] = await Promise.all([
-    sb.from("matters").select("id,name,client,status,next_deadline"),
+  let [mattersRes, tasksRes] = await Promise.all([
+    sb
+      .from("matters")
+      .select("id,name,client,stage,status,next_deadline,case_number,court,disposition"),
     sb
       .from("tasks")
       .select("matter_id,status,type,do_date,title")
@@ -43,6 +49,13 @@ export async function getCasesPageData(): Promise<{ cases: CaseRow[]; today: str
       .neq("status", "Done")
       .not("matter_id", "is", null),
   ]);
+  if (mattersRes.error) {
+    // Migration 0008 (disposition column) not applied yet — degrade gracefully.
+    const retry = await sb
+      .from("matters")
+      .select("id,name,client,stage,status,next_deadline,case_number,court");
+    mattersRes = retry as typeof mattersRes;
+  }
   if (mattersRes.error) throw mattersRes.error;
   if (tasksRes.error) throw tasksRes.error;
 
@@ -69,7 +82,13 @@ export async function getCasesPageData(): Promise<{ cases: CaseRow[]; today: str
     byMatter.set(t.matter_id, agg);
   }
 
-  const cases: CaseRow[] = (mattersRes.data as MatterRowDB[]).map((m) => {
+  type MatterFull = MatterRowDB & {
+    stage: string | null;
+    case_number: string | null;
+    court: string | null;
+    disposition: string | null;
+  };
+  const cases: CaseRow[] = (mattersRes.data as MatterFull[]).map((m) => {
     const agg = byMatter.get(m.id) ?? { open: 0, overdue: 0, dl: null, dlTitle: null };
     // Soonest of the matter's own next_deadline and its open deadline tasks.
     let nextDeadline = agg.dl;
@@ -82,7 +101,11 @@ export async function getCasesPageData(): Promise<{ cases: CaseRow[]; today: str
       id: m.id,
       name: m.name,
       client: m.client ?? "",
-      stage: m.status ?? "",
+      stage: m.stage ?? "",
+      status: m.status ?? "",
+      caseNumber: m.case_number ?? null,
+      court: m.court ?? null,
+      disposition: m.disposition ?? null,
       nextDeadline,
       deadlineTitle,
       openCount: agg.open,
