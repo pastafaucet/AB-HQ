@@ -18,6 +18,81 @@ export interface MyDayData {
   logged: Record<string, number>; // taskId → completed seconds tracked
 }
 
+export interface CaseRow {
+  id: string;
+  name: string;
+  client: string;
+  stage: string;
+  nextDeadline: string | null; // YYYY-MM-DD; may be in the past (overdue)
+  deadlineTitle: string | null; // the deadline task it came from, if any
+  openCount: number;
+  overdueCount: number;
+}
+
+/** Every matter with task rollups — the Cases hub list. */
+export async function getCasesPageData(): Promise<{ cases: CaseRow[]; today: string }> {
+  const sb = getSupabase();
+  const today = todayISO();
+
+  const [mattersRes, tasksRes] = await Promise.all([
+    sb.from("matters").select("id,name,client,status,next_deadline"),
+    sb
+      .from("tasks")
+      .select("matter_id,status,type,do_date,title")
+      .neq("status", "Cancelled")
+      .neq("status", "Done")
+      .not("matter_id", "is", null),
+  ]);
+  if (mattersRes.error) throw mattersRes.error;
+  if (tasksRes.error) throw tasksRes.error;
+
+  const byMatter = new Map<
+    string,
+    { open: number; overdue: number; dl: string | null; dlTitle: string | null }
+  >();
+  for (const t of tasksRes.data as {
+    matter_id: string;
+    status: string;
+    type: string;
+    do_date: string | null;
+    title: string;
+  }[]) {
+    const agg = byMatter.get(t.matter_id) ?? { open: 0, overdue: 0, dl: null, dlTitle: null };
+    if (t.status !== "Someday") {
+      agg.open += 1;
+      if (t.do_date && t.do_date < today) agg.overdue += 1;
+      if (t.type === "Deadline" && t.do_date && (!agg.dl || t.do_date < agg.dl)) {
+        agg.dl = t.do_date;
+        agg.dlTitle = t.title;
+      }
+    }
+    byMatter.set(t.matter_id, agg);
+  }
+
+  const cases: CaseRow[] = (mattersRes.data as MatterRowDB[]).map((m) => {
+    const agg = byMatter.get(m.id) ?? { open: 0, overdue: 0, dl: null, dlTitle: null };
+    // Soonest of the matter's own next_deadline and its open deadline tasks.
+    let nextDeadline = agg.dl;
+    let deadlineTitle = agg.dlTitle;
+    if (m.next_deadline && (!nextDeadline || m.next_deadline < nextDeadline)) {
+      nextDeadline = m.next_deadline;
+      deadlineTitle = null;
+    }
+    return {
+      id: m.id,
+      name: m.name,
+      client: m.client ?? "",
+      stage: m.status ?? "",
+      nextDeadline,
+      deadlineTitle,
+      openCount: agg.open,
+      overdueCount: agg.overdue,
+    };
+  });
+
+  return { cases, today };
+}
+
 export interface TasksPageData {
   tasks: Task[]; // every open task (not Done, not Cancelled)
   matters: Matter[];

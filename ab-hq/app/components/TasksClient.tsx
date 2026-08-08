@@ -106,11 +106,13 @@ export default function TasksClient({
   matters,
   today,
   initialRunning,
+  initialMatterId = null,
 }: {
   initialTasks: Task[];
   matters: Matter[];
   today: string;
   initialRunning: RunningTimer | null;
+  initialMatterId?: string | null;
 }) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [draft, setDraft] = useState<Task | null>(null);
@@ -122,19 +124,22 @@ export default function TasksClient({
   const [, startTransition] = useTransition();
 
   // --- view + filters ---
-  const [view, setViewState] = useState<ViewKey>("triage");
+  // Arriving from the Cases hub (?matter=): open on All, pre-filtered to that case.
+  const [view, setViewState] = useState<ViewKey>(initialMatterId ? "all" : "triage");
   const [fQ, setFQ] = useState("");
-  const [fMatter, setFMatter] = useState("");
+  const [fMatter, setFMatter] = useState(initialMatterId ?? "");
   const [fPri, setFPri] = useState(0); // 0 = any
   const [fType, setFType] = useState("");
   const [fMit, setFMit] = useState(false);
   const [fFrom, setFFrom] = useState("");
   const [fTo, setFTo] = useState("");
   useEffect(() => {
+    if (initialMatterId) return; // deliberate arrival at a case view — don't restore
     try {
       const v = localStorage.getItem(VIEW_STORE) as ViewKey | null;
       if (v && VIEWS.some((x) => x.key === v)) setViewState(v);
     } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- completed tasks: fetched lazily when the Done view opens ---

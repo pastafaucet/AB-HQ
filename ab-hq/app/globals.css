@@ -1173,6 +1173,98 @@ button.check {
   color: #d8a657;
 }
 
+/* --- Loading skeleton (route transitions) --- */
+@keyframes skel-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+.skel-kicker,
+.skel-title,
+.skel-block,
+.skel-row {
+  background: var(--inset);
+  border-radius: 8px;
+  animation: skel-pulse 1.4s ease-in-out infinite;
+}
+.skel-kicker { width: 90px; height: 12px; margin-bottom: 12px; }
+.skel-title { width: 260px; height: 34px; margin-bottom: 26px; }
+.skel-block { height: 40px; margin-bottom: 26px; }
+.skel-row { height: 52px; margin-bottom: 10px; }
+.skel-row.short { width: 60%; }
+
+/* --- Cases hub --- */
+.case-search {
+  width: 220px;
+}
+.case-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  margin-bottom: 8px;
+}
+.case-row:hover {
+  border-color: var(--line-raised-2);
+}
+.case-main {
+  min-width: 0;
+}
+.case-name {
+  font-size: 14px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.case-sub {
+  display: flex;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.07em;
+  color: var(--faint);
+  margin-top: 4px;
+}
+.case-stage {
+  color: var(--ink-2);
+}
+.case-cols {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+}
+.case-count {
+  color: var(--ink-2);
+}
+.case-overdue {
+  color: var(--orange);
+}
+.case-noaction {
+  color: var(--orange);
+  border: 1px solid var(--orange);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+.case-deadline {
+  min-width: 130px;
+  text-align: right;
+}
+.case-deadline.dl-over { color: var(--orange); font-weight: 700; }
+.case-deadline.dl-today { color: var(--orange); }
+.case-deadline.dl-soon { color: var(--ink); }
+.case-deadline.dl-far { color: var(--ink-2); }
+.case-deadline.dl-none { color: var(--disabled); }
+
 /* --- Tasks hub: priority board --- */
 .kb-board {
   display: grid;
