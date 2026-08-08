@@ -3,6 +3,13 @@
 import { useEffect, useState } from "react";
 import type { CaseRow } from "@/lib/queries";
 import type { MatterPatch, MatterPersonRow, PersonOption } from "@/app/(app)/matter-actions";
+import type { NoteStub } from "@/app/(app)/note-actions";
+
+const NOTE_MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+export function fmtStubDate(iso: string): string {
+  const d = new Date(iso);
+  return `${NOTE_MONTHS[d.getMonth()]} ${d.getDate()}`;
+}
 
 const STATUSES = [
   "Active",
@@ -51,6 +58,10 @@ export default function CaseDrawer({
   allPeople,
   onAddPerson,
   onRemovePerson,
+  notes,
+  notesLoading,
+  onOpenNote,
+  onNewNote,
 }: {
   matter: CaseRow;
   saving: boolean;
@@ -63,6 +74,10 @@ export default function CaseDrawer({
   allPeople: PersonOption[];
   onAddPerson: (name: string, org: string | null, role: string) => void;
   onRemovePerson: (linkId: string) => void;
+  notes: NoteStub[];
+  notesLoading: boolean;
+  onOpenNote: (id: string) => void;
+  onNewNote: () => void;
 }) {
   const [pName, setPName] = useState("");
   const [pOrg, setPOrg] = useState("");
@@ -278,6 +293,30 @@ export default function CaseDrawer({
               Add
             </button>
           </div>
+        </div>
+
+        <div className="drawer-field">
+          <div className="drawer-label">
+            NOTES {notes.length > 0 ? `· ${notes.length}` : ""}
+          </div>
+          {notesLoading && <div className="empty-note">Loading…</div>}
+          {!notesLoading && notes.length === 0 && (
+            <div className="empty-note">No notes on this case yet.</div>
+          )}
+          {notes.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              className="note-stub"
+              onClick={() => onOpenNote(n.id)}
+            >
+              <span className="note-stub-title">{n.title || "Untitled"}</span>
+              <span className="note-stub-date">{fmtStubDate(n.createdAt)}</span>
+            </button>
+          ))}
+          <button type="button" className="btn-add person-add-btn note-stub-new" onClick={onNewNote}>
+            + Note
+          </button>
         </div>
       </div>
     </div>

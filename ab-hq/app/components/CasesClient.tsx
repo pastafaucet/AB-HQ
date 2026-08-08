@@ -14,6 +14,11 @@ import {
   type MatterPersonRow,
   type PersonOption,
 } from "@/app/(app)/matter-actions";
+import {
+  listNotesForTarget,
+  createNoteForTarget,
+  type NoteStub,
+} from "@/app/(app)/note-actions";
 import CaseDrawer from "./CaseDrawer";
 
 const MONTHS_SHORT = [
@@ -87,24 +92,44 @@ export default function CasesClient({
   casesRef.current = cases;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // --- people for the open case ---
+  // --- people + notes for the open case ---
   const [people, setPeople] = useState<MatterPersonRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [allPeople, setAllPeople] = useState<PersonOption[]>([]);
+  const [notes, setNotes] = useState<NoteStub[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
   useEffect(() => {
     if (!openId) {
       setPeople([]);
+      setNotes([]);
       return;
     }
     setPeopleLoading(true);
+    setNotesLoading(true);
     (async () => {
-      const [mine, all] = await Promise.all([listMatterPeople(openId), listAllPeople()]);
+      const [mine, all, nts] = await Promise.all([
+        listMatterPeople(openId),
+        listAllPeople(),
+        listNotesForTarget("matter", openId),
+      ]);
       setPeopleLoading(false);
+      setNotesLoading(false);
       if (mine.ok) setPeople(mine.people);
       else flash(mine.error ?? "Couldn't load people.");
       if (all.ok) setAllPeople(all.people);
+      if (nts.ok) setNotes(nts.notes);
     })();
   }, [openId]);
+
+  function onNewNote() {
+    if (!openId) return;
+    const id = openId;
+    startTransition(async () => {
+      const r = await createNoteForTarget("matter", id);
+      if (r.ok && r.id) router.push(`/hub/notes?note=${r.id}`);
+      else flash(r.error ?? "Couldn't create note.");
+    });
+  }
 
   function flash(msg: string) {
     setError(msg);
@@ -360,6 +385,10 @@ export default function CasesClient({
           allPeople={allPeople}
           onAddPerson={onAddPerson}
           onRemovePerson={onRemovePerson}
+          notes={notes}
+          notesLoading={notesLoading}
+          onOpenNote={(id) => router.push(`/hub/notes?note=${id}`)}
+          onNewNote={onNewNote}
         />
       )}
 

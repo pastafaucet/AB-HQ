@@ -1394,6 +1394,443 @@ button.check {
 .person-card-name {
   min-height: 1.3em;
 }
+/* ============================================================
+   Notes hub — two-pane: list left, Tiptap editor right
+   ============================================================ */
+.notes-pane {
+  display: flex;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.notes-list {
+  width: 300px;
+  flex: none;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 22px 14px 0 20px;
+  min-height: 0;
+}
+.notes-list-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.notes-list-head .kicker {
+  margin-bottom: 0;
+}
+.notes-list-head .drawer-savestate {
+  margin-left: auto;
+}
+.notes-new {
+  flex: none;
+  padding: 5px 10px;
+  font-size: 11.5px;
+}
+.notes-search {
+  width: 100%;
+  margin-bottom: 8px;
+}
+.notes-filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.notes-filters .dw-select {
+  flex: 1;
+  min-width: 0;
+  max-width: 50%;
+}
+.notes-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 6px;
+  padding-bottom: 30px;
+}
+.note-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  margin-bottom: 2px;
+}
+.note-item:hover {
+  background: var(--inset);
+}
+.note-item.is-sel {
+  background: var(--inset);
+  border-color: var(--line-raised-2);
+}
+.note-item-title {
+  font-size: 13px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note-item-pin {
+  color: #d8a657;
+}
+.note-item-snippet {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.note-item-links {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.note-mini-chip {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--inset);
+  border: 1px solid var(--line-field);
+  color: var(--ink-2);
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notes-editor-pane {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 22px 34px 60px 28px;
+}
+.notes-empty-state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* --- editor header --- */
+.note-ed-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.note-date {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  color: var(--faint);
+}
+.note-pin {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  background: none;
+  border: 1px solid var(--line-field);
+  border-radius: 999px;
+  padding: 3px 10px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.note-pin.is-on {
+  color: #d8a657;
+  border-color: #d8a657;
+  background: rgba(216, 166, 87, 0.1);
+}
+.note-delete {
+  font-size: 11px;
+  background: none;
+  border: none;
+  color: var(--faint);
+  cursor: pointer;
+}
+.note-delete:hover {
+  color: var(--orange);
+}
+.note-title-input {
+  width: 100%;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: var(--font-serif);
+  font-size: 26px;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.note-title-input::placeholder {
+  color: var(--disabled);
+}
+.note-links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.note-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--inset);
+  border: 1px solid var(--line-field);
+  color: var(--ink-2);
+}
+.note-chip.nc-matter { border-color: rgba(91, 140, 255, 0.5); }
+.note-chip.nc-person { border-color: rgba(139, 124, 240, 0.55); }
+.note-chip.nc-task { border-color: rgba(63, 182, 168, 0.5); }
+.note-mini-chip.nc-matter { border-color: rgba(91, 140, 255, 0.5); }
+.note-mini-chip.nc-person { border-color: rgba(139, 124, 240, 0.55); }
+.note-mini-chip.nc-task { border-color: rgba(63, 182, 168, 0.5); }
+.note-chip-x {
+  background: none;
+  border: none;
+  color: var(--faint);
+  cursor: pointer;
+  font-size: 9px;
+  padding: 0;
+}
+.note-chip-x:hover {
+  color: var(--orange);
+}
+.note-link-add {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+.note-link-target {
+  max-width: 190px;
+}
+
+/* --- toolbar --- */
+.note-toolbar {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 9px;
+  padding: 5px 7px;
+  margin-bottom: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.ed-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ed-btn:hover {
+  background: var(--inset);
+}
+.ed-btn.is-on {
+  color: var(--accent);
+  background: var(--inset);
+  border-color: var(--line-field);
+}
+.ed-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--line);
+  margin: 0 4px;
+}
+
+/* --- editor body (ProseMirror) --- */
+.note-body .ProseMirror {
+  outline: none;
+  min-height: 50vh;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ink-body);
+}
+.note-body .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--disabled);
+  pointer-events: none;
+  height: 0;
+}
+.note-body .ProseMirror h1,
+.note-body .ProseMirror h2,
+.note-body .ProseMirror h3 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  color: var(--ink);
+  margin: 18px 0 8px;
+}
+.note-body .ProseMirror h1 { font-size: 24px; }
+.note-body .ProseMirror h2 { font-size: 19px; }
+.note-body .ProseMirror h3 { font-size: 16px; }
+.note-body .ProseMirror p {
+  margin: 6px 0;
+}
+.note-body .ProseMirror ul,
+.note-body .ProseMirror ol {
+  padding-left: 22px;
+  margin: 6px 0;
+}
+.note-body .ProseMirror blockquote {
+  border-left: 3px solid var(--line-raised-2);
+  margin: 10px 0;
+  padding: 2px 0 2px 14px;
+  color: var(--muted);
+}
+.note-body .ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 16px 0;
+}
+.note-body .ProseMirror code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: var(--inset);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.note-body .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 4px;
+}
+.note-body .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.note-body .ProseMirror ul[data-type="taskList"] li > label {
+  margin-top: 4px;
+}
+.note-body .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.note-body .ProseMirror .note-toggle {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin: 8px 0;
+}
+.note-body .ProseMirror .note-toggle summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 600;
+}
+.note-body .ProseMirror .mention {
+  color: var(--accent);
+  background: rgba(91, 140, 255, 0.1);
+  border-radius: 5px;
+  padding: 0 4px;
+  font-weight: 500;
+}
+
+/* --- mention dropdown --- */
+.mention-dropdown {
+  position: fixed;
+  z-index: 200;
+  background: var(--panel);
+  border: 1px solid var(--line-raised-2);
+  border-radius: 9px;
+  box-shadow: 0 14px 34px -14px rgba(0, 0, 0, 0.7);
+  padding: 4px;
+  min-width: 220px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.mention-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 9px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.mention-item:hover,
+.mention-item.is-sel {
+  background: var(--inset);
+}
+.mention-item .mi-label {
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.mention-item .mi-sub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--faint);
+  align-self: center;
+}
+.mention-empty {
+  font-size: 12px;
+  color: var(--disabled);
+  padding: 6px 9px;
+}
+
+/* --- note stubs inside case/person drawers --- */
+.note-stub {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  padding: 7px 2px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.note-stub:hover .note-stub-title {
+  color: var(--accent);
+}
+.note-stub-title {
+  font-size: 12.5px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-stub-date {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--faint);
+  align-self: center;
+}
+.note-stub-new {
+  margin-top: 10px;
+}
+
 .person-delete {
   background: none;
   border: 1px solid var(--line-field);

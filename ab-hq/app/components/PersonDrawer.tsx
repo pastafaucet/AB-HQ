@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import type { PersonRow, MatterOption } from "@/lib/queries";
 import type { PersonPatch } from "@/app/(app)/people-actions";
+import type { NoteStub } from "@/app/(app)/note-actions";
+import { fmtStubDate } from "./CaseDrawer";
 
 const ROLES = [
   "Opposing Counsel",
@@ -26,6 +28,10 @@ export default function PersonDrawer({
   onDelete,
   onAddCase,
   onRemoveCase,
+  notes,
+  notesLoading,
+  onOpenNote,
+  onNewNote,
 }: {
   person: PersonRow;
   matters: MatterOption[];
@@ -36,6 +42,10 @@ export default function PersonDrawer({
   onDelete: () => void;
   onAddCase: (matterId: string, role: string) => void;
   onRemoveCase: (linkId: string) => void;
+  notes: NoteStub[];
+  notesLoading: boolean;
+  onOpenNote: (id: string) => void;
+  onNewNote: () => void;
 }) {
   const [caseId, setCaseId] = useState("");
   const [role, setRole] = useState(ROLES[0]);
@@ -177,6 +187,30 @@ export default function PersonDrawer({
               Add
             </button>
           </div>
+        </div>
+
+        <div className="drawer-field">
+          <div className="drawer-label">
+            NOTES {notes.length > 0 ? `· ${notes.length}` : ""}
+          </div>
+          {notesLoading && <div className="empty-note">Loading…</div>}
+          {!notesLoading && notes.length === 0 && (
+            <div className="empty-note">No notes mention this person yet.</div>
+          )}
+          {notes.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              className="note-stub"
+              onClick={() => onOpenNote(n.id)}
+            >
+              <span className="note-stub-title">{n.title || "Untitled"}</span>
+              <span className="note-stub-date">{fmtStubDate(n.createdAt)}</span>
+            </button>
+          ))}
+          <button type="button" className="btn-add person-add-btn note-stub-new" onClick={onNewNote}>
+            + Note
+          </button>
         </div>
 
         <div className="drawer-field">

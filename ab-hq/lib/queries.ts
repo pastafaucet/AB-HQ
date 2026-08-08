@@ -192,6 +192,111 @@ export async function getPeoplePageData(): Promise<{
   return { people, matters };
 }
 
+export interface NoteLinkInfo {
+  linkId: string;
+  type: "matter" | "task" | "person";
+  id: string;
+  label: string;
+}
+
+export interface NoteDoc {
+  id: string;
+  title: string | null;
+  bodyText: string;
+  bodyJson: unknown | null;
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+  links: NoteLinkInfo[];
+}
+
+export interface NotesPageData {
+  notes: NoteDoc[];
+  matters: MatterOption[];
+  people: { id: string; name: string; org: string | null }[];
+  tasks: { id: string; title: string }[];
+}
+
+/** Everything the Notes hub needs: all notes + link labels + pickers. */
+export async function getNotesPageData(): Promise<NotesPageData> {
+  const sb = getSupabase();
+  const [notesRes, linksRes, mattersRes, peopleRes, tasksRes] = await Promise.all([
+    sb
+      .from("notes")
+      .select("id,title,body,body_json,pinned,created_at,updated_at")
+      .order("created_at", { ascending: false }),
+    sb.from("note_links").select("id,note_id,target_type,target_id"),
+    sb.from("matters").select("id,name,status,disposition"),
+    sb.from("people").select("id,name,org").order("name"),
+    sb.from("tasks").select("id,title").neq("status", "Cancelled").order("created_at", { ascending: false }),
+  ]);
+  if (notesRes.error) throw notesRes.error;
+  if (linksRes.error) throw linksRes.error;
+  if (mattersRes.error) throw mattersRes.error;
+  if (peopleRes.error) throw peopleRes.error;
+  if (tasksRes.error) throw tasksRes.error;
+
+  const matterRows = mattersRes.data as {
+    id: string;
+    name: string;
+    status: string | null;
+    disposition: string | null;
+  }[];
+  const labelFor = new Map<string, string>();
+  for (const m of matterRows) labelFor.set(`matter:${m.id}`, m.name);
+  for (const p of peopleRes.data as { id: string; name: string }[])
+    labelFor.set(`person:${p.id}`, p.name);
+  for (const t of tasksRes.data as { id: string; title: string }[])
+    labelFor.set(`task:${t.id}`, t.title);
+
+  const linksByNote = new Map<string, NoteLinkInfo[]>();
+  for (const l of linksRes.data as {
+    id: string;
+    note_id: string;
+    target_type: "matter" | "task" | "person";
+    target_id: string;
+  }[]) {
+    const arr = linksByNote.get(l.note_id) ?? [];
+    arr.push({
+      linkId: l.id,
+      type: l.target_type,
+      id: l.target_id,
+      label: labelFor.get(`${l.target_type}:${l.target_id}`) ?? "—",
+    });
+    linksByNote.set(l.note_id, arr);
+  }
+
+  const notes: NoteDoc[] = (notesRes.data as {
+    id: string;
+    title: string | null;
+    body: string | null;
+    body_json: unknown | null;
+    pinned: boolean;
+    created_at: string;
+    updated_at: string;
+  }[]).map((n) => ({
+    id: n.id,
+    title: n.title,
+    bodyText: n.body ?? "",
+    bodyJson: n.body_json,
+    pinned: n.pinned,
+    createdAt: n.created_at,
+    updatedAt: n.updated_at,
+    links: linksByNote.get(n.id) ?? [],
+  }));
+
+  const matters: MatterOption[] = matterRows
+    .map((m) => ({ id: m.id, name: m.name, closed: m.status === "Closed" || !!m.disposition }))
+    .sort((a, b) => Number(a.closed) - Number(b.closed) || a.name.localeCompare(b.name));
+
+  return {
+    notes,
+    matters,
+    people: peopleRes.data as NotesPageData["people"],
+    tasks: tasksRes.data as NotesPageData["tasks"],
+  };
+}
+
 export interface TasksPageData {
   tasks: Task[]; // every open task (not Done, not Cancelled)
   matters: Matter[];

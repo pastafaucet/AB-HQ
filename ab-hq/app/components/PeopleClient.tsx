@@ -1,7 +1,13 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type { PersonRow, MatterOption } from "@/lib/queries";
+import {
+  listNotesForTarget,
+  createNoteForTarget,
+  type NoteStub,
+} from "@/app/(app)/note-actions";
 import {
   updatePerson,
   createPerson,
@@ -46,9 +52,36 @@ export default function PeopleClient({
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
+  const router = useRouter();
   const peopleRef = useRef(people);
   peopleRef.current = people;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // --- notes mentioning the open person ---
+  const [notes, setNotes] = useState<NoteStub[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  useEffect(() => {
+    if (!openId) {
+      setNotes([]);
+      return;
+    }
+    setNotesLoading(true);
+    (async () => {
+      const r = await listNotesForTarget("person", openId);
+      setNotesLoading(false);
+      if (r.ok) setNotes(r.notes);
+    })();
+  }, [openId]);
+
+  function onNewNote() {
+    if (!openId) return;
+    const id = openId;
+    startTransition(async () => {
+      const r = await createNoteForTarget("person", id);
+      if (r.ok && r.id) router.push(`/hub/notes?note=${r.id}`);
+      else flash(r.error ?? "Couldn't create note.");
+    });
+  }
 
   function flash(msg: string) {
     setError(msg);
@@ -288,6 +321,10 @@ export default function PeopleClient({
           onDelete={onDelete}
           onAddCase={onAddCase}
           onRemoveCase={onRemoveCase}
+          notes={notes}
+          notesLoading={notesLoading}
+          onOpenNote={(id) => router.push(`/hub/notes?note=${id}`)}
+          onNewNote={onNewNote}
         />
       )}
 
