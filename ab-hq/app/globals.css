@@ -1750,6 +1750,62 @@ button.check {
   font-weight: 500;
 }
 
+/* --- note tags + status --- */
+.note-chip.nc-tag,
+.note-mini-chip.nc-tag {
+  border-color: rgba(216, 166, 87, 0.55);
+  color: #d8a657;
+}
+.note-tag-input {
+  width: 90px;
+}
+.notes-status-row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.notes-status-row .view-pill {
+  padding: 4px 11px;
+  font-size: 9.5px;
+}
+.notes-sort {
+  margin-left: auto;
+  max-width: 130px;
+}
+.note-inbox-badge {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 1px 6px;
+  margin-right: 6px;
+  vertical-align: 2px;
+}
+.note-item.is-archived {
+  opacity: 0.55;
+}
+.note-flag-inbox.is-on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(91, 140, 255, 0.1);
+}
+.note-flag-archive.is-on {
+  color: var(--orange);
+  border-color: var(--orange);
+  background: rgba(216, 130, 106, 0.1);
+}
+.note-body .ProseMirror .tag-mention {
+  color: #d8a657;
+  background: rgba(216, 166, 87, 0.1);
+  border-radius: 5px;
+  padding: 0 4px;
+  font-weight: 500;
+}
+
 /* --- mention dropdown --- */
 .mention-dropdown {
   position: fixed;

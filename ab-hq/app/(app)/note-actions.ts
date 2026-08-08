@@ -10,6 +10,7 @@ export interface NotePatch {
   bodyJson?: unknown;
   bodyText?: string;
   pinned?: boolean;
+  status?: "Inbox" | "Active" | "Archived";
 }
 
 export interface NoteStub {
@@ -51,6 +52,7 @@ export async function updateNote(id: string, patch: NotePatch): Promise<{ ok: bo
   if (patch.bodyJson !== undefined) db.body_json = patch.bodyJson;
   if (patch.bodyText !== undefined) db.body = patch.bodyText;
   if (patch.pinned !== undefined) db.pinned = patch.pinned;
+  if (patch.status !== undefined) db.status = patch.status;
   const { error } = await sb.from("notes").update(db).eq("id", id);
   revalidatePath("/hub/notes");
   return { ok: !error, error: error?.message };
@@ -94,15 +96,68 @@ export async function listNotesForTarget(
   const sb = getSupabase();
   const { data, error } = await sb
     .from("note_links")
-    .select("note_id,notes(id,title,created_at)")
+    .select("note_id,notes(id,title,body,created_at)")
     .eq("target_type", targetType)
     .eq("target_id", targetId);
   if (error) return { ok: false, error: error.message, notes: [] };
   const notes = (data as unknown as {
-    notes: { id: string; title: string | null; created_at: string } | null;
+    notes: { id: string; title: string | null; body: string | null; created_at: string } | null;
   }[])
     .filter((r) => r.notes)
-    .map((r) => ({ id: r.notes!.id, title: r.notes!.title, createdAt: r.notes!.created_at }))
+    .map((r) => ({
+      id: r.notes!.id,
+      // Untitled notes borrow their first line as a display title.
+      title: r.notes!.title ?? r.notes!.body?.trim().split("\n")[0]?.slice(0, 60) ?? null,
+      createdAt: r.notes!.created_at,
+    }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return { ok: true, notes };
+}
+
+// ---------- tags ----------
+
+export interface NoteTagRow {
+  noteTagId: string;
+  tagId: string;
+  name: string;
+}
+
+/** Attach a tag (lowercased) to a note, creating the tag if new. */
+export async function addTagToNote(
+  noteId: string,
+  rawName: string
+): Promise<{ ok: boolean; error?: string; tag?: NoteTagRow }> {
+  const name = rawName.trim().toLowerCase().replace(/^#/, "").replace(/\s+/g, "-");
+  if (!name) return { ok: false, error: "Tag name is required." };
+  const sb = getSupabase();
+
+  const { data: existing } = await sb.from("tags").select("id,name").eq("name", name).maybeSingle();
+  let tag = existing as { id: string; name: string } | null;
+  if (!tag) {
+    const { data: created, error: cErr } = await sb
+      .from("tags")
+      .insert({ name })
+      .select("id,name")
+      .single();
+    if (cErr || !created) return { ok: false, error: cErr?.message ?? "Couldn't create tag" };
+    tag = created as { id: string; name: string };
+  }
+
+  const { data: link, error: lErr } = await sb
+    .from("note_tags")
+    .insert({ note_id: noteId, tag_id: tag.id })
+    .select("id")
+    .single();
+  if (lErr || !link) return { ok: false, error: lErr?.message ?? "Already tagged?" };
+  revalidatePath("/hub/notes");
+  return { ok: true, tag: { noteTagId: (link as { id: string }).id, tagId: tag.id, name: tag.name } };
+}
+
+export async function removeTagFromNote(
+  noteTagId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const sb = getSupabase();
+  const { error } = await sb.from("note_tags").delete().eq("id", noteTagId);
+  revalidatePath("/hub/notes");
+  return { ok: !error, error: error?.message };
 }

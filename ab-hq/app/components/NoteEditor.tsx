@@ -7,6 +7,7 @@ import { Details, DetailsContent, DetailsSummary } from "@tiptap/extension-detai
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Mention from "@tiptap/extension-mention";
 import { Placeholder } from "@tiptap/extensions";
+import { PluginKey } from "@tiptap/pm/state";
 import type { NoteDoc, NotesPageData } from "@/lib/queries";
 import type { NotePatch, NoteTargetType } from "@/app/(app)/note-actions";
 
@@ -16,6 +17,16 @@ interface MentionItem {
   type: NoteTargetType;
   sub?: string;
 }
+
+interface TagMentionItem {
+  name: string;
+  label: string;
+  sub?: string;
+}
+
+// A second mention node type for #tags — must have its own name so it can
+// coexist with the @ entity mention.
+const TagMention = Mention.extend({ name: "tagMention" });
 
 const MONTHS_SHORT = [
   "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
@@ -33,22 +44,29 @@ export default function NoteEditor({
   matters,
   people,
   tasks,
+  allTags,
   onPatch,
   onDelete,
   onAddLink,
   onRemoveLink,
+  onAddTag,
+  onRemoveTag,
 }: {
   note: NoteDoc;
   matters: NotesPageData["matters"];
   people: NotesPageData["people"];
   tasks: NotesPageData["tasks"];
+  allTags: NotesPageData["allTags"];
   onPatch: (patch: NotePatch) => void;
   onDelete: () => void;
   onAddLink: (type: NoteTargetType, id: string) => void;
   onRemoveLink: (linkId: string) => void;
+  onAddTag: (name: string) => void;
+  onRemoveTag: (noteTagId: string) => void;
 }) {
   const [linkType, setLinkType] = useState<NoteTargetType>("matter");
   const [linkTarget, setLinkTarget] = useState("");
+  const [tagInput, setTagInput] = useState("");
 
   // Mention data must be reachable from the (non-React) suggestion plugin.
   const mentionPool = useRef<MentionItem[]>([]);
@@ -70,6 +88,12 @@ export default function NoteEditor({
   }, [matters, people]);
   const onAddLinkRef = useRef(onAddLink);
   onAddLinkRef.current = onAddLink;
+  const tagPool = useRef<string[]>([]);
+  useEffect(() => {
+    tagPool.current = allTags.map((t) => t.name);
+  }, [allTags]);
+  const onAddTagRef = useRef(onAddTag);
+  onAddTagRef.current = onAddTag;
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -105,6 +129,37 @@ export default function NoteEditor({
               ])
               .run();
             onAddLinkRef.current(item.type, item.id);
+          },
+        },
+      }),
+      TagMention.configure({
+        HTMLAttributes: { class: "tag-mention" },
+        suggestion: {
+          char: "#",
+          pluginKey: new PluginKey("tagSuggestion"),
+          items: ({ query }: { query: string }) => {
+            const clean = query.trim().toLowerCase().replace(/\s+/g, "-");
+            const hits: TagMentionItem[] = tagPool.current
+              .filter((n) => n.includes(clean))
+              .slice(0, 7)
+              .map((n) => ({ name: n, label: `#${n}`, sub: "tag" }));
+            if (clean && !tagPool.current.includes(clean)) {
+              hits.push({ name: clean, label: `+ create #${clean}`, sub: "new" });
+            }
+            return hits;
+          },
+          render: mentionDropdown,
+          command: ({ editor, range, props }) => {
+            const item = props as unknown as TagMentionItem;
+            editor
+              .chain()
+              .focus()
+              .insertContentAt(range, [
+                { type: "tagMention", attrs: { id: item.name, label: item.name } },
+                { type: "text", text: " " },
+              ])
+              .run();
+            onAddTagRef.current(item.name);
           },
         },
       }),
@@ -155,6 +210,22 @@ export default function NoteEditor({
         <span className="head-spacer" />
         <button
           type="button"
+          className={`note-pin note-flag-inbox${note.status === "Inbox" ? " is-on" : ""}`}
+          title={note.status === "Inbox" ? "Mark processed" : "Flag as needs-processing"}
+          onClick={() => onPatch({ status: note.status === "Inbox" ? "Active" : "Inbox" })}
+        >
+          INBOX
+        </button>
+        <button
+          type="button"
+          className={`note-pin note-flag-archive${note.status === "Archived" ? " is-on" : ""}`}
+          title={note.status === "Archived" ? "Unarchive" : "Archive (hidden from All)"}
+          onClick={() => onPatch({ status: note.status === "Archived" ? "Active" : "Archived" })}
+        >
+          {note.status === "Archived" ? "ARCHIVED" : "ARCHIVE"}
+        </button>
+        <button
+          type="button"
           className={`note-pin${note.pinned ? " is-on" : ""}`}
           title={note.pinned ? "Unpin" : "Pin to top"}
           onClick={() => onPatch({ pinned: !note.pinned })}
@@ -187,7 +258,39 @@ export default function NoteEditor({
             </button>
           </span>
         ))}
+        {note.tags.map((t) => (
+          <span key={t.noteTagId} className="note-chip nc-tag">
+            #{t.name}
+            <button
+              type="button"
+              className="note-chip-x"
+              title="Remove tag"
+              onClick={() => onRemoveTag(t.noteTagId)}
+            >
+              ✕
+            </button>
+          </span>
+        ))}
         <span className="note-link-add">
+          <input
+            type="text"
+            className="dw-select note-tag-input"
+            placeholder="#tag…"
+            list="tag-options"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && tagInput.trim()) {
+                onAddTag(tagInput);
+                setTagInput("");
+              }
+            }}
+          />
+          <datalist id="tag-options">
+            {allTags.map((t) => (
+              <option key={t.id} value={t.name} />
+            ))}
+          </datalist>
           <select
             className="dw-select"
             value={linkType}
@@ -245,17 +348,22 @@ export default function NoteEditor({
 }
 
 // ---- lightweight mention dropdown (no external positioning lib) ----
+// Shared by @ (cases/people) and # (tags); items just need label + sub.
+type DropdownItem = { label: string; sub?: string };
 type SuggestionProps = {
-  items: MentionItem[];
-  command: (item: MentionItem) => void;
+  items: DropdownItem[];
+  command: (item: DropdownItem) => void;
   clientRect?: (() => DOMRect | null) | null;
 };
 
-function mentionDropdown() {
+// Typed loosely: tiptap's SuggestionOptions generics differ per mention
+// type, but the renderer only touches label/sub/command.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mentionDropdown(): any {
   let el: HTMLDivElement | null = null;
-  let currentItems: MentionItem[] = [];
+  let currentItems: DropdownItem[] = [];
   let selected = 0;
-  let currentCommand: ((item: MentionItem) => void) | null = null;
+  let currentCommand: ((item: DropdownItem) => void) | null = null;
 
   function renderItems() {
     if (!el) return;

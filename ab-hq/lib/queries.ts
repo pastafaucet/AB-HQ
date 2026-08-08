@@ -199,15 +199,23 @@ export interface NoteLinkInfo {
   label: string;
 }
 
+export interface NoteTagInfo {
+  noteTagId: string;
+  tagId: string;
+  name: string;
+}
+
 export interface NoteDoc {
   id: string;
   title: string | null;
   bodyText: string;
   bodyJson: unknown | null;
   pinned: boolean;
+  status: "Inbox" | "Active" | "Archived";
   createdAt: string;
   updatedAt: string;
   links: NoteLinkInfo[];
+  tags: NoteTagInfo[];
 }
 
 export interface NotesPageData {
@@ -215,26 +223,35 @@ export interface NotesPageData {
   matters: MatterOption[];
   people: { id: string; name: string; org: string | null }[];
   tasks: { id: string; title: string }[];
+  allTags: { id: string; name: string; count: number }[];
 }
 
 /** Everything the Notes hub needs: all notes + link labels + pickers. */
 export async function getNotesPageData(): Promise<NotesPageData> {
   const sb = getSupabase();
-  const [notesRes, linksRes, mattersRes, peopleRes, tasksRes] = await Promise.all([
-    sb
-      .from("notes")
-      .select("id,title,body,body_json,pinned,created_at,updated_at")
-      .order("created_at", { ascending: false }),
-    sb.from("note_links").select("id,note_id,target_type,target_id"),
-    sb.from("matters").select("id,name,status,disposition"),
-    sb.from("people").select("id,name,org").order("name"),
-    sb.from("tasks").select("id,title").neq("status", "Cancelled").order("created_at", { ascending: false }),
-  ]);
+  const [notesRes, linksRes, mattersRes, peopleRes, tasksRes, tagsRes, noteTagsRes] =
+    await Promise.all([
+      sb
+        .from("notes")
+        .select("id,title,body,body_json,pinned,status,created_at,updated_at")
+        .order("created_at", { ascending: false }),
+      sb.from("note_links").select("id,note_id,target_type,target_id"),
+      sb.from("matters").select("id,name,status,disposition"),
+      sb.from("people").select("id,name,org").order("name"),
+      sb.from("tasks").select("id,title").neq("status", "Cancelled").order("created_at", { ascending: false }),
+      sb.from("tags").select("id,name").order("name"),
+      sb.from("note_tags").select("id,note_id,tag_id"),
+    ]);
   if (notesRes.error) throw notesRes.error;
   if (linksRes.error) throw linksRes.error;
   if (mattersRes.error) throw mattersRes.error;
   if (peopleRes.error) throw peopleRes.error;
   if (tasksRes.error) throw tasksRes.error;
+  // Tag tables may predate migration 0010 — degrade to no tags.
+  const tagRows = tagsRes.error ? [] : (tagsRes.data as { id: string; name: string }[]);
+  const noteTagRows = noteTagsRes.error
+    ? []
+    : (noteTagsRes.data as { id: string; note_id: string; tag_id: string }[]);
 
   const matterRows = mattersRes.data as {
     id: string;
@@ -266,12 +283,25 @@ export async function getNotesPageData(): Promise<NotesPageData> {
     linksByNote.set(l.note_id, arr);
   }
 
+  const tagNameById = new Map(tagRows.map((t) => [t.id, t.name]));
+  const tagsByNote = new Map<string, NoteTagInfo[]>();
+  const tagCounts = new Map<string, number>();
+  for (const nt of noteTagRows) {
+    const name = tagNameById.get(nt.tag_id);
+    if (!name) continue;
+    const arr = tagsByNote.get(nt.note_id) ?? [];
+    arr.push({ noteTagId: nt.id, tagId: nt.tag_id, name });
+    tagsByNote.set(nt.note_id, arr);
+    tagCounts.set(nt.tag_id, (tagCounts.get(nt.tag_id) ?? 0) + 1);
+  }
+
   const notes: NoteDoc[] = (notesRes.data as {
     id: string;
     title: string | null;
     body: string | null;
     body_json: unknown | null;
     pinned: boolean;
+    status: string | null;
     created_at: string;
     updated_at: string;
   }[]).map((n) => ({
@@ -280,9 +310,11 @@ export async function getNotesPageData(): Promise<NotesPageData> {
     bodyText: n.body ?? "",
     bodyJson: n.body_json,
     pinned: n.pinned,
+    status: (n.status === "Inbox" || n.status === "Archived" ? n.status : "Active") as NoteDoc["status"],
     createdAt: n.created_at,
     updatedAt: n.updated_at,
     links: linksByNote.get(n.id) ?? [],
+    tags: tagsByNote.get(n.id) ?? [],
   }));
 
   const matters: MatterOption[] = matterRows
@@ -294,6 +326,7 @@ export async function getNotesPageData(): Promise<NotesPageData> {
     matters,
     people: peopleRes.data as NotesPageData["people"],
     tasks: tasksRes.data as NotesPageData["tasks"],
+    allTags: tagRows.map((t) => ({ id: t.id, name: t.name, count: tagCounts.get(t.id) ?? 0 })),
   };
 }
 

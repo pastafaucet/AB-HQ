@@ -8,6 +8,8 @@ import {
   deleteNote,
   addNoteLink,
   removeNoteLink,
+  addTagToNote,
+  removeTagFromNote,
   type NotePatch,
   type NoteTargetType,
 } from "@/app/(app)/note-actions";
@@ -52,6 +54,10 @@ export default function NotesClient({
   const [q, setQ] = useState("");
   const [fCase, setFCase] = useState("");
   const [fPerson, setFPerson] = useState("");
+  const [fTag, setFTag] = useState("");
+  const [fStatus, setFStatus] = useState<"all" | "inbox" | "archived">("all");
+  const [sort, setSort] = useState<"created" | "updated">("created");
+  const [tagList, setTagList] = useState(initial.allTags);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +86,8 @@ export default function NotesClient({
               bodyJson: patch.bodyJson !== undefined ? patch.bodyJson : n.bodyJson,
               bodyText: patch.bodyText !== undefined ? patch.bodyText : n.bodyText,
               pinned: patch.pinned !== undefined ? patch.pinned : n.pinned,
+              status: patch.status !== undefined ? patch.status : n.status,
+              updatedAt: new Date().toISOString(),
             }
           : n
       )
@@ -116,9 +124,11 @@ export default function NotesClient({
           bodyText: "",
           bodyJson: null,
           pinned: false,
+          status: "Active",
           createdAt: r.createdAt ?? new Date().toISOString(),
           updatedAt: r.createdAt ?? new Date().toISOString(),
           links: [],
+          tags: [],
         };
         setNotes((prev) => [fresh, ...prev]);
         setSelectedId(r.id);
@@ -163,6 +173,52 @@ export default function NotesClient({
     });
   }
 
+  function onAddTag(rawName: string) {
+    if (!selectedId) return;
+    const id = selectedId;
+    const clean = rawName.trim().toLowerCase().replace(/^#/, "").replace(/\s+/g, "-");
+    const note = notesRef.current.find((n) => n.id === id);
+    if (!clean || note?.tags.some((t) => t.name === clean)) return;
+    startTransition(async () => {
+      const r = await addTagToNote(id, clean);
+      if (r.ok && r.tag) {
+        const tag = r.tag;
+        setNotes((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, tags: [...n.tags, tag] } : n))
+        );
+        setTagList((prev) => {
+          const hit = prev.find((t) => t.id === tag.tagId);
+          if (hit)
+            return prev.map((t) => (t.id === tag.tagId ? { ...t, count: t.count + 1 } : t));
+          return [...prev, { id: tag.tagId, name: tag.name, count: 1 }].sort((a, b) =>
+            a.name.localeCompare(b.name)
+          );
+        });
+      } else flash(r.error ?? "Couldn't tag.");
+    });
+  }
+
+  function onRemoveTag(noteTagId: string) {
+    if (!selectedId) return;
+    const id = selectedId;
+    const removed = notesRef.current
+      .find((n) => n.id === id)
+      ?.tags.find((t) => t.noteTagId === noteTagId);
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, tags: n.tags.filter((t) => t.noteTagId !== noteTagId) } : n
+      )
+    );
+    if (removed)
+      setTagList((prev) =>
+        prev.map((t) => (t.id === removed.tagId ? { ...t, count: Math.max(0, t.count - 1) } : t))
+      );
+    startTransition(async () => {
+      const r = await removeTagFromNote(noteTagId);
+      if (!r.ok) flash(r.error ?? "Couldn't untag.");
+    });
+  }
+
   function onRemoveLink(linkId: string) {
     if (!selectedId) return;
     const id = selectedId;
@@ -177,23 +233,44 @@ export default function NotesClient({
     });
   }
 
+  function displayTitle(n: NoteDoc): string {
+    return (
+      n.title?.trim() ||
+      n.bodyText.trim().split("\n")[0]?.slice(0, 60) ||
+      "Untitled"
+    );
+  }
+
   const needle = q.trim().toLowerCase();
-  const shown = notes.filter(
-    (n) =>
-      (!fCase || n.links.some((l) => l.type === "matter" && l.id === fCase)) &&
-      (!fPerson || n.links.some((l) => l.type === "person" && l.id === fPerson)) &&
-      (!needle ||
-        (n.title ?? "").toLowerCase().includes(needle) ||
-        n.bodyText.toLowerCase().includes(needle) ||
-        n.links.some((l) => l.label.toLowerCase().includes(needle)))
-  );
+  const shown = notes
+    .filter(
+      (n) =>
+        (fStatus === "archived"
+          ? n.status === "Archived"
+          : fStatus === "inbox"
+            ? n.status === "Inbox"
+            : n.status !== "Archived") &&
+        (!fCase || n.links.some((l) => l.type === "matter" && l.id === fCase)) &&
+        (!fPerson || n.links.some((l) => l.type === "person" && l.id === fPerson)) &&
+        (!fTag || n.tags.some((t) => t.tagId === fTag)) &&
+        (!needle ||
+          (n.title ?? "").toLowerCase().includes(needle) ||
+          n.bodyText.toLowerCase().includes(needle) ||
+          n.links.some((l) => l.label.toLowerCase().includes(needle)) ||
+          n.tags.some((t) => t.name.includes(needle)))
+    )
+    .sort((a, b) =>
+      sort === "updated"
+        ? b.updatedAt.localeCompare(a.updatedAt)
+        : b.createdAt.localeCompare(a.createdAt)
+    );
   const pinned = shown.filter((n) => n.pinned);
   const unpinned = shown.filter((n) => !n.pinned);
 
-  // group unpinned by local created date, newest first (list is already ordered)
+  // group unpinned by day of the sort field, newest first
   const groups: { label: string; items: NoteDoc[] }[] = [];
   for (const n of unpinned) {
-    const label = dayLabel(n.createdAt);
+    const label = dayLabel(sort === "updated" ? n.updatedAt : n.createdAt);
     const last = groups[groups.length - 1];
     if (last && last.label === label) last.items.push(n);
     else groups.push({ label, items: [n] });
@@ -204,15 +281,16 @@ export default function NotesClient({
     return (
       <button
         type="button"
-        className={`note-item${n.id === selectedId ? " is-sel" : ""}`}
+        className={`note-item${n.id === selectedId ? " is-sel" : ""}${n.status === "Archived" ? " is-archived" : ""}`}
         onClick={() => setSelectedId(n.id)}
       >
         <div className="note-item-title">
           {n.pinned && <span className="note-item-pin">★ </span>}
-          {n.title || "Untitled"}
+          {n.status === "Inbox" && <span className="note-inbox-badge">INBOX</span>}
+          {displayTitle(n)}
         </div>
         {snippet && <div className="note-item-snippet">{snippet}</div>}
-        {n.links.length > 0 && (
+        {(n.links.length > 0 || n.tags.length > 0) && (
           <div className="note-item-links">
             {n.links.slice(0, 3).map((l) => (
               <span key={l.linkId} className={`note-mini-chip nc-${l.type}`}>
@@ -220,6 +298,11 @@ export default function NotesClient({
               </span>
             ))}
             {n.links.length > 3 && <span className="note-mini-chip">+{n.links.length - 3}</span>}
+            {n.tags.slice(0, 3).map((t) => (
+              <span key={t.noteTagId} className="note-mini-chip nc-tag">
+                #{t.name}
+              </span>
+            ))}
           </div>
         )}
       </button>
@@ -243,6 +326,27 @@ export default function NotesClient({
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
+          <div className="notes-status-row">
+            {(["all", "inbox", "archived"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`view-pill${fStatus === s ? " is-active" : ""}`}
+                onClick={() => setFStatus(s)}
+              >
+                {s === "all" ? "All" : s === "inbox" ? "Inbox" : "Archived"}
+              </button>
+            ))}
+            <select
+              className="dw-select notes-sort"
+              value={sort}
+              onChange={(e) => setSort(e.target.value as "created" | "updated")}
+              title="Sort order"
+            >
+              <option value="created">Newest</option>
+              <option value="updated">Recently edited</option>
+            </select>
+          </div>
           <div className="notes-filters">
             <select className="dw-select" value={fCase} onChange={(e) => setFCase(e.target.value)}>
               <option value="">Any case</option>
@@ -261,6 +365,14 @@ export default function NotesClient({
               {initial.people.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
+                </option>
+              ))}
+            </select>
+            <select className="dw-select" value={fTag} onChange={(e) => setFTag(e.target.value)}>
+              <option value="">Any tag</option>
+              {tagList.map((t) => (
+                <option key={t.id} value={t.id}>
+                  #{t.name} ({t.count})
                 </option>
               ))}
             </select>
@@ -299,10 +411,13 @@ export default function NotesClient({
               matters={initial.matters}
               people={initial.people}
               tasks={initial.tasks}
+              allTags={tagList}
               onPatch={onPatch}
               onDelete={onDelete}
               onAddLink={onAddLink}
               onRemoveLink={onRemoveLink}
+              onAddTag={onAddTag}
+              onRemoveTag={onRemoveTag}
             />
           ) : (
             <div className="notes-empty-state">
