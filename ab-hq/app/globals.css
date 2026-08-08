@@ -1042,6 +1042,15 @@ button.check {
 .quick-add::placeholder {
   color: var(--faint);
 }
+.section-label.overdue {
+  color: var(--orange);
+}
+.row-mit-flag {
+  flex: none;
+  color: var(--gold, #d8a657);
+  font-size: 12px;
+  align-self: center;
+}
 .quick-parse-hint {
   font-family: var(--font-mono);
   font-size: 10.5px;

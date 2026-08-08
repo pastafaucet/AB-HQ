@@ -18,6 +18,54 @@ export interface MyDayData {
   logged: Record<string, number>; // taskId → completed seconds tracked
 }
 
+export interface TasksPageData {
+  tasks: Task[]; // every open task (not Done, not Cancelled)
+  matters: Matter[];
+  today: string;
+  running: RunningTimer | null;
+}
+
+/** All open tasks for the Tasks hub — the full audit view. */
+export async function getTasksPageData(): Promise<TasksPageData> {
+  const sb = getSupabase();
+  const today = todayISO();
+
+  const [tasksRes, mattersRes, runRes] = await Promise.all([
+    sb
+      .from("tasks")
+      .select(TASK_COLUMNS)
+      .neq("status", "Cancelled")
+      .neq("status", "Done")
+      .order("created_at", { ascending: true }),
+    sb.from("matters").select("id,name,client,status,next_deadline"),
+    sb
+      .from("time_sessions")
+      .select("id,task_id,started_at")
+      .is("ended_at", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (tasksRes.error) throw tasksRes.error;
+  if (mattersRes.error) throw mattersRes.error;
+
+  const running: RunningTimer | null = runRes.data
+    ? {
+        sessionId: runRes.data.id as string,
+        taskId: runRes.data.task_id as string,
+        startedAt: runRes.data.started_at as string,
+      }
+    : null;
+
+  return {
+    tasks: (tasksRes.data as TaskRowDB[]).map((r) => rowToTask(r, today)),
+    matters: (mattersRes.data as MatterRowDB[]).map((r) => rowToMatter(r, today)),
+    today,
+    running,
+  };
+}
+
 /** All data the My Day (Today) surface needs, for the current calendar day. */
 export async function getMyDayData(): Promise<MyDayData> {
   const sb = getSupabase();

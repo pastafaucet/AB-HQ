@@ -43,7 +43,7 @@ export const NAV: NavGroup[] = [
     label: "ACTION",
     items: [
       { href: "/hub/inbox", label: "Quick Drop / Inbox", code: "QD", dot: BLUE2, badge: "7" },
-      { href: "/hub/tasks", label: "Tasks", code: "TK", dot: BLUE2, badge: "14" },
+      { href: "/hub/tasks", label: "Tasks", code: "TK", dot: BLUE2 },
       { href: "/hub/projects", label: "Projects", code: "PJ", dot: BLUE2, badge: "6" },
       { href: "/hub/cases", label: "Cases", code: "CS", dot: BLUE, badge: "23" },
     ],
