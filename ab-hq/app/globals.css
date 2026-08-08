@@ -1124,6 +1124,38 @@ button.check {
   color: var(--accent);
   cursor: pointer;
 }
+.filter-date {
+  background: var(--inset);
+  border: 1px solid var(--line-field);
+  border-radius: 7px;
+  padding: 3px 8px;
+  color: var(--ink-body);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+  color-scheme: dark;
+}
+.filter-date:focus {
+  border-color: var(--accent);
+}
+.done-at {
+  flex: none;
+  align-self: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--faint);
+  padding-right: 4px;
+}
+.done-window {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--disabled-2);
+  margin-top: 22px;
+}
 .mit-star {
   flex: none;
   align-self: center;

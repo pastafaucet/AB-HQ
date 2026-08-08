@@ -17,6 +17,7 @@ import {
   createTask,
   deleteTask,
   listActivity,
+  listDoneTasks,
   type TaskPatch,
 } from "@/app/(app)/task-actions";
 import {
@@ -51,7 +52,8 @@ type ViewKey =
   | "unscheduled"
   | "someday"
   | "calendar"
-  | "all";
+  | "all"
+  | "done";
 
 const VIEWS: { key: ViewKey; label: string }[] = [
   { key: "triage", label: "Triage" },
@@ -62,6 +64,7 @@ const VIEWS: { key: ViewKey; label: string }[] = [
   { key: "someday", label: "Someday" },
   { key: "calendar", label: "Calendar" },
   { key: "all", label: "All" },
+  { key: "done", label: "Done" },
 ];
 
 function fromISO(iso: string): Date {
@@ -125,12 +128,33 @@ export default function TasksClient({
   const [fPri, setFPri] = useState(0); // 0 = any
   const [fType, setFType] = useState("");
   const [fMit, setFMit] = useState(false);
+  const [fFrom, setFFrom] = useState("");
+  const [fTo, setFTo] = useState("");
   useEffect(() => {
     try {
       const v = localStorage.getItem(VIEW_STORE) as ViewKey | null;
       if (v && VIEWS.some((x) => x.key === v)) setViewState(v);
     } catch {}
   }, []);
+
+  // --- completed tasks: fetched lazily when the Done view opens ---
+  const [doneTasks, setDoneTasks] = useState<Task[] | null>(null);
+  const [doneLoading, setDoneLoading] = useState(false);
+  const [doneDays, setDoneDays] = useState(30); // 0 = all time
+  const doneFetchedFor = useRef<number | null>(null);
+  useEffect(() => {
+    if (view !== "done" || doneFetchedFor.current === doneDays) return;
+    doneFetchedFor.current = doneDays;
+    setDoneLoading(true);
+    (async () => {
+      const since = doneDays ? new Date(Date.now() - doneDays * 86400000).toISOString() : null;
+      const r = await listDoneTasks(since);
+      setDoneLoading(false);
+      if (r.ok) setDoneTasks(r.tasks);
+      else flash(r.error ?? "Couldn't load completed tasks.");
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, doneDays]);
   function setView(v: ViewKey) {
     setViewState(v);
     try {
@@ -151,6 +175,8 @@ export default function TasksClient({
 
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
+  const doneRef = useRef(doneTasks);
+  doneRef.current = doneTasks;
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const openIdRef = useRef(openId);
@@ -257,7 +283,9 @@ export default function TasksClient({
   }
 
   const isNew = openId === DRAFT;
-  const openTask = isNew ? draft : tasks.find((t) => t.id === openId) ?? null;
+  const openTask = isNew
+    ? draft
+    : tasks.find((t) => t.id === openId) ?? doneTasks?.find((t) => t.id === openId) ?? null;
   const mitCount = tasks.filter((t) => t.mit && t.status !== "Done").length;
 
   function flash(msg: string) {
@@ -265,15 +293,37 @@ export default function TasksClient({
     setTimeout(() => setError(null), 3500);
   }
 
+  /** A task may live in the open list, the done list, or both — patch wherever it is. */
+  function patchBoth(id: string, fn: (t: Task) => Task) {
+    setTasks((prev) => prev.map((x) => (x.id === id ? fn(x) : x)));
+    setDoneTasks((prev) => (prev ? prev.map((x) => (x.id === id ? fn(x) : x)) : prev));
+  }
+  function findTask(id: string): Task | undefined {
+    return tasksRef.current.find((x) => x.id === id) ?? doneRef.current?.find((x) => x.id === id);
+  }
+
   function toggleDone(t: Task) {
     const done = t.status !== "Done";
-    setTasks((prev) =>
-      prev.map((x) => (x.id === t.id ? { ...x, status: done ? "Done" : "To Do" } : x))
-    );
+    // Reopening from the Done view: the task isn't in the open list yet.
+    const addToOpen = !done && !tasksRef.current.some((x) => x.id === t.id);
+    patchBoth(t.id, (x) => ({
+      ...x,
+      status: done ? "Done" : "To Do",
+      completedAt: done ? new Date().toISOString() : undefined,
+    }));
+    if (addToOpen) setTasks((prev) => [...prev, { ...t, status: "To Do", completedAt: undefined }]);
+    // Completing from an open view: surface it in the Done list too (if loaded).
+    if (done)
+      setDoneTasks((prev) =>
+        prev && !prev.some((x) => x.id === t.id)
+          ? [{ ...t, status: "Done", completedAt: new Date().toISOString() }, ...prev]
+          : prev
+      );
     startTransition(async () => {
       const r = await setTaskDone(t.id, done);
       if (!r.ok) {
-        setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, status: t.status } : x)));
+        patchBoth(t.id, (x) => ({ ...x, status: t.status, completedAt: t.completedAt }));
+        if (addToOpen) setTasks((prev) => prev.filter((x) => x.id !== t.id));
         flash(r.error ?? "Couldn't save.");
       } else if (openIdRef.current === t.id) {
         refreshActivity(t.id);
@@ -287,11 +337,11 @@ export default function TasksClient({
       flash("You already have 3 protected — clear one first.");
       return;
     }
-    setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, mit: on } : x)));
+    patchBoth(t.id, (x) => ({ ...x, mit: on }));
     startTransition(async () => {
       const r = await updateTask(t.id, { mit: on });
       if (!r.ok) {
-        setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, mit: t.mit } : x)));
+        patchBoth(t.id, (x) => ({ ...x, mit: t.mit }));
         flash(r.error ?? "Couldn't save.");
       }
     });
@@ -299,7 +349,7 @@ export default function TasksClient({
 
   // discrete save (used by calendar drag-reschedule)
   function savePatch(id: string, patch: TaskPatch) {
-    setTasks((prev) => prev.map((x) => (x.id === id ? applyPatch(x, patch, today) : x)));
+    patchBoth(id, (x) => applyPatch(x, patch, today));
     startTransition(async () => {
       const r = await updateTask(id, patch);
       if (!r.ok) flash(r.error ?? "Couldn't save.");
@@ -311,7 +361,7 @@ export default function TasksClient({
     setSaved(false);
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      const t = tasksRef.current.find((x) => x.id === id);
+      const t = findTask(id);
       if (!t) return;
       startTransition(async () => {
         const r = await updateTask(id, fullPatch(t));
@@ -357,7 +407,7 @@ export default function TasksClient({
       setDraft((d) => (d ? applyPatch(d, patch, today) : d));
       scheduleCreateFromDraft();
     } else if (openId) {
-      setTasks((prev) => prev.map((x) => (x.id === openId ? applyPatch(x, patch, today) : x)));
+      patchBoth(openId, (x) => applyPatch(x, patch, today));
       scheduleUpdate(openId);
     }
   }
@@ -397,7 +447,7 @@ export default function TasksClient({
       }
       setDraft(null);
     } else if (openId) {
-      const t = tasksRef.current.find((x) => x.id === openId);
+      const t = findTask(openId);
       if (t) startTransition(async () => void (await updateTask(openId, fullPatch(t))));
     }
     setOpenId(null);
@@ -409,6 +459,7 @@ export default function TasksClient({
     const id = openId;
     setOpenId(null);
     setTasks((prev) => prev.filter((x) => x.id !== id));
+    setDoneTasks((prev) => (prev ? prev.filter((x) => x.id !== id) : prev));
     startTransition(async () => {
       const r = await deleteTask(id);
       if (!r.ok) flash(r.error ?? "Couldn't delete.");
@@ -442,16 +493,31 @@ export default function TasksClient({
     if (fPri && t.priority !== fPri) return false;
     if (fType && t.type !== fType) return false;
     if (fMit && !t.mit) return false;
+    if (fFrom || fTo) {
+      // The range means "completed between" on Done, "scheduled between" elsewhere.
+      const d =
+        view === "done"
+          ? t.completedAt
+            ? toISO(new Date(t.completedAt))
+            : undefined
+          : t.doDate;
+      if (!d) return false;
+      if (fFrom && d < fFrom) return false;
+      if (fTo && d > fTo) return false;
+    }
     return true;
   }
-  const filtered = tasks.filter(matchesFilters);
-  const filtersActive = !!(fQ || fMatter || fPri || fType || fMit);
+  const sourceTasks = view === "done" ? doneTasks ?? [] : tasks;
+  const filtered = sourceTasks.filter(matchesFilters);
+  const filtersActive = !!(fQ || fMatter || fPri || fType || fMit || fFrom || fTo);
   function clearFilters() {
     setFQ("");
     setFMatter("");
     setFPri(0);
     setFType("");
     setFMit(false);
+    setFFrom("");
+    setFTo("");
   }
 
   function dayHeading(iso: string): string {
@@ -463,9 +529,33 @@ export default function TasksClient({
     return md;
   }
 
+  function doneHeading(iso: string): string {
+    const d = daysFromToday(iso, today);
+    if (d === 0) return "COMPLETED TODAY";
+    if (d === -1) return "YESTERDAY";
+    const dt = fromISO(iso);
+    const base = `${DOW[dt.getDay()]} · ${MONTHS_SHORT[dt.getMonth()]} ${dt.getDate()}`;
+    return dt.getFullYear() === fromISO(today).getFullYear()
+      ? base
+      : `${base}, ${dt.getFullYear()}`;
+  }
+
   function buildGroups(): Group[] {
     const active = (t: Task) => t.status !== "Someday";
     switch (view) {
+      case "done": {
+        const list = [...filtered].sort((a, b) =>
+          (b.completedAt ?? "").localeCompare(a.completedAt ?? "")
+        );
+        const out: Group[] = [];
+        for (const t of list) {
+          const label = t.completedAt ? doneHeading(toISO(new Date(t.completedAt))) : "EARLIER";
+          const last = out[out.length - 1];
+          if (last && last.label === label) last.items.push(t);
+          else out.push({ label, items: [t] });
+        }
+        return out;
+      }
       case "triage": {
         const overdue = filtered
           .filter((t) => active(t) && t.doDate && daysFromToday(t.doDate, today) < 0)
@@ -575,7 +665,18 @@ export default function TasksClient({
     );
   }
 
-  function Row({ t }: { t: Task }) {
+  function fmtDoneTime(iso?: string): string | undefined {
+    if (!iso) return undefined;
+    const d = new Date(iso);
+    let h = d.getHours();
+    const m = d.getMinutes();
+    const ap = h >= 12 ? "P" : "A";
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${h}:${String(m).padStart(2, "0")}${ap}`;
+  }
+
+  function Row({ t, stamp }: { t: Task; stamp?: string }) {
     const done = t.status === "Done";
     return (
       <div className="task-row">
@@ -591,6 +692,7 @@ export default function TasksClient({
           <div className={`task-title${done ? " is-done" : ""}`}>{t.title}</div>
           <Meta t={t} />
         </div>
+        {stamp && <span className="done-at">{stamp}</span>}
         <button
           type="button"
           className={`mit-star${t.mit ? " is-on" : ""}`}
@@ -895,6 +997,21 @@ export default function TasksClient({
             <option value="Event">Event</option>
             <option value="Deadline">Deadline</option>
           </select>
+          <input
+            type="date"
+            className="filter-date"
+            value={fFrom}
+            onChange={(e) => setFFrom(e.target.value)}
+            title={view === "done" ? "Completed from" : "Scheduled from"}
+          />
+          <span className="dw-dash">–</span>
+          <input
+            type="date"
+            className="filter-date"
+            value={fTo}
+            onChange={(e) => setFTo(e.target.value)}
+            title={view === "done" ? "Completed through" : "Scheduled through"}
+          />
           <button
             type="button"
             className={`filter-mit${fMit ? " is-on" : ""}`}
@@ -926,16 +1043,40 @@ export default function TasksClient({
                       </div>
                     )}
                     {g.items.map((t) => (
-                      <Row key={t.id} t={t} />
+                      <Row
+                        key={t.id}
+                        t={t}
+                        stamp={view === "done" ? fmtDoneTime(t.completedAt) : undefined}
+                      />
                     ))}
                   </div>
                 )
             )}
-            {shownCount === 0 && (
+            {shownCount === 0 && !doneLoading && (
               <div className="empty-note">
                 {filtersActive
                   ? "Nothing matches these filters."
-                  : "Nothing here. Capture something above."}
+                  : view === "done"
+                    ? "Nothing completed in this window."
+                    : "Nothing here. Capture something above."}
+              </div>
+            )}
+            {view === "done" && (
+              <div className="done-window">
+                {doneLoading
+                  ? "LOADING…"
+                  : doneDays
+                    ? `SHOWING LAST ${doneDays} DAYS`
+                    : "SHOWING ALL TIME"}
+                {!doneLoading && doneDays !== 0 && (
+                  <button
+                    type="button"
+                    className="filter-clear"
+                    onClick={() => setDoneDays(doneDays === 30 ? 90 : 0)}
+                  >
+                    Show older
+                  </button>
+                )}
               </div>
             )}
           </>
@@ -964,7 +1105,7 @@ export default function TasksClient({
           onSessionPatch={onSessionPatch}
           onSessionDelete={onSessionDelete}
           onMarkComplete={() => {
-            const t = tasksRef.current.find((x) => x.id === openTask.id);
+            const t = findTask(openTask.id);
             if (t) toggleDone(t);
           }}
           activity={activity}

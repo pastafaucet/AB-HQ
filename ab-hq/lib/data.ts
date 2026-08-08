@@ -30,6 +30,7 @@ export interface Task {
   project?: string;
   notes?: string;
   dueTag?: string; // display-only (time / date)
+  completedAt?: string; // ISO timestamp, set while status is Done
 }
 
 export interface Matter {

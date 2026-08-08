@@ -84,6 +84,7 @@ export function rowToTask(row: TaskRowDB, today: string): Task {
     project: row.project ?? undefined,
     notes: row.notes ?? undefined,
     dueTag: dueTagFor(row.do_date, row.do_time ? row.do_time.slice(0, 5) : null, today),
+    completedAt: row.completed_at ?? undefined,
   };
 }
 

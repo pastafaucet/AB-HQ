@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSupabase } from "@/lib/supabase";
-import { rowToTask, TASK_COLUMNS, todayISO } from "@/lib/task-map";
+import { rowToTask, TASK_COLUMNS, todayISO, type TaskRowDB } from "@/lib/task-map";
 import type { Task, ActivityItem } from "@/lib/data";
 
 async function logActivity(taskId: string, detail: string) {
@@ -144,6 +144,24 @@ export async function createTask(input: TaskPatch & { title: string }): Promise<
   await logActivity((data as { id: string }).id, "Created");
   revalidatePath("/my-day");
   return { ok: true, task: rowToTask(data as never, todayISO()) };
+}
+
+/** Completed tasks, newest first. `sinceIso` bounds the window; null = all time. */
+export async function listDoneTasks(
+  sinceIso: string | null
+): Promise<{ ok: boolean; error?: string; tasks: Task[] }> {
+  const sb = getSupabase();
+  let q = sb
+    .from("tasks")
+    .select(TASK_COLUMNS)
+    .eq("status", "Done")
+    .order("completed_at", { ascending: false })
+    .limit(1000);
+  if (sinceIso) q = q.gte("completed_at", sinceIso);
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message, tasks: [] };
+  const today = todayISO();
+  return { ok: true, tasks: (data as TaskRowDB[]).map((r) => rowToTask(r, today)) };
 }
 
 export async function deleteTask(id: string): Promise<ActionResult> {
