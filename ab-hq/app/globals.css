@@ -1045,11 +1045,229 @@ button.check {
 .section-label.overdue {
   color: var(--orange);
 }
-.row-mit-flag {
-  flex: none;
-  color: var(--gold, #d8a657);
+
+/* --- Tasks hub: view pills + filter bar --- */
+.view-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+.view-pill {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line-field);
+  background: var(--inset);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.view-pill:hover {
+  color: var(--ink-body-2);
+}
+.view-pill.is-active {
+  color: var(--ink);
+  background: #1e2733;
+  border-color: var(--line-raised-2);
+}
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0 0 20px;
+}
+.filter-input {
+  background: var(--inset);
+  border: 1px solid var(--line-field);
+  border-radius: 7px;
+  padding: 4px 10px;
+  color: var(--ink);
   font-size: 12px;
+  outline: none;
+  width: 150px;
+}
+.filter-input:focus {
+  border-color: var(--accent);
+}
+.filter-input::placeholder {
+  color: var(--faint);
+}
+.filter-bar .dw-select {
+  max-width: 180px;
+}
+.filter-mit {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--line-field);
+  background: var(--inset);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.filter-mit.is-on {
+  color: #d8a657;
+  border-color: #d8a657;
+  background: rgba(216, 166, 87, 0.12);
+}
+.filter-clear {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  padding: 4px 8px;
+  border: none;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+}
+.mit-star {
+  flex: none;
   align-self: center;
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  font-size: 14px;
+  color: var(--faint);
+  cursor: pointer;
+}
+.mit-star:hover {
+  color: #d8a657;
+}
+.mit-star.is-on {
+  color: #d8a657;
+}
+
+/* --- Tasks hub: month calendar --- */
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 0 12px;
+}
+.cal-title {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  color: var(--ink);
+}
+.cal-nav {
+  display: flex;
+  gap: 6px;
+}
+.cal-nav button {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--line-field);
+  background: var(--inset);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.cal-nav button:hover {
+  color: var(--ink);
+}
+.cal-tray {
+  border: 1px dashed var(--line-field);
+  border-radius: 9px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+}
+.cal-tray-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: var(--faint);
+}
+.cal-tray-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-top: 6px;
+}
+.cal-tray-chips .cal-chip {
+  flex: none;
+  max-width: 180px;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+.cal-dow {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: var(--faint);
+  padding: 6px 8px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.cal-cell {
+  min-height: 96px;
+  padding: 5px 6px 7px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.cal-cell.out {
+  opacity: 0.4;
+}
+.cal-cell.is-today {
+  background: rgba(91, 140, 255, 0.07);
+}
+.cal-cell.is-today .cal-day {
+  color: var(--accent);
+  font-weight: 700;
+}
+.cal-day {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-2);
+  margin-bottom: 3px;
+}
+.cal-chip {
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 2px 6px;
+  margin-top: 3px;
+  border-radius: 5px;
+  background: var(--inset);
+  border-left: 2px solid #6f7787;
+  color: var(--ink-body);
+  cursor: grab;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cal-chip:hover {
+  background: #1e2733;
+}
+.cal-chip.k-deadline {
+  border-left-color: var(--orange);
+}
+.cal-chip.k-event {
+  border-left-color: var(--accent);
+}
+.cal-chip-time {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--faint);
+  margin-right: 5px;
+}
+.cal-more {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 3px 0 0;
+  cursor: pointer;
 }
 .quick-parse-hint {
   font-family: var(--font-mono);

@@ -31,36 +31,41 @@ import TaskDrawer from "./TaskDrawer";
 
 const DRAFT = "draft";
 const PRI_COLOR: Record<number, string> = { 1: "#e0665a", 2: "#5fbf8f", 3: "#d8a657", 4: "#6f7787" };
+const VIEW_STORE = "abhq.tasksView";
 
-function daysFromToday(iso: string, todayIso: string): number {
-  const [y1, m1, d1] = todayIso.split("-").map(Number);
-  const [y2, m2, d2] = iso.split("-").map(Number);
-  return Math.round(
-    (new Date(y2, m2 - 1, d2).getTime() - new Date(y1, m1 - 1, d1).getTime()) / 86400000
-  );
-}
+const MONTHS_FULL = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const MONTHS_SHORT = [
+  "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+  "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
+];
+const DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
-type GroupKey = "overdue" | "today" | "tomorrow" | "week" | "later" | "nodate" | "someday";
+type ViewKey = "triage" | "week" | "deadlines" | "unscheduled" | "someday" | "calendar" | "all";
 
-const GROUP_ORDER: { key: GroupKey; label: string }[] = [
-  { key: "overdue", label: "OVERDUE" },
-  { key: "today", label: "TODAY" },
-  { key: "tomorrow", label: "TOMORROW" },
-  { key: "week", label: "NEXT 7 DAYS" },
-  { key: "later", label: "LATER" },
-  { key: "nodate", label: "NO DATE" },
-  { key: "someday", label: "SOMEDAY" },
+const VIEWS: { key: ViewKey; label: string }[] = [
+  { key: "triage", label: "Triage" },
+  { key: "week", label: "This Week" },
+  { key: "deadlines", label: "Deadlines" },
+  { key: "unscheduled", label: "Unscheduled" },
+  { key: "someday", label: "Someday" },
+  { key: "calendar", label: "Calendar" },
+  { key: "all", label: "All" },
 ];
 
-function groupOf(t: Task, today: string): GroupKey {
-  if (t.status === "Someday") return "someday";
-  if (!t.doDate) return "nodate";
-  const d = daysFromToday(t.doDate, today);
-  if (d < 0) return "overdue";
-  if (d === 0) return "today";
-  if (d === 1) return "tomorrow";
-  if (d < 7) return "week";
-  return "later";
+function fromISO(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+function toISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+function daysFromToday(iso: string, todayIso: string): number {
+  return Math.round((fromISO(iso).getTime() - fromISO(todayIso).getTime()) / 86400000);
 }
 
 function taskSort(a: Task, b: Task): number {
@@ -72,6 +77,16 @@ function taskSort(a: Task, b: Task): number {
   if (at !== bt) return at < bt ? -1 : 1;
   if (a.priority !== b.priority) return a.priority - b.priority;
   return a.title.localeCompare(b.title);
+}
+function prioritySort(a: Task, b: Task): number {
+  if (a.priority !== b.priority) return a.priority - b.priority;
+  return a.title.localeCompare(b.title);
+}
+
+interface Group {
+  label: string;
+  cls?: string;
+  items: Task[];
 }
 
 export default function TasksClient({
@@ -93,6 +108,37 @@ export default function TasksClient({
   const [quick, setQuick] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  // --- view + filters ---
+  const [view, setViewState] = useState<ViewKey>("triage");
+  const [fQ, setFQ] = useState("");
+  const [fMatter, setFMatter] = useState("");
+  const [fPri, setFPri] = useState(0); // 0 = any
+  const [fType, setFType] = useState("");
+  const [fMit, setFMit] = useState(false);
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(VIEW_STORE) as ViewKey | null;
+      if (v && VIEWS.some((x) => x.key === v)) setViewState(v);
+    } catch {}
+  }, []);
+  function setView(v: ViewKey) {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_STORE, v);
+    } catch {}
+  }
+
+  // --- calendar month ---
+  const [calY, setCalY] = useState(() => fromISO(today).getFullYear());
+  const [calM, setCalM] = useState(() => fromISO(today).getMonth());
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  function shiftMonth(by: number) {
+    const d = new Date(calY, calM + by, 1);
+    setCalY(d.getFullYear());
+    setCalM(d.getMonth());
+    setExpandedDay(null);
+  }
 
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
@@ -203,7 +249,7 @@ export default function TasksClient({
 
   const isNew = openId === DRAFT;
   const openTask = isNew ? draft : tasks.find((t) => t.id === openId) ?? null;
-  const mitCount = tasks.filter((t) => t.mit).length;
+  const mitCount = tasks.filter((t) => t.mit && t.status !== "Done").length;
 
   function flash(msg: string) {
     setError(msg);
@@ -212,7 +258,6 @@ export default function TasksClient({
 
   function toggleDone(t: Task) {
     const done = t.status !== "Done";
-    // Done tasks leave this surface; keep it visible until the drawer closes.
     setTasks((prev) =>
       prev.map((x) => (x.id === t.id ? { ...x, status: done ? "Done" : "To Do" } : x))
     );
@@ -224,6 +269,31 @@ export default function TasksClient({
       } else if (openIdRef.current === t.id) {
         refreshActivity(t.id);
       }
+    });
+  }
+
+  function toggleMit(t: Task) {
+    const on = !t.mit;
+    if (on && mitCount >= 3) {
+      flash("You already have 3 protected — clear one first.");
+      return;
+    }
+    setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, mit: on } : x)));
+    startTransition(async () => {
+      const r = await updateTask(t.id, { mit: on });
+      if (!r.ok) {
+        setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, mit: t.mit } : x)));
+        flash(r.error ?? "Couldn't save.");
+      }
+    });
+  }
+
+  // discrete save (used by calendar drag-reschedule)
+  function savePatch(id: string, patch: TaskPatch) {
+    setTasks((prev) => prev.map((x) => (x.id === id ? applyPatch(x, patch, today) : x)));
+    startTransition(async () => {
+      const r = await updateTask(id, patch);
+      if (!r.ok) flash(r.error ?? "Couldn't save.");
     });
   }
 
@@ -345,8 +415,8 @@ export default function TasksClient({
     startTransition(async () => {
       const r = await createTask({
         title: p.title,
-        status: "To Do",
-        doDate: p.doDate ?? null, // no date assumed here — undated lands in NO DATE
+        status: view === "someday" ? "Someday" : "To Do",
+        doDate: p.doDate ?? null, // no date assumed here
         doTime: p.doTime ?? null,
         priority: p.priority,
         matterId: p.matterId ?? null,
@@ -354,6 +424,128 @@ export default function TasksClient({
       if (r.ok && r.task) setTasks((prev) => [...prev, r.task!]);
       else flash(r.error ?? "Couldn't add.");
     });
+  }
+
+  // --- filtering + view assembly ---
+  function matchesFilters(t: Task): boolean {
+    if (fQ && !t.title.toLowerCase().includes(fQ.trim().toLowerCase())) return false;
+    if (fMatter && t.matterId !== fMatter) return false;
+    if (fPri && t.priority !== fPri) return false;
+    if (fType && t.type !== fType) return false;
+    if (fMit && !t.mit) return false;
+    return true;
+  }
+  const filtered = tasks.filter(matchesFilters);
+  const filtersActive = !!(fQ || fMatter || fPri || fType || fMit);
+  function clearFilters() {
+    setFQ("");
+    setFMatter("");
+    setFPri(0);
+    setFType("");
+    setFMit(false);
+  }
+
+  function dayHeading(iso: string): string {
+    const d = daysFromToday(iso, today);
+    const dt = fromISO(iso);
+    const md = `${DOW[dt.getDay()]} · ${MONTHS_SHORT[dt.getMonth()]} ${dt.getDate()}`;
+    if (d === 0) return `TODAY · ${md}`;
+    if (d === 1) return `TOMORROW · ${md}`;
+    return md;
+  }
+
+  function buildGroups(): Group[] {
+    const active = (t: Task) => t.status !== "Someday";
+    switch (view) {
+      case "triage": {
+        const overdue = filtered
+          .filter((t) => active(t) && t.doDate && daysFromToday(t.doDate, today) < 0)
+          .sort(taskSort);
+        const todayList = filtered.filter((t) => active(t) && t.doDate === today).sort(taskSort);
+        return [
+          { label: "OVERDUE", cls: "overdue", items: overdue },
+          { label: "TODAY", items: todayList },
+        ];
+      }
+      case "week": {
+        const out: Group[] = [];
+        for (let i = 0; i <= 6; i++) {
+          const iso = toISO(new Date(fromISO(today).getTime() + i * 86400000));
+          const items = filtered.filter((t) => active(t) && t.doDate === iso).sort(taskSort);
+          if (items.length || i === 0)
+            out.push({ label: dayHeading(iso), items });
+        }
+        const overdue = filtered
+          .filter((t) => active(t) && t.doDate && daysFromToday(t.doDate, today) < 0)
+          .sort(taskSort);
+        if (overdue.length) out.unshift({ label: "OVERDUE", cls: "overdue", items: overdue });
+        return out;
+      }
+      case "deadlines": {
+        const dls = filtered.filter((t) => t.type === "Deadline").sort(taskSort);
+        const overdue = dls.filter((t) => t.doDate && daysFromToday(t.doDate, today) < 0);
+        const upcoming = dls.filter((t) => !t.doDate || daysFromToday(t.doDate, today) >= 0);
+        const byMonth = new Map<string, Task[]>();
+        for (const t of upcoming) {
+          const key = t.doDate
+            ? `${MONTHS_FULL[fromISO(t.doDate).getMonth()].toUpperCase()} ${fromISO(t.doDate).getFullYear()}`
+            : "NO DATE";
+          byMonth.set(key, [...(byMonth.get(key) ?? []), t]);
+        }
+        const out: Group[] = [];
+        if (overdue.length) out.push({ label: "OVERDUE", cls: "overdue", items: overdue });
+        for (const [label, items] of byMonth) out.push({ label, items });
+        return out;
+      }
+      case "unscheduled":
+        return [
+          {
+            label: "NO DATE",
+            items: filtered.filter((t) => active(t) && !t.doDate).sort(prioritySort),
+          },
+        ];
+      case "someday":
+        return [
+          {
+            label: "SOMEDAY",
+            items: filtered.filter((t) => t.status === "Someday").sort(prioritySort),
+          },
+        ];
+      case "all":
+      default: {
+        const defs: { label: string; cls?: string; test: (t: Task) => boolean }[] = [
+          {
+            label: "OVERDUE",
+            cls: "overdue",
+            test: (t) => active(t) && !!t.doDate && daysFromToday(t.doDate, today) < 0,
+          },
+          { label: "TODAY", test: (t) => active(t) && t.doDate === today },
+          {
+            label: "TOMORROW",
+            test: (t) => active(t) && !!t.doDate && daysFromToday(t.doDate, today) === 1,
+          },
+          {
+            label: "NEXT 7 DAYS",
+            test: (t) => {
+              if (!active(t) || !t.doDate) return false;
+              const d = daysFromToday(t.doDate, today);
+              return d >= 2 && d < 7;
+            },
+          },
+          {
+            label: "LATER",
+            test: (t) => active(t) && !!t.doDate && daysFromToday(t.doDate, today) >= 7,
+          },
+          { label: "NO DATE", test: (t) => active(t) && !t.doDate },
+          { label: "SOMEDAY", test: (t) => t.status === "Someday" },
+        ];
+        return defs.map((d) => ({
+          label: d.label,
+          cls: d.cls,
+          items: filtered.filter(d.test).sort(taskSort),
+        }));
+      }
+    }
   }
 
   function Meta({ t }: { t: Task }) {
@@ -390,22 +582,152 @@ export default function TasksClient({
           <div className={`task-title${done ? " is-done" : ""}`}>{t.title}</div>
           <Meta t={t} />
         </div>
-        {t.mit && (
-          <span className="row-mit-flag" title="Protected (Top-3)">
-            ★
-          </span>
-        )}
+        <button
+          type="button"
+          className={`mit-star${t.mit ? " is-on" : ""}`}
+          title={t.mit ? "Unprotect (remove from Top-3)" : "Protect (add to Top-3)"}
+          onClick={() => toggleMit(t)}
+        >
+          {t.mit ? "★" : "☆"}
+        </button>
       </div>
     );
   }
 
-  // Done tasks stay visible (struck through) until the next page load.
-  const groups = GROUP_ORDER.map((g) => ({
-    ...g,
-    items: tasks.filter((t) => groupOf(t, today) === g.key).sort(taskSort),
-  }));
+  // --- calendar ---
+  function calCells(): { iso: string; day: number; inMonth: boolean }[] {
+    const first = new Date(calY, calM, 1);
+    const start = new Date(calY, calM, 1 - first.getDay());
+    const cells = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      cells.push({ iso: toISO(d), day: d.getDate(), inMonth: d.getMonth() === calM });
+    }
+    return cells;
+  }
+  const calTasks = filtered.filter((t) => t.status !== "Done" && t.doDate);
+  const unscheduledChips = filtered
+    .filter((t) => t.status !== "Done" && t.status !== "Someday" && !t.doDate)
+    .sort(prioritySort);
+
+  function chipKind(t: Task): string {
+    return t.type === "Deadline" ? "k-deadline" : t.type === "Event" ? "k-event" : "k-task";
+  }
+
+  function Chip({ t }: { t: Task }) {
+    return (
+      <div
+        className={`cal-chip ${chipKind(t)}`}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData("text/plain", t.id);
+          e.dataTransfer.effectAllowed = "move";
+        }}
+        onClick={() => openExisting(t.id)}
+        title={t.title}
+      >
+        {t.doTime && <span className="cal-chip-time">{t.dueTag ?? t.doTime}</span>}
+        {t.title}
+      </div>
+    );
+  }
+
+  function Calendar() {
+    const cells = calCells();
+    return (
+      <div className="cal">
+        <div className="cal-head">
+          <div className="cal-title">
+            {MONTHS_FULL[calM]} {calY}
+          </div>
+          <div className="cal-nav">
+            <button type="button" onClick={() => shiftMonth(-1)} aria-label="Previous month">
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCalY(fromISO(today).getFullYear());
+                setCalM(fromISO(today).getMonth());
+              }}
+            >
+              TODAY
+            </button>
+            <button type="button" onClick={() => shiftMonth(1)} aria-label="Next month">
+              ›
+            </button>
+          </div>
+        </div>
+
+        {unscheduledChips.length > 0 && (
+          <div className="cal-tray">
+            <span className="cal-tray-label">UNSCHEDULED · DRAG ONTO A DAY</span>
+            <div className="cal-tray-chips">
+              {unscheduledChips.map((t) => (
+                <Chip key={t.id} t={t} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="cal-grid">
+          {DOW.map((d) => (
+            <div key={d} className="cal-dow">
+              {d}
+            </div>
+          ))}
+          {cells.map((c) => {
+            const items = calTasks.filter((t) => t.doDate === c.iso).sort(taskSort);
+            const expanded = expandedDay === c.iso;
+            const shown = expanded ? items : items.slice(0, 4);
+            return (
+              <div
+                key={c.iso}
+                className={`cal-cell${c.inMonth ? "" : " out"}${c.iso === today ? " is-today" : ""}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const id = e.dataTransfer.getData("text/plain");
+                  const t = tasksRef.current.find((x) => x.id === id);
+                  if (t && t.doDate !== c.iso) savePatch(id, { doDate: c.iso });
+                }}
+              >
+                <div className="cal-day">{c.day}</div>
+                {shown.map((t) => (
+                  <Chip key={t.id} t={t} />
+                ))}
+                {!expanded && items.length > 4 && (
+                  <button type="button" className="cal-more" onClick={() => setExpandedDay(c.iso)}>
+                    +{items.length - 4} more
+                  </button>
+                )}
+                {expanded && items.length > 4 && (
+                  <button type="button" className="cal-more" onClick={() => setExpandedDay(null)}>
+                    less
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  const groups = view === "calendar" ? [] : buildGroups();
+  const shownCount =
+    view === "calendar" ? calTasks.length : groups.reduce((a, g) => a + g.items.length, 0);
   const openCount = tasks.filter((t) => t.status !== "Done").length;
-  const overdueCount = groups.find((g) => g.key === "overdue")?.items.length ?? 0;
+  const overdueCount = tasks.filter(
+    (t) =>
+      t.status !== "Done" &&
+      t.status !== "Someday" &&
+      t.doDate &&
+      daysFromToday(t.doDate, today) < 0
+  ).length;
 
   return (
     <>
@@ -413,7 +735,7 @@ export default function TasksClient({
         <div className="day-head">
           <div>
             <div className="kicker">ACTION</div>
-            <h1 className="display-h1">All Tasks</h1>
+            <h1 className="display-h1">Tasks</h1>
           </div>
           <div className="day-head-summary">
             {openCount} OPEN{overdueCount > 0 ? ` · ${overdueCount} OVERDUE` : ""}
@@ -455,21 +777,94 @@ export default function TasksClient({
             </div>
           )}
 
-        {groups.map(
-          (g) =>
-            g.items.length > 0 && (
-              <div key={g.key}>
-                <div className={`section-label${g.key === "overdue" ? " overdue" : ""}`}>
-                  {g.label} · {g.items.length}
-                </div>
-                {g.items.map((t) => (
-                  <Row key={t.id} t={t} />
-                ))}
+        <div className="view-pills">
+          {VIEWS.map((v) => (
+            <button
+              key={v.key}
+              type="button"
+              className={`view-pill${view === v.key ? " is-active" : ""}`}
+              onClick={() => setView(v.key)}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="filter-bar">
+          <input
+            className="filter-input"
+            placeholder="Search…"
+            value={fQ}
+            onChange={(e) => setFQ(e.target.value)}
+          />
+          <select className="dw-select" value={fMatter} onChange={(e) => setFMatter(e.target.value)}>
+            <option value="">Any case</option>
+            {matters.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+          <select
+            className="dw-select"
+            value={fPri}
+            onChange={(e) => setFPri(Number(e.target.value))}
+          >
+            <option value={0}>Any priority</option>
+            {[1, 2, 3, 4].map((p) => (
+              <option key={p} value={p}>
+                P{p}
+              </option>
+            ))}
+          </select>
+          <select className="dw-select" value={fType} onChange={(e) => setFType(e.target.value)}>
+            <option value="">Any type</option>
+            <option value="Task">Task</option>
+            <option value="Event">Event</option>
+            <option value="Deadline">Deadline</option>
+          </select>
+          <button
+            type="button"
+            className={`filter-mit${fMit ? " is-on" : ""}`}
+            title="Only protected (Top-3) tasks"
+            onClick={() => setFMit((v) => !v)}
+          >
+            ★ MIT
+          </button>
+          {filtersActive && (
+            <button type="button" className="filter-clear" onClick={clearFilters}>
+              Clear
+            </button>
+          )}
+        </div>
+
+        {view === "calendar" ? (
+          <Calendar />
+        ) : (
+          <>
+            {groups.map(
+              (g) =>
+                (g.items.length > 0 || view === "triage" || view === "week") && (
+                  <div key={g.label}>
+                    {!(g.items.length === 0 && g.cls === "overdue") && (
+                      <div className={`section-label${g.cls ? ` ${g.cls}` : ""}`}>
+                        {g.label} · {g.items.length}
+                      </div>
+                    )}
+                    {g.items.map((t) => (
+                      <Row key={t.id} t={t} />
+                    ))}
+                  </div>
+                )
+            )}
+            {shownCount === 0 && (
+              <div className="empty-note">
+                {filtersActive
+                  ? "Nothing matches these filters."
+                  : "Nothing here. Capture something above."}
               </div>
-            )
-        )}
-        {openCount === 0 && (
-          <div className="empty-note">Nothing open. Capture something above.</div>
+            )}
+          </>
         )}
       </section>
 
