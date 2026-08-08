@@ -2,12 +2,21 @@
 // { title: "Call Bob", doDate: <tomorrow>, doTime: "14:30" }.
 // Pure string/date logic — no deps, safe on client and server.
 
+export interface QuickMatter {
+  id: string;
+  name: string;
+  client?: string;
+}
+
 export interface QuickParsed {
   title: string;
   doDate?: string; // YYYY-MM-DD
   doTime?: string; // HH:MM, 24h
+  priority?: number; // 1–4, from "p1"…"p4"
+  matterId?: string;
   dateLabel?: string; // "Tomorrow", "Friday", "Aug 12"
   timeLabel?: string; // "2:30 PM"
+  matterLabel?: string; // matched matter name
 }
 
 const WEEKDAYS = [
@@ -239,6 +248,91 @@ function findTime(text: string): TimeHit | null {
   return null;
 }
 
+interface PriorityHit {
+  index: number;
+  length: number;
+  priority: number;
+}
+
+function findPriority(text: string): PriorityHit | null {
+  const m = /(?:^|[\s,])[pP]([1-4])\b/.exec(text);
+  if (!m) return null;
+  const offset = m[0].length - 2; // leading separator, if any
+  return { index: m.index + offset, length: 2, priority: Number(m[1]) };
+}
+
+// Words in matter/client names too generic to identify a case on their own.
+const MATTER_STOPWORDS = new Set([
+  "the", "of", "and", "for", "in", "re", "a", "an",
+  "v", "vs", "llc", "inc", "llp", "co", "corp", "company",
+  "matter", "case", "estate", "trust",
+]);
+
+interface MatterHit {
+  index: number;
+  length: number;
+  id: string;
+  name: string;
+}
+
+function wordsOf(s: string): string[] {
+  return s.toLowerCase().match(/[a-z0-9][a-z0-9''-]*/g) ?? [];
+}
+
+function isBoundary(ch: string | undefined): boolean {
+  return ch === undefined || !/[a-z0-9]/i.test(ch);
+}
+
+/**
+ * Match the input against known matters: the full matter name (or full
+ * client name) appearing verbatim wins; otherwise a single word that
+ * belongs to exactly one matter's NAME — e.g. "smith" → "Smith v. Acme
+ * Corp". Client names never match by single word: first names like "bob"
+ * show up in unrelated titles ("call bob") far too often.
+ */
+function findMatter(text: string, matters: QuickMatter[]): MatterHit | null {
+  const lower = text.toLowerCase();
+
+  // 1) Full matter or client name verbatim (longest first).
+  const verbatim: { phrase: string; mt: QuickMatter }[] = [];
+  for (const mt of matters) {
+    verbatim.push({ phrase: mt.name.trim().toLowerCase(), mt });
+    const client = mt.client?.trim().toLowerCase();
+    if (client && wordsOf(client).length > 1) verbatim.push({ phrase: client, mt });
+  }
+  verbatim.sort((a, b) => b.phrase.length - a.phrase.length);
+  for (const { phrase, mt } of verbatim) {
+    if (phrase.length < 3) continue;
+    const i = lower.indexOf(phrase);
+    if (i >= 0 && isBoundary(lower[i - 1]) && isBoundary(lower[i + phrase.length])) {
+      return { index: i, length: phrase.length, id: mt.id, name: mt.name };
+    }
+  }
+
+  // 2) A distinctive single word, unique to one matter's name.
+  const owner = new Map<string, QuickMatter | null>(); // word → matter, or null if shared
+  for (const mt of matters) {
+    const seen = new Set<string>();
+    for (const w of wordsOf(mt.name)) {
+      if (w.length < 3 || MATTER_STOPWORDS.has(w) || seen.has(w)) continue;
+      seen.add(w);
+      owner.set(w, owner.has(w) && owner.get(w)?.id !== mt.id ? null : mt);
+    }
+  }
+
+  let best: MatterHit | null = null;
+  const re = /[a-z0-9][a-z0-9''-]*/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const w = m[0].toLowerCase();
+    const mt = owner.get(w);
+    if (mt && (!best || m[0].length > best.length)) {
+      best = { index: m.index, length: m[0].length, id: mt.id, name: mt.name };
+    }
+  }
+  return best;
+}
+
 function cut(text: string, index: number, length: number): string {
   return `${text.slice(0, index)} ${text.slice(index + length)}`;
 }
@@ -246,14 +340,18 @@ function cut(text: string, index: number, length: number): string {
 function cleanTitle(s: string): string {
   return s
     .replace(/\s+/g, " ")
-    .replace(/\s+(at|on|by|from)\s*$/i, "") // dangling connectors
+    .replace(/\s+(at|on|by|from|re|for)\s*$/i, "") // dangling connectors
     .replace(/^\s*(at|on)\s+/i, "")
     .replace(/[\s,;\-–—]+$/g, "")
     .replace(/^[\s,;]+/g, "")
     .trim();
 }
 
-export function parseQuickAdd(raw: string, todayIso: string): QuickParsed {
+export function parseQuickAdd(
+  raw: string,
+  todayIso: string,
+  matters: QuickMatter[] = []
+): QuickParsed {
   const today = fromISO(todayIso);
   let text = raw;
 
@@ -263,13 +361,22 @@ export function parseQuickAdd(raw: string, todayIso: string): QuickParsed {
   const time = findTime(text);
   if (time) text = cut(text, time.index, time.length);
 
+  const pri = findPriority(text);
+  if (pri) text = cut(text, pri.index, pri.length);
+
+  const matter = findMatter(text, matters);
+  if (matter) text = cut(text, matter.index, matter.length);
+
   const title = cleanTitle(text) || raw.trim();
 
   return {
     title,
     doDate: date?.iso,
     doTime: time?.hhmm,
+    priority: pri?.priority,
+    matterId: matter?.id,
     dateLabel: date ? dateLabelFor(date.iso, todayIso) : undefined,
     timeLabel: time ? timeLabelFor(time.hhmm) : undefined,
+    matterLabel: matter?.name,
   };
 }

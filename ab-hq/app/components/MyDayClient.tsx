@@ -450,11 +450,11 @@ export default function MyDayClient({
     });
   }
 
-  const quickParsed = quick.trim() ? parseQuickAdd(quick.trim(), today) : null;
+  const quickParsed = quick.trim() ? parseQuickAdd(quick.trim(), today, matters) : null;
 
   function submitQuick() {
     if (!quick.trim()) return;
-    const p = parseQuickAdd(quick.trim(), today);
+    const p = parseQuickAdd(quick.trim(), today, matters);
     setQuick("");
     startTransition(async () => {
       const r = await createTask({
@@ -462,6 +462,8 @@ export default function MyDayClient({
         status: "To Do",
         doDate: p.doDate ?? today,
         doTime: p.doTime ?? null,
+        priority: p.priority,
+        matterId: p.matterId ?? null,
       });
       if (r.ok && r.task) {
         setTasks((prev) => [...prev, r.task!]);
@@ -594,13 +596,26 @@ export default function MyDayClient({
             + Task
           </button>
         </div>
-        {quickParsed && (quickParsed.dateLabel || quickParsed.timeLabel) && (
-          <div className="quick-parse-hint">
-            ↳ {quickParsed.title || "…"}
-            {quickParsed.dateLabel && <span className="qp-chip"> · {quickParsed.dateLabel}</span>}
-            {quickParsed.timeLabel && <span className="qp-chip"> · {quickParsed.timeLabel}</span>}
-          </div>
-        )}
+        {quickParsed &&
+          (quickParsed.dateLabel ||
+            quickParsed.timeLabel ||
+            quickParsed.priority ||
+            quickParsed.matterLabel) && (
+            <div className="quick-parse-hint">
+              ↳ {quickParsed.title || "…"}
+              {quickParsed.dateLabel && <span className="qp-chip"> · {quickParsed.dateLabel}</span>}
+              {quickParsed.timeLabel && <span className="qp-chip"> · {quickParsed.timeLabel}</span>}
+              {quickParsed.priority && (
+                <span className="qp-chip" style={{ color: PRI_COLOR[quickParsed.priority] }}>
+                  {" "}
+                  · P{quickParsed.priority}
+                </span>
+              )}
+              {quickParsed.matterLabel && (
+                <span className="qp-chip"> · {quickParsed.matterLabel}</span>
+              )}
+            </div>
+          )}
 
         <div className="section-label tight">
           TODAY&rsquo;S 3 · {mitsDone}/{mits.length} DONE
