@@ -242,22 +242,30 @@ export default function NotesClient({
   }
 
   const needle = q.trim().toLowerCase();
-  const shown = notes
-    .filter(
-      (n) =>
-        (fStatus === "archived"
-          ? n.status === "Archived"
-          : fStatus === "inbox"
-            ? n.status === "Inbox"
-            : n.status !== "Archived") &&
-        (!fCase || n.links.some((l) => l.type === "matter" && l.id === fCase)) &&
-        (!fPerson || n.links.some((l) => l.type === "person" && l.id === fPerson)) &&
-        (!fTag || n.tags.some((t) => t.tagId === fTag)) &&
-        (!needle ||
-          (n.title ?? "").toLowerCase().includes(needle) ||
-          n.bodyText.toLowerCase().includes(needle) ||
-          n.links.some((l) => l.label.toLowerCase().includes(needle)) ||
-          n.tags.some((t) => t.name.includes(needle)))
+  // Everything except the status pills — so pill counts reflect current filters.
+  const base = notes.filter(
+    (n) =>
+      (!fCase || n.links.some((l) => l.type === "matter" && l.id === fCase)) &&
+      (!fPerson || n.links.some((l) => l.type === "person" && l.id === fPerson)) &&
+      (!fTag || n.tags.some((t) => t.tagId === fTag)) &&
+      (!needle ||
+        (n.title ?? "").toLowerCase().includes(needle) ||
+        n.bodyText.toLowerCase().includes(needle) ||
+        n.links.some((l) => l.label.toLowerCase().includes(needle)) ||
+        n.tags.some((t) => t.name.includes(needle)))
+  );
+  const statusCounts = {
+    all: base.filter((n) => n.status !== "Archived").length,
+    inbox: base.filter((n) => n.status === "Inbox").length,
+    archived: base.filter((n) => n.status === "Archived").length,
+  };
+  const shown = base
+    .filter((n) =>
+      fStatus === "archived"
+        ? n.status === "Archived"
+        : fStatus === "inbox"
+          ? n.status === "Inbox"
+          : n.status !== "Archived"
     )
     .sort((a, b) =>
       sort === "updated"
@@ -334,7 +342,7 @@ export default function NotesClient({
                 className={`view-pill${fStatus === s ? " is-active" : ""}`}
                 onClick={() => setFStatus(s)}
               >
-                {s === "all" ? "All" : s === "inbox" ? "Inbox" : "Archived"}
+                {s === "all" ? "All" : s === "inbox" ? "Inbox" : "Archived"} · {statusCounts[s]}
               </button>
             ))}
             <select
@@ -397,9 +405,25 @@ export default function NotesClient({
             ))}
             {shown.length === 0 && (
               <div className="empty-note">
-                {needle || fCase || fPerson ? "No note matches." : "No notes yet."}
+                {needle || fCase || fPerson || fTag ? "No note matches." : "No notes yet."}
               </div>
             )}
+          </div>
+
+          <div className="notes-legend">
+            <div>
+              <span className="lg-key">@</span> link case/person ·{" "}
+              <span className="lg-key">#</span> tag topic
+            </div>
+            <div>
+              <span className="lg-key">##␣</span> heading · <span className="lg-key">-␣</span>{" "}
+              bullet · <span className="lg-key">1.␣</span> numbered ·{" "}
+              <span className="lg-key">&gt;␣</span> quote
+            </div>
+            <div>
+              <span className="lg-key">⌘B</span> bold · <span className="lg-key">⌘I</span> italic ·{" "}
+              <span className="lg-key">⌘U</span> underline
+            </div>
           </div>
         </div>
 

@@ -1448,7 +1448,24 @@ button.check {
   overflow-y: auto;
   min-height: 0;
   padding-right: 6px;
-  padding-bottom: 30px;
+  padding-bottom: 16px;
+}
+.notes-legend {
+  flex: none;
+  border-top: 1px solid var(--line);
+  padding: 9px 2px 14px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  line-height: 1.9;
+  color: var(--disabled-2);
+}
+.notes-legend .lg-key {
+  color: var(--ink-2);
+  background: var(--inset);
+  border: 1px solid var(--line-field);
+  border-radius: 4px;
+  padding: 1px 4px;
 }
 .note-item {
   display: block;
