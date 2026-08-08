@@ -5,6 +5,7 @@ import type { PersonRow, MatterOption } from "@/lib/queries";
 import type { PersonPatch } from "@/app/(app)/people-actions";
 import type { NoteStub } from "@/app/(app)/note-actions";
 import { fmtStubDate } from "./CaseDrawer";
+import ConfirmButton from "./ConfirmButton";
 
 const ROLES = [
   "Opposing Counsel",
@@ -214,9 +215,12 @@ export default function PersonDrawer({
         </div>
 
         <div className="drawer-field">
-          <button type="button" className="person-delete" onClick={onDelete}>
-            Delete person
-          </button>
+          <ConfirmButton
+            className="person-delete"
+            label="Delete person"
+            confirmLabel="Delete forever? Click again"
+            onConfirm={onDelete}
+          />
         </div>
       </div>
     </div>

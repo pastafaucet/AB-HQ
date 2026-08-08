@@ -12,6 +12,7 @@ import type {
   ActivityItem,
 } from "@/lib/data";
 import type { TaskPatch } from "@/app/(app)/task-actions";
+import ConfirmButton from "./ConfirmButton";
 
 const STATUSES: TaskStatus[] = ["Inbox", "To Do", "In Progress", "Done", "Someday", "Cancelled"];
 const DOMAINS: Domain[] = ["Work", "Personal"];
@@ -473,9 +474,13 @@ export default function TaskDrawer({
             >
               {done ? "Reopen task" : "Mark complete"}
             </button>
-            <button type="button" className="trash-btn" title="Delete task" onClick={onDelete}>
-              🗑
-            </button>
+            <ConfirmButton
+              className="trash-btn"
+              label="🗑"
+              confirmLabel="Delete?"
+              title="Delete task"
+              onConfirm={onDelete}
+            />
           </div>
         )}
       </div>

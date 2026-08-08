@@ -1904,6 +1904,14 @@ button.check {
   margin-top: 10px;
 }
 
+/* Armed state of a two-click delete: loud, unmistakably destructive. */
+.confirm-armed {
+  color: #fff !important;
+  background: var(--orange) !important;
+  border-color: var(--orange) !important;
+  border-radius: 7px;
+}
+
 .person-delete {
   background: none;
   border: 1px solid var(--line-field);

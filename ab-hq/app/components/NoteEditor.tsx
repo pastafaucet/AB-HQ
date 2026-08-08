@@ -10,6 +10,7 @@ import { Placeholder } from "@tiptap/extensions";
 import { PluginKey } from "@tiptap/pm/state";
 import type { NoteDoc, NotesPageData } from "@/lib/queries";
 import type { NotePatch, NoteTargetType } from "@/app/(app)/note-actions";
+import ConfirmButton from "./ConfirmButton";
 
 interface MentionItem {
   id: string;
@@ -232,9 +233,13 @@ export default function NoteEditor({
         >
           {note.pinned ? "★ PINNED" : "☆ PIN"}
         </button>
-        <button type="button" className="note-delete" title="Delete note" onClick={onDelete}>
-          Delete
-        </button>
+        <ConfirmButton
+          className="note-delete"
+          label="Delete"
+          confirmLabel="Delete forever?"
+          title="Delete note (archiving is usually better)"
+          onConfirm={onDelete}
+        />
       </div>
 
       <input
