@@ -43,12 +43,21 @@ const MONTHS_SHORT = [
 ];
 const DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
-type ViewKey = "triage" | "week" | "deadlines" | "unscheduled" | "someday" | "calendar" | "all";
+type ViewKey =
+  | "triage"
+  | "week"
+  | "deadlines"
+  | "priorities"
+  | "unscheduled"
+  | "someday"
+  | "calendar"
+  | "all";
 
 const VIEWS: { key: ViewKey; label: string }[] = [
   { key: "triage", label: "Triage" },
   { key: "week", label: "This Week" },
   { key: "deadlines", label: "Deadlines" },
+  { key: "priorities", label: "Priorities" },
   { key: "unscheduled", label: "Unscheduled" },
   { key: "someday", label: "Someday" },
   { key: "calendar", label: "Calendar" },
@@ -717,7 +726,70 @@ export default function TasksClient({
     );
   }
 
-  const groups = view === "calendar" ? [] : buildGroups();
+  // --- priority board ---
+  function PriorityBoard() {
+    const board = filtered.filter((t) => t.status !== "Someday");
+    return (
+      <div className="kb-board">
+        {[1, 2, 3, 4].map((p) => {
+          const items = board.filter((t) => t.priority === p).sort(taskSort);
+          return (
+            <div
+              key={p}
+              className="kb-col"
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const id = e.dataTransfer.getData("text/plain");
+                const t = tasksRef.current.find((x) => x.id === id);
+                if (t && t.priority !== p) savePatch(id, { priority: p });
+              }}
+            >
+              <div className="kb-col-head" style={{ color: PRI_COLOR[p] }}>
+                <span>{PRIORITY_META[p as 1 | 2 | 3 | 4].label}</span>
+                <span className="kb-col-count">{items.filter((t) => t.status !== "Done").length}</span>
+              </div>
+              {items.map((t) => {
+                const done = t.status === "Done";
+                const scope = t.matterId
+                  ? matters.find((m) => m.id === t.matterId)?.name ?? t.domain
+                  : t.domain;
+                return (
+                  <div
+                    key={t.id}
+                    className={`kb-card${done ? " is-done" : ""}`}
+                    style={{ borderLeftColor: PRI_COLOR[p] }}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", t.id);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onClick={() => openExisting(t.id)}
+                  >
+                    <div className={`kb-title${done ? " is-done" : ""}`}>
+                      {t.mit && <span className="kb-mit">★ </span>}
+                      {t.title}
+                    </div>
+                    <div className="kb-meta">
+                      <span>{scope.toUpperCase()}</span>
+                      {t.type !== "Task" && <span>{t.type.toUpperCase()}</span>}
+                      {t.dueTag && <span className="kb-due">{t.dueTag}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+              {items.length === 0 && <div className="kb-empty">—</div>}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const groups = view === "calendar" || view === "priorities" ? [] : buildGroups();
   const shownCount =
     view === "calendar" ? calTasks.length : groups.reduce((a, g) => a + g.items.length, 0);
   const openCount = tasks.filter((t) => t.status !== "Done").length;
@@ -840,6 +912,8 @@ export default function TasksClient({
 
         {view === "calendar" ? (
           <Calendar />
+        ) : view === "priorities" ? (
+          <PriorityBoard />
         ) : (
           <>
             {groups.map(
