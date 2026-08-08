@@ -116,6 +116,82 @@ export async function getCasesPageData(): Promise<{ cases: CaseRow[]; today: str
   return { cases, today };
 }
 
+export interface PersonCaseLink {
+  linkId: string;
+  matterId: string;
+  matterName: string;
+  role: string;
+  closed: boolean;
+}
+
+export interface PersonRow {
+  id: string;
+  name: string;
+  org: string | null;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
+  links: PersonCaseLink[];
+}
+
+export interface MatterOption {
+  id: string;
+  name: string;
+  closed: boolean;
+}
+
+/** Everyone in the system, with the cases they appear on — the People hub. */
+export async function getPeoplePageData(): Promise<{
+  people: PersonRow[];
+  matters: MatterOption[];
+}> {
+  const sb = getSupabase();
+  const [peopleRes, linksRes, mattersRes] = await Promise.all([
+    sb.from("people").select("id,name,org,email,phone,notes").order("name"),
+    sb.from("matter_people").select("id,person_id,matter_id,role"),
+    sb.from("matters").select("id,name,status,disposition"),
+  ]);
+  if (peopleRes.error) throw peopleRes.error;
+  if (linksRes.error) throw linksRes.error;
+  if (mattersRes.error) throw mattersRes.error;
+
+  const matterById = new Map(
+    (mattersRes.data as { id: string; name: string; status: string | null; disposition: string | null }[]).map(
+      (m) => [m.id, { name: m.name, closed: m.status === "Closed" || !!m.disposition }]
+    )
+  );
+  const matters: MatterOption[] = (mattersRes.data as { id: string; name: string }[])
+    .map((m) => ({ id: m.id, name: m.name, closed: matterById.get(m.id)!.closed }))
+    .sort((a, b) => Number(a.closed) - Number(b.closed) || a.name.localeCompare(b.name));
+
+  const linksByPerson = new Map<string, PersonCaseLink[]>();
+  for (const l of linksRes.data as {
+    id: string;
+    person_id: string;
+    matter_id: string;
+    role: string;
+  }[]) {
+    const m = matterById.get(l.matter_id);
+    if (!m) continue;
+    const arr = linksByPerson.get(l.person_id) ?? [];
+    arr.push({
+      linkId: l.id,
+      matterId: l.matter_id,
+      matterName: m.name,
+      role: l.role,
+      closed: m.closed,
+    });
+    linksByPerson.set(l.person_id, arr);
+  }
+
+  const people: PersonRow[] = (peopleRes.data as Omit<PersonRow, "links">[]).map((p) => ({
+    ...p,
+    links: linksByPerson.get(p.id) ?? [],
+  }));
+
+  return { people, matters };
+}
+
 export interface TasksPageData {
   tasks: Task[]; // every open task (not Done, not Cancelled)
   matters: Matter[];

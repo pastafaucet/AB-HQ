@@ -1386,6 +1386,26 @@ button.check {
   padding: 7px 14px;
   font-size: 12px;
 }
+.person-notes {
+  resize: vertical;
+  min-height: 64px;
+  line-height: 1.5;
+}
+.person-card-name {
+  min-height: 1.3em;
+}
+.person-delete {
+  background: none;
+  border: 1px solid var(--line-field);
+  border-radius: 8px;
+  color: var(--orange);
+  font-size: 12px;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+.person-delete:hover {
+  border-color: var(--orange);
+}
 
 /* --- Tasks hub: priority board --- */
 .kb-board {
