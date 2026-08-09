@@ -241,18 +241,38 @@ export default function NotesClient({
     );
   }
 
-  const needle = q.trim().toLowerCase();
+  // Query grammar: "quoted phrases" must match exactly; remaining words
+  // must EACH appear somewhere in the note (title, body, links, or tags).
+  const terms: string[] = [];
+  {
+    let rest = q.trim().toLowerCase();
+    rest = rest.replace(/"([^"]*)"/g, (_, phrase: string) => {
+      if (phrase.trim()) terms.push(phrase.trim());
+      return " ";
+    });
+    for (const w of rest.split(/\s+/)) if (w) terms.push(w);
+  }
+
+  function noteMatches(n: NoteDoc): boolean {
+    if (terms.length === 0) return true;
+    const hay = [
+      n.title ?? "",
+      n.bodyText,
+      ...n.links.map((l) => l.label),
+      ...n.tags.map((t) => `#${t.name}`),
+    ]
+      .join("\n")
+      .toLowerCase();
+    return terms.every((t) => hay.includes(t));
+  }
+
   // Everything except the status pills — so pill counts reflect current filters.
   const base = notes.filter(
     (n) =>
       (!fCase || n.links.some((l) => l.type === "matter" && l.id === fCase)) &&
       (!fPerson || n.links.some((l) => l.type === "person" && l.id === fPerson)) &&
       (!fTag || n.tags.some((t) => t.tagId === fTag)) &&
-      (!needle ||
-        (n.title ?? "").toLowerCase().includes(needle) ||
-        n.bodyText.toLowerCase().includes(needle) ||
-        n.links.some((l) => l.label.toLowerCase().includes(needle)) ||
-        n.tags.some((t) => t.name.includes(needle)))
+      noteMatches(n)
   );
   const statusCounts = {
     all: base.filter((n) => n.status !== "Archived").length,
@@ -284,8 +304,48 @@ export default function NotesClient({
     else groups.push({ label, items: [n] });
   }
 
+  function escapeRe(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  /** Wrap every term occurrence in a highlight span. */
+  function highlight(text: string): React.ReactNode {
+    if (terms.length === 0 || !text) return text;
+    const re = new RegExp(`(${terms.map(escapeRe).join("|")})`, "ig");
+    const parts = text.split(re);
+    if (parts.length === 1) return text;
+    const termSet = new Set(terms);
+    return parts.map((part, i) =>
+      termSet.has(part.toLowerCase()) ? (
+        <span key={i} className="hl">
+          {part}
+        </span>
+      ) : (
+        part
+      )
+    );
+  }
+
+  /** Snippet centered on the first body match, else the note's opening. */
+  function snippetFor(n: NoteDoc): string {
+    const flat = n.bodyText.replace(/\s+/g, " ").trim();
+    if (terms.length > 0) {
+      const lower = flat.toLowerCase();
+      let first = -1;
+      for (const t of terms) {
+        const i = lower.indexOf(t);
+        if (i >= 0 && (first === -1 || i < first)) first = i;
+      }
+      if (first > 40) {
+        const start = flat.lastIndexOf(" ", first - 35);
+        return `…${flat.slice(start >= 0 ? start + 1 : first - 35, first + 85)}`;
+      }
+    }
+    return flat.slice(0, 80);
+  }
+
   function ListItem({ n }: { n: NoteDoc }) {
-    const snippet = n.bodyText.replace(/\s+/g, " ").trim().slice(0, 80);
+    const snippet = snippetFor(n);
     return (
       <button
         type="button"
@@ -295,9 +355,9 @@ export default function NotesClient({
         <div className="note-item-title">
           {n.pinned && <span className="note-item-pin">★ </span>}
           {n.status === "Inbox" && <span className="note-inbox-badge">INBOX</span>}
-          {displayTitle(n)}
+          {highlight(displayTitle(n))}
         </div>
-        {snippet && <div className="note-item-snippet">{snippet}</div>}
+        {snippet && <div className="note-item-snippet">{highlight(snippet)}</div>}
         {(n.links.length > 0 || n.tags.length > 0) && (
           <div className="note-item-links">
             {n.links.slice(0, 3).map((l) => (
@@ -330,7 +390,7 @@ export default function NotesClient({
           </div>
           <input
             className="filter-input notes-search"
-            placeholder="Search notes…"
+            placeholder='Search…  every word must match; "quotes" for phrases'
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -405,7 +465,7 @@ export default function NotesClient({
             ))}
             {shown.length === 0 && (
               <div className="empty-note">
-                {needle || fCase || fPerson || fTag ? "No note matches." : "No notes yet."}
+                {terms.length || fCase || fPerson || fTag ? "No note matches." : "No notes yet."}
               </div>
             )}
           </div>
@@ -413,7 +473,8 @@ export default function NotesClient({
           <div className="notes-legend">
             <div>
               <span className="lg-key">@</span> link case/person ·{" "}
-              <span className="lg-key">#</span> tag topic
+              <span className="lg-key">#</span> tag topic ·{" "}
+              <span className="lg-key">&quot;…&quot;</span> search phrase
             </div>
             <div>
               <span className="lg-key">##␣</span> heading · <span className="lg-key">-␣</span>{" "}

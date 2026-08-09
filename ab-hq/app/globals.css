@@ -1497,6 +1497,12 @@ button.check {
 .note-item-pin {
   color: #d8a657;
 }
+.note-item .hl {
+  background: rgba(91, 140, 255, 0.28);
+  color: var(--ink);
+  border-radius: 3px;
+  padding: 0 1px;
+}
 .note-item-snippet {
   font-size: 11px;
   color: var(--muted);
