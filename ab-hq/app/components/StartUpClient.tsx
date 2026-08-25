@@ -142,12 +142,14 @@ export default function StartUpClient({
   function Meta({ t, overdueDays }: { t: Task; overdueDays?: number }) {
     const pm = PRIORITY_META[t.priority];
     const scope = (matterName(t) ?? t.domain).toUpperCase();
+    const proj = t.projectId ? projectName.get(t.projectId) : undefined;
     const eff = fmtEffort(t.durationMin);
     return (
       <div className="meta">
         <span className={`pri ${pm.cls}`}>{pm.label}</span>
         <span className="cat-dot" style={{ background: DOMAIN_DOT[t.domain] }} />
         <span className="meta-scope">{scope}</span>
+        {proj && <span className="meta-project">{proj.toUpperCase()}</span>}
         {eff && <span className="meta-scope">{eff.toUpperCase()}</span>}
         {overdueDays !== undefined && (
           <span className="overdue-tag">OVERDUE {overdueDays}D</span>

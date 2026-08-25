@@ -3631,3 +3631,8 @@ button.check {
   color: var(--orange);
   font-size: 11px;
 }
+
+/* project name on task-row metadata */
+.meta-project {
+  color: var(--violet);
+}

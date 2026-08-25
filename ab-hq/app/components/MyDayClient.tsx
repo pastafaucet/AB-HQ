@@ -441,6 +441,7 @@ export default function MyDayClient({
     const scope = t.matterId
       ? matters.find((m) => m.id === t.matterId)?.name.toUpperCase() ?? t.domain.toUpperCase()
       : t.domain.toUpperCase();
+    const proj = t.projectId ? projects.find((p) => p.id === t.projectId)?.name : undefined;
     const kindCls =
       t.type === "Event" ? "kind-event" : t.type === "Deadline" ? "kind-deadline" : "kind-task";
     return (
@@ -448,6 +449,7 @@ export default function MyDayClient({
         <span className={`pri ${pm.cls}`}>{pm.label}</span>
         <span className="cat-dot" style={{ background: DOMAIN_DOT[t.domain] }} />
         <span className="meta-scope">{scope}</span>
+        {proj && <span className="meta-project">{proj.toUpperCase()}</span>}
         <span className={kindCls}>{t.type.toUpperCase()}</span>
         {t.dueTag && <span className="time-tag">{t.dueTag}</span>}
       </div>
