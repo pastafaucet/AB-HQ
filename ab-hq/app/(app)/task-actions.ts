@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { getSupabase } from "@/lib/supabase";
-import { rowToTask, TASK_COLUMNS, todayISO, type TaskRowDB } from "@/lib/task-map";
+import {
+  rowToTask,
+  selectTaskRows,
+  TASK_COLUMNS,
+  TASK_COLUMNS_LEGACY,
+  todayISO,
+} from "@/lib/task-map";
 import type { Task, ActivityItem } from "@/lib/data";
 
 async function logActivity(taskId: string, detail: string) {
@@ -132,11 +138,16 @@ export async function createTask(input: TaskPatch & { title: string }): Promise<
     do_time: input.doTime ?? null,
     duration_min: input.durationMin ?? null,
     matter_id: input.matterId ?? null,
-    project_id: input.projectId ?? null,
+    // Omitted when unset so inserts still work before migration 0011.
+    ...(input.projectId ? { project_id: input.projectId } : {}),
     notes: input.notes ?? null,
   };
 
-  const { data, error } = await sb.from("tasks").insert(row).select(TASK_COLUMNS).single();
+  let { data, error } = await sb.from("tasks").insert(row).select(TASK_COLUMNS).single();
+  if (error && !input.projectId) {
+    // Pre-0011 the returning column set errors; the failed insert rolls back.
+    ({ data, error } = await sb.from("tasks").insert(row).select(TASK_COLUMNS_LEGACY).single());
+  }
   if (error || !data) {
     revalidatePath("/my-day");
     return { ok: false, error: error?.message ?? "Insert failed" };
@@ -151,17 +162,22 @@ export async function listDoneTasks(
   sinceIso: string | null
 ): Promise<{ ok: boolean; error?: string; tasks: Task[] }> {
   const sb = getSupabase();
-  let q = sb
-    .from("tasks")
-    .select(TASK_COLUMNS)
-    .eq("status", "Done")
-    .order("completed_at", { ascending: false })
-    .limit(1000);
-  if (sinceIso) q = q.gte("completed_at", sinceIso);
-  const { data, error } = await q;
-  if (error) return { ok: false, error: error.message, tasks: [] };
-  const today = todayISO();
-  return { ok: true, tasks: (data as TaskRowDB[]).map((r) => rowToTask(r, today)) };
+  try {
+    const rows = await selectTaskRows((cols) => {
+      let q = sb
+        .from("tasks")
+        .select(cols)
+        .eq("status", "Done")
+        .order("completed_at", { ascending: false })
+        .limit(1000);
+      if (sinceIso) q = q.gte("completed_at", sinceIso);
+      return q;
+    });
+    const today = todayISO();
+    return { ok: true, tasks: rows.map((r) => rowToTask(r, today)) };
+  } catch (e) {
+    return { ok: false, error: (e as { message?: string }).message ?? "Query failed", tasks: [] };
+  }
 }
 
 export async function deleteTask(id: string): Promise<ActionResult> {

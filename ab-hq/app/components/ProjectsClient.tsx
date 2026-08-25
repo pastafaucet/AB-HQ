@@ -66,10 +66,12 @@ export default function ProjectsClient({
   projects: initialProjects,
   matters,
   today,
+  needsMigration = false,
 }: {
   projects: ProjectRow[];
   matters: MatterOption[];
   today: string;
+  needsMigration?: boolean;
 }) {
   const [projects, setProjects] = useState<ProjectRow[]>(initialProjects);
   const [q, setQ] = useState("");
@@ -262,6 +264,20 @@ export default function ProjectsClient({
             {stalled > 0 ? ` · ${stalled} WITHOUT NEXT ACTION` : ""}
           </div>
         </div>
+
+        {needsMigration && (
+          <div className="ontap">
+            <div className="ontap-label" style={{ color: "var(--orange)" }}>
+              ONE-TIME SETUP NEEDED
+            </div>
+            <div className="ontap-body">
+              The projects table doesn&rsquo;t exist in the database yet. Paste{" "}
+              <code>supabase/migrations/0011_projects.sql</code> into the Supabase SQL editor,
+              run it, and reload this page. Your existing free-text project tags convert
+              automatically.
+            </div>
+          </div>
+        )}
 
         <div className="capture-row">
           <input

@@ -5,6 +5,13 @@ export const metadata = { title: "Projects · AB HQ" };
 export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
-  const { projects, matters, today } = await getProjectsPageData();
-  return <ProjectsClient projects={projects} matters={matters} today={today} />;
+  const { projects, matters, today, needsMigration } = await getProjectsPageData();
+  return (
+    <ProjectsClient
+      projects={projects}
+      matters={matters}
+      today={today}
+      needsMigration={needsMigration}
+    />
+  );
 }

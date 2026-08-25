@@ -2,13 +2,12 @@ import "server-only";
 import { getSupabase } from "@/lib/supabase";
 import type { Task, Matter, Project, RunningTimer } from "@/lib/data";
 import {
-  TASK_COLUMNS,
   PROJECT_COLUMNS,
+  selectTaskRows,
   todayISO,
   rowToTask,
   rowToMatter,
   rowToProject,
-  type TaskRowDB,
   type MatterRowDB,
   type ProjectRowDB,
 } from "@/lib/task-map";
@@ -360,13 +359,15 @@ export async function getTasksPageData(): Promise<TasksPageData> {
   const sb = getSupabase();
   const today = todayISO();
 
-  const [tasksRes, mattersRes, runRes, projects] = await Promise.all([
-    sb
-      .from("tasks")
-      .select(TASK_COLUMNS)
-      .neq("status", "Cancelled")
-      .neq("status", "Done")
-      .order("created_at", { ascending: true }),
+  const [taskRows, mattersRes, runRes, projects] = await Promise.all([
+    selectTaskRows((cols) =>
+      sb
+        .from("tasks")
+        .select(cols)
+        .neq("status", "Cancelled")
+        .neq("status", "Done")
+        .order("created_at", { ascending: true })
+    ),
     sb.from("matters").select("id,name,client,status,next_deadline"),
     sb
       .from("time_sessions")
@@ -378,7 +379,6 @@ export async function getTasksPageData(): Promise<TasksPageData> {
     fetchProjects(),
   ]);
 
-  if (tasksRes.error) throw tasksRes.error;
   if (mattersRes.error) throw mattersRes.error;
 
   const running: RunningTimer | null = runRes.data
@@ -390,7 +390,7 @@ export async function getTasksPageData(): Promise<TasksPageData> {
     : null;
 
   return {
-    tasks: (tasksRes.data as TaskRowDB[]).map((r) => rowToTask(r, today)),
+    tasks: taskRows.map((r) => rowToTask(r, today)),
     matters: (mattersRes.data as MatterRowDB[]).map((r) => rowToMatter(r, today)),
     projects,
     today,
@@ -419,6 +419,7 @@ export async function getProjectsPageData(): Promise<{
   projects: ProjectRow[];
   matters: MatterOption[];
   today: string;
+  needsMigration: boolean;
 }> {
   const sb = getSupabase();
   const today = todayISO();
@@ -435,9 +436,11 @@ export async function getProjectsPageData(): Promise<{
       .neq("status", "Cancelled"),
     sb.from("matters").select("id,name,status,disposition"),
   ]);
-  if (projRes.error) throw projRes.error;
-  if (tasksRes.error) throw tasksRes.error;
   if (mattersRes.error) throw mattersRes.error;
+  // Migration 0011 not applied yet — show the setup notice instead of crashing.
+  if (projRes.error || tasksRes.error) {
+    return { projects: [], matters: [], today, needsMigration: true };
+  }
 
   const agg = new Map<
     string,
@@ -501,7 +504,7 @@ export async function getProjectsPageData(): Promise<{
     }
   );
 
-  return { projects, matters, today };
+  return { projects, matters, today, needsMigration: false };
 }
 
 export interface StartUpData {
@@ -528,13 +531,15 @@ export async function getStartUpData(): Promise<StartUpData> {
   // (Unfinished MITs stay protected: they roll into today until dropped.)
   await sb.from("tasks").update({ mit: false }).eq("mit", true).eq("status", "Done");
 
-  const [tasksRes, mattersRes, entriesRes, projects] = await Promise.all([
-    sb
-      .from("tasks")
-      .select(TASK_COLUMNS)
-      .neq("status", "Cancelled")
-      .neq("status", "Done")
-      .order("created_at", { ascending: true }),
+  const [taskRows, mattersRes, entriesRes, projects] = await Promise.all([
+    selectTaskRows((cols) =>
+      sb
+        .from("tasks")
+        .select(cols)
+        .neq("status", "Cancelled")
+        .neq("status", "Done")
+        .order("created_at", { ascending: true })
+    ),
     sb.from("matters").select("id,name,client,status,next_deadline"),
     sb
       .from("daily_entries")
@@ -542,7 +547,6 @@ export async function getStartUpData(): Promise<StartUpData> {
       .in("date", [today, yesterday]),
     fetchProjects(),
   ]);
-  if (tasksRes.error) throw tasksRes.error;
   if (mattersRes.error) throw mattersRes.error;
 
   const entries = (entriesRes.error ? [] : entriesRes.data) as {
@@ -554,7 +558,7 @@ export async function getStartUpData(): Promise<StartUpData> {
   const yEntry = entries.find((e) => e.date === yesterday);
 
   return {
-    tasks: (tasksRes.data as TaskRowDB[]).map((r) => rowToTask(r, today)),
+    tasks: taskRows.map((r) => rowToTask(r, today)),
     matters: (mattersRes.data as MatterRowDB[]).map((r) => rowToMatter(r, today)),
     projects,
     today,
@@ -568,12 +572,14 @@ export async function getMyDayData(): Promise<MyDayData> {
   const sb = getSupabase();
   const today = todayISO();
 
-  const [tasksRes, mattersRes, runRes, projects] = await Promise.all([
-    sb
-      .from("tasks")
-      .select(TASK_COLUMNS)
-      .neq("status", "Cancelled")
-      .order("created_at", { ascending: true }),
+  const [taskRows, mattersRes, runRes, projects] = await Promise.all([
+    selectTaskRows((cols) =>
+      sb
+        .from("tasks")
+        .select(cols)
+        .neq("status", "Cancelled")
+        .order("created_at", { ascending: true })
+    ),
     sb.from("matters").select("id,name,client,status,next_deadline"),
     sb
       .from("time_sessions")
@@ -585,7 +591,6 @@ export async function getMyDayData(): Promise<MyDayData> {
     fetchProjects(),
   ]);
 
-  if (tasksRes.error) throw tasksRes.error;
   if (mattersRes.error) throw mattersRes.error;
 
   const running: RunningTimer | null = runRes.data
@@ -596,7 +601,7 @@ export async function getMyDayData(): Promise<MyDayData> {
       }
     : null;
 
-  const all = (tasksRes.data as TaskRowDB[]).map((r) => rowToTask(r, today));
+  const all = taskRows.map((r) => rowToTask(r, today));
   const matters = (mattersRes.data as MatterRowDB[]).map((r) => rowToMatter(r, today));
 
   // Only the tasks that belong on My Day: protected MITs, anything in

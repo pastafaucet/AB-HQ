@@ -14,6 +14,20 @@ import type {
 export const TASK_COLUMNS =
   "id,title,status,domain,type,priority,mit,do_date,do_time,duration_min,matter_id,project_id,notes,completed_at";
 
+// Pre-migration-0011 column set (free-text project, no project_id).
+export const TASK_COLUMNS_LEGACY = TASK_COLUMNS.replace("project_id", "project");
+
+/** Select task rows, falling back to the legacy columns if 0011 isn't applied. */
+export async function selectTaskRows(
+  build: (cols: string) => PromiseLike<{ data: unknown; error: { message: string } | null }>
+): Promise<TaskRowDB[]> {
+  const first = await build(TASK_COLUMNS);
+  if (!first.error) return first.data as TaskRowDB[];
+  const retry = await build(TASK_COLUMNS_LEGACY);
+  if (retry.error) throw retry.error;
+  return retry.data as TaskRowDB[];
+}
+
 export interface TaskRowDB {
   id: string;
   title: string;
