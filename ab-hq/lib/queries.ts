@@ -682,7 +682,7 @@ export async function getWeeklyReviewData(): Promise<WeeklyReviewData> {
   weekAgo.setDate(weekAgo.getDate() - 7);
 
   const [mattersRes, taskRows, projRes, entriesRes, touchRes] = await Promise.all([
-    sb.from("matters").select("id,name,client,status,disposition,next_deadline"),
+    sb.from("matters").select("id,name,client,status,disposition,next_deadline,created_at"),
     selectTaskRows((cols) =>
       sb.from("tasks").select(cols).neq("status", "Cancelled").order("created_at", { ascending: true })
     ),
@@ -699,6 +699,7 @@ export async function getWeeklyReviewData(): Promise<WeeklyReviewData> {
     status: string | null;
     disposition: string | null;
     next_deadline: string | null;
+    created_at: string;
   }[]).filter((m) => m.status !== "Closed" && !m.disposition);
   const matterName = new Map(matters.map((m) => [m.id, m.name]));
 
@@ -767,6 +768,9 @@ export async function getWeeklyReviewData(): Promise<WeeklyReviewData> {
     const cur = lastTouch.get(mid);
     if (!cur || iso > cur) lastTouch.set(mid, iso);
   };
+  // A matter's own creation counts as its first touch — a freshly imported
+  // book starts at day zero instead of uniformly "never touched".
+  for (const m of matters) bump(m.id, m.created_at);
   for (const e of entries) bump(e.matter_id, e.created_at);
   const touches = (touchRes.error ? [] : touchRes.data) as {
     matter_id: string | null;
