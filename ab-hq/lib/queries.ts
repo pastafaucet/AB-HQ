@@ -514,6 +514,7 @@ export interface StartUpData {
   today: string;
   intention: string | null; // today's, if already set
   onTapFromYesterday: string | null; // seeded by last Wind Down
+  running: RunningTimer | null;
 }
 
 /** All data the Start of Day surface needs: open tasks + ritual state. */
@@ -531,7 +532,7 @@ export async function getStartUpData(): Promise<StartUpData> {
   // (Unfinished MITs stay protected: they roll into today until dropped.)
   await sb.from("tasks").update({ mit: false }).eq("mit", true).eq("status", "Done");
 
-  const [taskRows, mattersRes, entriesRes, projects] = await Promise.all([
+  const [taskRows, mattersRes, entriesRes, projects, runRes] = await Promise.all([
     selectTaskRows((cols) =>
       sb
         .from("tasks")
@@ -546,6 +547,13 @@ export async function getStartUpData(): Promise<StartUpData> {
       .select("date,intention,on_tap_for_tomorrow")
       .in("date", [today, yesterday]),
     fetchProjects(),
+    sb
+      .from("time_sessions")
+      .select("id,task_id,started_at")
+      .is("ended_at", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
   if (mattersRes.error) throw mattersRes.error;
 
@@ -564,6 +572,13 @@ export async function getStartUpData(): Promise<StartUpData> {
     today,
     intention: todayEntry?.intention ?? null,
     onTapFromYesterday: yEntry?.on_tap_for_tomorrow ?? null,
+    running: runRes.data
+      ? {
+          sessionId: runRes.data.id as string,
+          taskId: runRes.data.task_id as string,
+          startedAt: runRes.data.started_at as string,
+        }
+      : null,
   };
 }
 

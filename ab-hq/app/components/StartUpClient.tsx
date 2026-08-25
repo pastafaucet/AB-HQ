@@ -1,12 +1,34 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Task, Matter, Project } from "@/lib/data";
+import type {
+  Task,
+  Matter,
+  Project,
+  RunningTimer,
+  TimeSession,
+  ActivityItem,
+} from "@/lib/data";
 import { PRIORITY_META, DOMAIN_DOT } from "@/lib/data";
-import { applyPatch } from "@/lib/task-patch";
-import { updateTask, type TaskPatch } from "@/app/(app)/task-actions";
+import { applyPatch, fullPatch } from "@/lib/task-patch";
+import {
+  updateTask,
+  deleteTask,
+  setTaskDone,
+  listActivity,
+  type TaskPatch,
+} from "@/app/(app)/task-actions";
+import {
+  startTimer,
+  stopTimer,
+  listSessions,
+  addSession,
+  updateSession,
+  deleteSession,
+} from "@/app/(app)/time-actions";
 import { saveIntention } from "@/app/(app)/daily-actions";
+import TaskDrawer from "./TaskDrawer";
 
 const PRI_COLOR: Record<number, string> = { 1: "#e0665a", 2: "#5fbf8f", 3: "#d8a657", 4: "#6f7787" };
 
@@ -43,6 +65,7 @@ export default function StartUpClient({
   dateLabel,
   initialIntention,
   onTapFromYesterday,
+  initialRunning,
 }: {
   initialTasks: Task[];
   matters: Matter[];
@@ -51,6 +74,7 @@ export default function StartUpClient({
   dateLabel: string;
   initialIntention: string | null;
   onTapFromYesterday: string | null;
+  initialRunning: RunningTimer | null;
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
@@ -58,6 +82,83 @@ export default function StartUpClient({
   const [error, setError] = useState<string | null>(null);
   const [locking, setLocking] = useState(false);
   const [, startTransition] = useTransition();
+
+  // --- drawer state (same mechanics as My Day) ---
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+  const openIdRef = useRef(openId);
+  openIdRef.current = openId;
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [running, setRunning] = useState<RunningTimer | null>(initialRunning);
+  const [nowTs, setNowTs] = useState<number>(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    setNowTs(Date.now());
+    const t = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [running]);
+  function elapsedLabel(startedAtIso: string): string {
+    const s = Math.max(0, Math.floor((nowTs - new Date(startedAtIso).getTime()) / 1000));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    return h > 0
+      ? `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
+      : `${m}:${String(ss).padStart(2, "0")}`;
+  }
+  function toggleTimer(taskId: string) {
+    if (running?.taskId === taskId) {
+      setRunning(null);
+      startTransition(async () => {
+        const r = await stopTimer();
+        if (!r.ok) flash(r.error ?? "Couldn't stop.");
+        if (openIdRef.current === taskId) refreshSessions(taskId);
+      });
+    } else {
+      setRunning({ taskId, sessionId: "pending", startedAt: new Date().toISOString() });
+      setNowTs(Date.now());
+      startTransition(async () => {
+        const r = await startTimer(taskId);
+        if (r.ok && r.session) {
+          setRunning({ taskId, sessionId: r.session.id, startedAt: r.session.startedAt });
+          if (openIdRef.current === taskId) refreshSessions(taskId);
+        } else {
+          setRunning(null);
+          flash(r.error ?? "Couldn't start.");
+        }
+      });
+    }
+  }
+
+  const [sessions, setSessions] = useState<TimeSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  async function refreshSessions(taskId: string) {
+    setSessionsLoading(true);
+    const r = await listSessions(taskId);
+    setSessionsLoading(false);
+    if (r.ok) setSessions(r.sessions);
+  }
+  async function refreshActivity(taskId: string) {
+    setActivityLoading(true);
+    const r = await listActivity(taskId);
+    setActivityLoading(false);
+    if (r.ok) setActivity(r.activity);
+  }
+  useEffect(() => {
+    if (openId) {
+      refreshSessions(openId);
+      refreshActivity(openId);
+    } else {
+      setSessions([]);
+      setActivity([]);
+    }
+  }, [openId]);
 
   function flash(msg: string) {
     setError(msg);
@@ -70,6 +171,107 @@ export default function StartUpClient({
     startTransition(async () => {
       const r = await updateTask(id, patch);
       if (!r.ok) flash(r.error ?? "Couldn't save.");
+    });
+  }
+
+  const openTask = tasks.find((t) => t.id === openId) ?? null;
+
+  function openExisting(id: string) {
+    setOpenId(id);
+    setSaved(false);
+    setSaving(false);
+  }
+
+  function scheduleUpdate(id: string) {
+    setSaving(true);
+    setSaved(false);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      const t = tasksRef.current.find((x) => x.id === id);
+      if (!t) return;
+      startTransition(async () => {
+        const r = await updateTask(id, fullPatch(t));
+        setSaving(false);
+        if (r.ok) {
+          setSaved(true);
+          setTimeout(() => setSaved(false), 1500);
+          if (openIdRef.current === id) refreshActivity(id);
+        } else flash(r.error ?? "Couldn't save.");
+      });
+    }, 450);
+  }
+
+  function onField(patch: TaskPatch) {
+    if (!openId) return;
+    if (patch.mit === true && openTask && !openTask.mit && mits.length >= 3) {
+      flash("You already have 3 protected — clear one first.");
+      return;
+    }
+    setTasks((prev) => prev.map((x) => (x.id === openId ? applyPatch(x, patch, today) : x)));
+    scheduleUpdate(openId);
+  }
+
+  function closeDrawer() {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (openId) {
+      const t = tasksRef.current.find((x) => x.id === openId);
+      if (t) startTransition(async () => void (await updateTask(openId, fullPatch(t))));
+    }
+    setOpenId(null);
+    setSaved(false);
+  }
+
+  function onDelete() {
+    if (!openId) return;
+    const id = openId;
+    setOpenId(null);
+    setTasks((prev) => prev.filter((x) => x.id !== id));
+    startTransition(async () => {
+      const r = await deleteTask(id);
+      if (!r.ok) flash(r.error ?? "Couldn't delete.");
+    });
+  }
+
+  function onMarkComplete() {
+    if (!openTask) return;
+    const t = openTask;
+    const done = t.status !== "Done";
+    setTasks((prev) =>
+      prev.map((x) => (x.id === t.id ? { ...x, status: done ? "Done" : "To Do" } : x))
+    );
+    startTransition(async () => {
+      const r = await setTaskDone(t.id, done);
+      if (!r.ok) flash(r.error ?? "Couldn't save.");
+      else if (openIdRef.current === t.id) refreshActivity(t.id);
+    });
+  }
+
+  function onAddEntry() {
+    const id = openIdRef.current;
+    if (!id) return;
+    const end = new Date();
+    const start = new Date(end.getTime() - 30 * 60000);
+    startTransition(async () => {
+      const r = await addSession(id, start.toISOString(), end.toISOString());
+      if (r.ok) refreshSessions(id);
+      else flash(r.error ?? "Couldn't add entry.");
+    });
+  }
+  function onSessionPatch(
+    id: string,
+    patch: { startedAt?: string; endedAt?: string | null; note?: string | null }
+  ) {
+    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+    startTransition(async () => {
+      const r = await updateSession(id, patch);
+      if (!r.ok) flash(r.error ?? "Couldn't save.");
+    });
+  }
+  function onSessionDelete(id: string) {
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    startTransition(async () => {
+      const r = await deleteSession(id);
+      if (!r.ok) flash(r.error ?? "Couldn't delete.");
     });
   }
 
@@ -223,7 +425,9 @@ export default function StartUpClient({
                     </button>
                   </div>
                 </div>
-                <div className="su-card-title">{t.title}</div>
+                <div className="su-card-title clickable" onClick={() => openExisting(t.id)}>
+                  {t.title}
+                </div>
                 <Meta t={t} />
               </div>
             ) : (
@@ -260,7 +464,7 @@ export default function StartUpClient({
         {dueToday.map((t) => (
           <div key={t.id} className="task-row">
             <Promote t={t} />
-            <div className="task-body">
+            <div className="task-body clickable" onClick={() => openExisting(t.id)}>
               <div className="task-title">{t.title}</div>
               <Meta t={t} />
             </div>
@@ -302,7 +506,7 @@ export default function StartUpClient({
             return (
               <div key={t.id} className="ob-row" style={{ borderLeftColor: border }}>
                 <Promote t={t} />
-                <div className="task-body">
+                <div className="task-body clickable" onClick={() => openExisting(t.id)}>
                   <div className="task-title">{t.title}</div>
                   <div className="meta">
                     <span className="meta-scope">
@@ -331,7 +535,7 @@ export default function StartUpClient({
         {overdue.map((t) => (
           <div key={t.id} className="task-row">
             <Promote t={t} />
-            <div className="task-body">
+            <div className="task-body clickable" onClick={() => openExisting(t.id)}>
               <div className="task-title">{t.title}</div>
               <Meta t={t} overdueDays={daysBetween(t.doDate!, today)} />
             </div>
@@ -403,6 +607,34 @@ export default function StartUpClient({
           </div>
         </div>
       </aside>
+
+      {openTask && (
+        <TaskDrawer
+          task={openTask}
+          matters={matters}
+          projects={projects}
+          mitCount={mits.length}
+          saving={saving}
+          saved={saved}
+          isNew={false}
+          onField={onField}
+          onDelete={onDelete}
+          onClose={closeDrawer}
+          sessions={sessions}
+          sessionsLoading={sessionsLoading}
+          isRunning={running?.taskId === openTask.id}
+          liveElapsed={
+            running?.taskId === openTask.id ? elapsedLabel(running.startedAt) : null
+          }
+          onStartStop={() => toggleTimer(openTask.id)}
+          onAddEntry={onAddEntry}
+          onSessionPatch={onSessionPatch}
+          onSessionDelete={onSessionDelete}
+          onMarkComplete={onMarkComplete}
+          activity={activity}
+          activityLoading={activityLoading}
+        />
+      )}
 
       {error && <div className="toast">{error}</div>}
     </>
