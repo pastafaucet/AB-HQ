@@ -3795,3 +3795,96 @@ button.check {
   font-size: 10.5px;
   padding: 3px 6px;
 }
+
+/* ============================================================
+   Weekly review — the whole book at once
+   ============================================================ */
+.wk-glance {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 8px;
+}
+@media (max-width: 900px) {
+  .wk-glance { grid-template-columns: repeat(2, 1fr); }
+}
+.wk-stat {
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.wk-stat.is-hot {
+  border-color: rgba(216, 130, 106, 0.45);
+}
+.wk-stat-num {
+  font-family: var(--font-serif);
+  font-size: 30px;
+  line-height: 1;
+  color: var(--ink);
+}
+.wk-stat.is-hot .wk-stat-num {
+  color: var(--orange);
+}
+.wk-stat-label {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+}
+
+.wk-due-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 9px 4px;
+  border-bottom: 1px solid var(--line-row);
+}
+.wk-due-date {
+  flex: none;
+  width: 92px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-2);
+  padding-top: 1px;
+}
+.wk-due-date.is-near {
+  color: var(--amber);
+}
+.wk-due-in {
+  display: block;
+  font-size: 9.5px;
+  color: var(--faint);
+}
+.wk-due-date.is-near .wk-due-in {
+  color: var(--amber);
+}
+
+.wk-bucket {
+  margin-bottom: 14px;
+}
+.wk-bucket-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--violet);
+  margin: 10px 0 2px;
+}
+
+.wk-silent-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--line-row);
+}
+.wk-silent-age {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--orange);
+}
+.wk-silent-age.quiet {
+  color: var(--muted);
+}

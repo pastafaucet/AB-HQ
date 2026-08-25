@@ -28,6 +28,7 @@ export interface Task {
   durationMin?: number; // block length on the schedule
   matterId?: string;
   projectId?: string;
+  waitingOn?: WaitingOn; // who the ball is with, when it's not Andy
   notes?: string;
   dueTag?: string; // display-only (time / date)
   completedAt?: string; // ISO timestamp, set while status is Done

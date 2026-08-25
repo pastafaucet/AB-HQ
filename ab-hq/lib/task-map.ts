@@ -12,10 +12,13 @@ import type {
 // Shared DB-row → app-object mapping (used by queries and task actions).
 
 export const TASK_COLUMNS =
-  "id,title,status,domain,type,priority,mit,do_date,do_time,duration_min,matter_id,project_id,notes,completed_at";
+  "id,title,status,domain,type,priority,mit,do_date,do_time,duration_min,matter_id,project_id,waiting_on,notes,completed_at";
 
-// Pre-migration-0011 column set (free-text project, no project_id).
-export const TASK_COLUMNS_LEGACY = TASK_COLUMNS.replace("project_id", "project");
+// Pre-migration-0011/0012 column set (free-text project, no project_id/waiting_on).
+export const TASK_COLUMNS_LEGACY = TASK_COLUMNS.replace("project_id", "project").replace(
+  ",waiting_on",
+  ""
+);
 
 /** Select task rows, falling back to the legacy columns if 0011 isn't applied. */
 export async function selectTaskRows(
@@ -41,6 +44,7 @@ export interface TaskRowDB {
   duration_min: number | null;
   matter_id: string | null;
   project_id: string | null;
+  waiting_on: string | null;
   notes: string | null;
   completed_at: string | null;
 }
@@ -127,6 +131,7 @@ export function rowToTask(row: TaskRowDB, today: string): Task {
     durationMin: row.duration_min ?? undefined,
     matterId: row.matter_id ?? undefined,
     projectId: row.project_id ?? undefined,
+    waitingOn: (row.waiting_on as Task["waitingOn"]) ?? undefined,
     notes: row.notes ?? undefined,
     dueTag: dueTagFor(row.do_date, row.do_time ? row.do_time.slice(0, 5) : null, today),
     completedAt: row.completed_at ?? undefined,

@@ -630,6 +630,203 @@ export async function getInboxData(): Promise<InboxData> {
   };
 }
 
+export interface DueItem {
+  date: string; // YYYY-MM-DD
+  title: string;
+  kind: "deadline" | "task" | "event" | "project" | "matter";
+  matterName: string | null;
+  matterId: string | null;
+}
+
+export interface WaitingItem {
+  taskId: string;
+  title: string;
+  bucket: string; // Chris / Opposing Counsel / Court / Other
+  matterName: string | null;
+  doDate: string | null;
+  ageDays: number | null; // since created
+}
+
+export interface SilentMatter {
+  id: string;
+  name: string;
+  client: string | null;
+  lastTouch: string | null; // ISO date of last entry/task activity; null = never
+  daysSilent: number | null;
+  openCount: number;
+  hasFuture: boolean; // any open task dated today or later
+}
+
+export interface WeeklyReviewData {
+  today: string;
+  activeMatters: number;
+  due: DueItem[]; // next 30 days, chronological
+  waiting: WaitingItem[];
+  silent: SilentMatter[];
+  quiet: SilentMatter[]; // touched recently but nothing scheduled
+  entriesThisWeek: number;
+}
+
+const SILENCE_DAYS = 21;
+
+/** The whole book at once — the Friday review. */
+export async function getWeeklyReviewData(): Promise<WeeklyReviewData> {
+  const sb = getSupabase();
+  const today = todayISO();
+  const d = new Date(`${today}T12:00:00`);
+  d.setDate(d.getDate() + 30);
+  const horizon = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+  const weekAgo = new Date(`${today}T12:00:00`);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+
+  const [mattersRes, taskRows, projRes, entriesRes, touchRes] = await Promise.all([
+    sb.from("matters").select("id,name,client,status,disposition,next_deadline"),
+    selectTaskRows((cols) =>
+      sb.from("tasks").select(cols).neq("status", "Cancelled").order("created_at", { ascending: true })
+    ),
+    sb.from("projects").select(PROJECT_COLUMNS),
+    sb.from("entries").select("id,matter_id,created_at"),
+    sb.from("tasks").select("matter_id,created_at,completed_at").neq("status", "Cancelled"),
+  ]);
+  if (mattersRes.error) throw mattersRes.error;
+
+  const matters = (mattersRes.data as {
+    id: string;
+    name: string;
+    client: string | null;
+    status: string | null;
+    disposition: string | null;
+    next_deadline: string | null;
+  }[]).filter((m) => m.status !== "Closed" && !m.disposition);
+  const matterName = new Map(matters.map((m) => [m.id, m.name]));
+
+  const tasks = taskRows.map((r) => rowToTask(r, today));
+  const open = tasks.filter((t) => t.status !== "Done" && t.status !== "Someday");
+  const projects = (projRes.error ? [] : (projRes.data as ProjectRowDB[])).map(rowToProject);
+  const entries = (entriesRes.error ? [] : entriesRes.data) as {
+    id: string;
+    matter_id: string | null;
+    created_at: string;
+  }[];
+
+  // --- due in the next 30 days: tasks + project deadlines + matter next_deadline ---
+  const due: DueItem[] = [];
+  for (const t of open) {
+    if (t.doDate && t.doDate >= today && t.doDate <= horizon) {
+      due.push({
+        date: t.doDate,
+        title: t.title,
+        kind: t.type === "Deadline" ? "deadline" : t.type === "Event" ? "event" : "task",
+        matterName: t.matterId ? matterName.get(t.matterId) ?? null : null,
+        matterId: t.matterId ?? null,
+      });
+    }
+  }
+  for (const p of projects) {
+    if (p.status === "Active" && p.deadline && p.deadline >= today && p.deadline <= horizon) {
+      due.push({
+        date: p.deadline,
+        title: p.name,
+        kind: "project",
+        matterName: p.matterId ? matterName.get(p.matterId) ?? null : null,
+        matterId: p.matterId ?? null,
+      });
+    }
+  }
+  for (const m of matters) {
+    if (m.next_deadline && m.next_deadline >= today && m.next_deadline <= horizon) {
+      due.push({
+        date: m.next_deadline,
+        title: `${m.name} — matter deadline`,
+        kind: "matter",
+        matterName: m.name,
+        matterId: m.id,
+      });
+    }
+  }
+  due.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  // --- waiting on ---
+  const waiting: WaitingItem[] = open
+    .filter((t) => t.waitingOn)
+    .map((t) => ({
+      taskId: t.id,
+      title: t.title,
+      bucket: t.waitingOn as string,
+      matterName: t.matterId ? matterName.get(t.matterId) ?? null : null,
+      doDate: t.doDate ?? null,
+      ageDays: null,
+    }));
+
+  // --- last touch + scheduling per matter ---
+  const lastTouch = new Map<string, string>(); // matterId → ISO timestamp
+  const bump = (mid: string | null | undefined, iso: string | undefined) => {
+    if (!mid || !iso) return;
+    const cur = lastTouch.get(mid);
+    if (!cur || iso > cur) lastTouch.set(mid, iso);
+  };
+  for (const e of entries) bump(e.matter_id, e.created_at);
+  const touches = (touchRes.error ? [] : touchRes.data) as {
+    matter_id: string | null;
+    created_at: string;
+    completed_at: string | null;
+  }[];
+  for (const r of touches) {
+    bump(r.matter_id, r.created_at);
+    bump(r.matter_id, r.completed_at ?? undefined);
+  }
+
+  const openByMatter = new Map<string, { open: number; future: boolean }>();
+  for (const t of open) {
+    if (!t.matterId) continue;
+    const agg = openByMatter.get(t.matterId) ?? { open: 0, future: false };
+    agg.open += 1;
+    if (t.doDate && t.doDate >= today) agg.future = true;
+    openByMatter.set(t.matterId, agg);
+  }
+
+  const silent: SilentMatter[] = [];
+  const quiet: SilentMatter[] = [];
+  const nowMs = new Date(`${today}T12:00:00`).getTime();
+  for (const m of matters) {
+    const touch = lastTouch.get(m.id) ?? null;
+    const days = touch ? Math.floor((nowMs - new Date(touch).getTime()) / 86400000) : null;
+    const agg = openByMatter.get(m.id) ?? { open: 0, future: false };
+    const hasFutureDeadline = !!(m.next_deadline && m.next_deadline >= today);
+    const scheduled = agg.future || hasFutureDeadline;
+    const row: SilentMatter = {
+      id: m.id,
+      name: m.name,
+      client: m.client,
+      lastTouch: touch,
+      daysSilent: days,
+      openCount: agg.open,
+      hasFuture: scheduled,
+    };
+    if (scheduled) continue; // something is on the calendar — not a surprise risk
+    if (days === null || days >= SILENCE_DAYS) silent.push(row);
+    else quiet.push(row);
+  }
+  silent.sort((a, b) => (b.daysSilent ?? 9999) - (a.daysSilent ?? 9999));
+  quiet.sort((a, b) => (b.daysSilent ?? 0) - (a.daysSilent ?? 0));
+
+  const entriesThisWeek = entries.filter(
+    (e) => new Date(e.created_at).getTime() >= weekAgo.getTime()
+  ).length;
+
+  return {
+    today,
+    activeMatters: matters.length,
+    due,
+    waiting,
+    silent,
+    quiet,
+    entriesThisWeek,
+  };
+}
+
 /** All data the My Day (Today) surface needs, for the current calendar day. */
 export async function getMyDayData(): Promise<MyDayData> {
   const sb = getSupabase();

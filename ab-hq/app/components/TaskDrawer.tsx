@@ -325,6 +325,30 @@ export default function TaskDrawer({
         </div>
 
         <div className="drawer-field">
+          <div className="drawer-label">SITTING WITH</div>
+          <div className="seg-select">
+            {(
+              [
+                ["Me", null],
+                ["Chris", "Chris"],
+                ["Opp. Counsel", "Opposing Counsel"],
+                ["Court", "Court"],
+                ["Other", "Other"],
+              ] as [string, string | null][]
+            ).map(([label, value]) => (
+              <button
+                key={label}
+                type="button"
+                className={`seg-opt${(task.waitingOn ?? null) === value ? " is-sel" : ""}`}
+                onClick={() => onField({ waitingOn: value })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="drawer-field">
           <div className="drawer-label">DUE</div>
           <div className="due-cell">
             <input

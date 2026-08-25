@@ -41,6 +41,7 @@ export interface TaskPatch {
   type?: string;
   matterId?: string | null;
   projectId?: string | null;
+  waitingOn?: string | null;
   doDate?: string | null;
   doTime?: string | null;
   durationMin?: number | null;
@@ -73,6 +74,7 @@ function toDbPatch(patch: TaskPatch): Record<string, unknown> {
   if (patch.type !== undefined) db.type = patch.type;
   if (patch.matterId !== undefined) db.matter_id = patch.matterId;
   if (patch.projectId !== undefined) db.project_id = patch.projectId;
+  if (patch.waitingOn !== undefined) db.waiting_on = patch.waitingOn;
   if (patch.doDate !== undefined) db.do_date = patch.doDate;
   if (patch.doTime !== undefined) db.do_time = patch.doTime;
   if (patch.durationMin !== undefined) db.duration_min = patch.durationMin;
@@ -138,8 +140,9 @@ export async function createTask(input: TaskPatch & { title: string }): Promise<
     do_time: input.doTime ?? null,
     duration_min: input.durationMin ?? null,
     matter_id: input.matterId ?? null,
-    // Omitted when unset so inserts still work before migration 0011.
+    // Omitted when unset so inserts still work before migrations 0011/0012.
     ...(input.projectId ? { project_id: input.projectId } : {}),
+    ...(input.waitingOn ? { waiting_on: input.waitingOn } : {}),
     notes: input.notes ?? null,
   };
 
