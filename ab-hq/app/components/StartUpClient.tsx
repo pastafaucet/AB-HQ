@@ -86,6 +86,17 @@ export default function StartUpClient({
   const obligations = open
     .filter((t) => !t.mit && t.projectId && t.doDate && t.doDate > today && t.doDate <= horizon)
     .sort((a, b) => (a.doDate! < b.doDate! ? -1 : 1));
+  // Project terminal deadlines landing this week ride along as their own rows,
+  // so the date lives once (on the project) without a duplicate Deadline task.
+  type ObItem = { kind: "task"; date: string; t: Task } | { kind: "proj"; date: string; p: Project };
+  const obItems: ObItem[] = [
+    ...obligations.map((t) => ({ kind: "task" as const, date: t.doDate!, t })),
+    ...projects
+      .filter(
+        (p) => p.status === "Active" && p.deadline && p.deadline >= today && p.deadline <= horizon
+      )
+      .map((p) => ({ kind: "proj" as const, date: p.deadline!, p })),
+  ].sort((a, b) => (a.date < b.date ? -1 : 1));
 
   // Load readout for the lock-in button, from effort estimates on the picks.
   const totalMin = mits.reduce((a, t) => a + (t.durationMin ?? 0), 0);
@@ -258,13 +269,34 @@ export default function StartUpClient({
         )}
 
         <div className="section-label">
-          PROJECT OBLIGATIONS THIS WEEK · {obligations.length}
+          PROJECT OBLIGATIONS THIS WEEK · {obItems.length}
         </div>
         <div className="ob-list">
-          {obligations.map((t) => {
-            const diff = daysBetween(today, t.doDate!);
+          {obItems.map((item) => {
+            const diff = daysBetween(today, item.date);
             const border = diff <= 1 ? "var(--orange)" : diff <= 3 ? "var(--amber)" : "var(--line-raised-2)";
             const dueCls = diff <= 1 ? "ob-due hot" : diff <= 3 ? "ob-due warm" : "ob-due";
+            const dueLabel = diff === 0 ? "today" : diff === 1 ? "tomorrow" : `in ${diff}d`;
+            if (item.kind === "proj") {
+              const p = item.p;
+              const mn = p.matterId
+                ? matters.find((m) => m.id === p.matterId)?.name
+                : undefined;
+              return (
+                <div key={`proj-${p.id}`} className="ob-row" style={{ borderLeftColor: border }}>
+                  <span className="ob-flag" title="Project deadline">◆</span>
+                  <div className="task-body">
+                    <div className="task-title">{p.name}</div>
+                    <div className="meta">
+                      <span className="kind-deadline">PROJECT DEADLINE</span>
+                      {mn && <span className="meta-scope">{mn.toUpperCase()}</span>}
+                    </div>
+                  </div>
+                  <span className={dueCls}>{dueLabel}</span>
+                </div>
+              );
+            }
+            const t = item.t;
             return (
               <div key={t.id} className="ob-row" style={{ borderLeftColor: border }}>
                 <Promote t={t} />
@@ -280,12 +312,12 @@ export default function StartUpClient({
                     )}
                   </div>
                 </div>
-                <span className={dueCls}>{diff === 1 ? "tomorrow" : `in ${diff}d`}</span>
+                <span className={dueCls}>{dueLabel}</span>
               </div>
             );
           })}
         </div>
-        {obligations.length === 0 && (
+        {obItems.length === 0 && (
           <div className="empty-note">
             Nothing project-tagged lands this week. Tag tasks with a project to see them here.
           </div>
@@ -361,7 +393,7 @@ export default function StartUpClient({
           </div>
           <div className="glance-row">
             <span>Project obligations this week</span>
-            <span>{obligations.length}</span>
+            <span>{obItems.length}</span>
           </div>
           <div className="glance-row">
             <span className={overdue.length ? "glance-hot" : undefined}>Overdue</span>

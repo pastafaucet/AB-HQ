@@ -3619,3 +3619,15 @@ button.check {
 .ptask-add {
   margin-top: 10px;
 }
+
+/* project terminal-deadline row in the obligations band */
+.ob-flag {
+  width: 22px;
+  flex: none;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--orange);
+  font-size: 11px;
+}
