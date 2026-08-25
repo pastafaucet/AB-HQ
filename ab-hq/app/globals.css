@@ -3888,3 +3888,102 @@ button.check {
 .wk-silent-age.quiet {
   color: var(--muted);
 }
+
+/* ============================================================
+   Day ledger — the day by matter + billing narrative drafts
+   ============================================================ */
+.ledger-datebar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.ledger-date {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-body);
+}
+.narrative-card {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line-raised);
+  border-radius: 12px;
+}
+.narrative-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.narrative-matter {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+.narrative-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--teal);
+}
+.narrative-text {
+  width: 100%;
+  background: var(--inset);
+  border: 1px solid var(--line-field);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--ink-body);
+  font-size: 13.5px;
+  line-height: 1.55;
+  resize: vertical;
+  outline: none;
+}
+.narrative-text:focus {
+  border-color: var(--line-raised-2);
+}
+.ledger-group {
+  margin-bottom: 18px;
+}
+.ledger-group.is-unattributed {
+  opacity: 0.85;
+}
+.ledger-group-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line-raised);
+  margin-bottom: 4px;
+}
+.ledger-matter {
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ink-strong);
+}
+.ledger-client {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+.ledger-line {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--line-row);
+}
+.ledger-line-kind {
+  flex: none;
+  width: 56px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+}
+.ledger-line-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--ink-body);
+}

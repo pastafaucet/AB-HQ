@@ -827,6 +827,128 @@ export async function getWeeklyReviewData(): Promise<WeeklyReviewData> {
   };
 }
 
+export interface LedgerGroup {
+  matterId: string | null; // null = unattributed
+  matterName: string | null;
+  client: string | null;
+  entries: Entry[];
+  sessions: { taskTitle: string; minutes: number }[];
+  doneTasks: string[];
+  totalMinutes: number;
+}
+
+export interface DayLedgerData {
+  date: string;
+  groups: LedgerGroup[];
+  needsMigration: boolean;
+}
+
+/** Everything that happened on one day, grouped by matter — feeds billing. */
+export async function getDayLedgerData(date: string): Promise<DayLedgerData> {
+  const sb = getSupabase();
+  const dayStart = `${date}T00:00:00`;
+  const d = new Date(`${date}T12:00:00`);
+  d.setDate(d.getDate() + 1);
+  const dayEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}T00:00:00`;
+
+  const [entriesRes, mattersRes, sessRes, doneRes] = await Promise.all([
+    sb
+      .from("entries")
+      .select(ENTRY_COLUMNS)
+      .gte("created_at", dayStart)
+      .lt("created_at", dayEnd)
+      .neq("status", "dismissed")
+      .order("created_at", { ascending: true }),
+    sb.from("matters").select("id,name,client"),
+    sb
+      .from("time_sessions")
+      .select("task_id,started_at,ended_at")
+      .gte("started_at", dayStart)
+      .lt("started_at", dayEnd)
+      .not("ended_at", "is", null),
+    sb
+      .from("tasks")
+      .select("id,title,matter_id,completed_at")
+      .eq("status", "Done")
+      .gte("completed_at", dayStart)
+      .lt("completed_at", dayEnd),
+  ]);
+  if (mattersRes.error) throw mattersRes.error;
+  const needsMigration = !!entriesRes.error;
+
+  const matters = mattersRes.data as { id: string; name: string; client: string | null }[];
+  const matterById = new Map(matters.map((m) => [m.id, m]));
+  const entries = (entriesRes.error ? [] : (entriesRes.data as EntryRowDB[])).map(rowToEntry);
+
+  // Session minutes need the task's matter — fetch titles/matters for involved tasks.
+  const sess = (sessRes.error ? [] : sessRes.data) as {
+    task_id: string;
+    started_at: string;
+    ended_at: string;
+  }[];
+  const doneTasks = (doneRes.error ? [] : doneRes.data) as {
+    id: string;
+    title: string;
+    matter_id: string | null;
+    completed_at: string;
+  }[];
+  const sessTaskIds = [...new Set(sess.map((s) => s.task_id))];
+  const taskInfo = new Map<string, { title: string; matterId: string | null }>();
+  for (const t of doneTasks) taskInfo.set(t.id, { title: t.title, matterId: t.matter_id });
+  const missing = sessTaskIds.filter((id) => !taskInfo.has(id));
+  if (missing.length) {
+    const { data } = await sb.from("tasks").select("id,title,matter_id").in("id", missing);
+    for (const t of (data ?? []) as { id: string; title: string; matter_id: string | null }[]) {
+      taskInfo.set(t.id, { title: t.title, matterId: t.matter_id });
+    }
+  }
+
+  const groups = new Map<string, LedgerGroup>();
+  const groupFor = (matterId: string | null): LedgerGroup => {
+    const key = matterId ?? "__none__";
+    let g = groups.get(key);
+    if (!g) {
+      const m = matterId ? matterById.get(matterId) : undefined;
+      g = {
+        matterId,
+        matterName: m?.name ?? null,
+        client: m?.client ?? null,
+        entries: [],
+        sessions: [],
+        doneTasks: [],
+        totalMinutes: 0,
+      };
+      groups.set(key, g);
+    }
+    return g;
+  };
+
+  for (const e of entries) groupFor(e.matterId ?? null).entries.push(e);
+  for (const s of sess) {
+    const info = taskInfo.get(s.task_id);
+    const minutes = Math.round(
+      Math.max(0, new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000
+    );
+    if (minutes < 1) continue;
+    const g = groupFor(info?.matterId ?? null);
+    const existing = g.sessions.find((x) => x.taskTitle === (info?.title ?? "Untimed work"));
+    if (existing) existing.minutes += minutes;
+    else g.sessions.push({ taskTitle: info?.title ?? "Untimed work", minutes });
+    g.totalMinutes += minutes;
+  }
+  for (const t of doneTasks) groupFor(t.matter_id).doneTasks.push(t.title);
+
+  const list = [...groups.values()].sort((a, b) => {
+    if (a.matterId === null) return 1;
+    if (b.matterId === null) return -1;
+    return (a.matterName ?? "").localeCompare(b.matterName ?? "");
+  });
+
+  return { date, groups: list, needsMigration };
+}
+
 /** All data the My Day (Today) surface needs, for the current calendar day. */
 export async function getMyDayData(): Promise<MyDayData> {
   const sb = getSupabase();

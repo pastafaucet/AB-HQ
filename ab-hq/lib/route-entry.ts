@@ -52,20 +52,20 @@ const SCHEMA = {
       description: "HH:MM 24-hour, for events with a stated time. null otherwise.",
     },
     task_type: {
-      type: ["string", "null"],
-      enum: ["Task", "Event", "Deadline", null],
+      anyOf: [{ type: "string", enum: ["Task", "Event", "Deadline"] }, { type: "null" }],
       description:
         "For task/event kinds: Deadline when it is a court-imposed or hard filing date; Event for scheduled occurrences; Task otherwise. null for log/note.",
     },
     priority: {
-      type: ["integer", "null"],
-      enum: [1, 2, 3, 4, null],
+      anyOf: [{ type: "integer", enum: [1, 2, 3, 4] }, { type: "null" }],
       description:
         "For tasks: 1 = urgent+important (court deadlines, today), 2 = important, 3 = normal, 4 = low. null when not a task or unclear.",
     },
     waiting_on: {
-      type: ["string", "null"],
-      enum: ["Chris", "Opposing Counsel", "Court", "Other", null],
+      anyOf: [
+        { type: "string", enum: ["Chris", "Opposing Counsel", "Court", "Other"] },
+        { type: "null" },
+      ],
       description:
         "Who the ball is with if it's not Andy: something owed BY someone else. null when Andy owns the next move.",
     },
