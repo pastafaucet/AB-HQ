@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
     "@supabase/supabase-js": "^2.110.0",
     "@tiptap/extension-details": "^3.29.2",
     "@tiptap/extension-mention": "^3.29.2",

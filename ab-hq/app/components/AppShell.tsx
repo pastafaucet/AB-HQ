@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV, isActive } from "@/lib/nav";
 import { logout } from "@/app/auth-actions";
+import CaptureOverlay, { openCapture } from "./CaptureOverlay";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -37,7 +38,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <div className="brand-mark">H</div>
             </div>
             <div className="capture-wrap is-collapsed">
-              <button className="capture-square" title="Capture (⌘K)" type="button">
+              <button
+                className="capture-square"
+                title="Capture (⌘K)"
+                type="button"
+                onClick={openCapture}
+              >
                 +
               </button>
             </div>
@@ -77,7 +83,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <div className="brand-kicker">PERSONAL OPERATING SYSTEM</div>
             </div>
             <div className="capture-wrap">
-              <button className="capture" type="button">
+              <button className="capture" type="button" onClick={openCapture}>
                 <span className="plus">+</span>
                 <span className="grow">Capture</span>
                 <span className="keycap">⌘K</span>
@@ -146,11 +152,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               Personal
             </button>
           </div>
-          <div className="searchbar">
+          <button className="searchbar" type="button" onClick={openCapture}>
             <span>⌕</span>
-            <span className="grow">Search anything, or capture a thought…</span>
+            <span className="grow">Capture a thought…</span>
             <span className="keycap">⌘K</span>
-          </div>
+          </button>
           <div className="header-spacer" />
           <div className="header-datetime">{clock}</div>
           <div className="header-divider" />
@@ -164,6 +170,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="screen-inner">{children}</div>
         </div>
       </main>
+
+      <CaptureOverlay />
     </div>
   );
 }

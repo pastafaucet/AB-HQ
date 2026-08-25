@@ -54,6 +54,23 @@ export interface Project {
   notes?: string;
 }
 
+export type EntryKind = "log" | "task" | "note" | "event";
+export type EntryStatus = "inbox" | "filed" | "dismissed";
+export type WaitingOn = "Chris" | "Opposing Counsel" | "Court" | "Other";
+
+export interface Entry {
+  id: string;
+  raw: string; // exactly what was typed — the permanent ledger record
+  kind: EntryKind;
+  status: EntryStatus;
+  matterId?: string;
+  projectId?: string;
+  taskId?: string; // derived task, if routing created one
+  summary?: string; // one-line normalization (billing narrative seed)
+  routedBy?: "ai" | "manual";
+  createdAt: string;
+}
+
 export interface TimeSession {
   id: string;
   taskId: string;

@@ -1,6 +1,7 @@
 import "server-only";
 import { getSupabase } from "@/lib/supabase";
-import type { Task, Matter, Project, RunningTimer } from "@/lib/data";
+import type { Task, Matter, Project, Entry, RunningTimer } from "@/lib/data";
+import { ENTRY_COLUMNS, rowToEntry, type EntryRowDB } from "@/lib/entry-map";
 import {
   PROJECT_COLUMNS,
   selectTaskRows,
@@ -579,6 +580,53 @@ export async function getStartUpData(): Promise<StartUpData> {
           startedAt: runRes.data.started_at as string,
         }
       : null,
+  };
+}
+
+export interface InboxData {
+  entries: Entry[];
+  matters: MatterOption[];
+  projects: Project[];
+  today: string;
+  needsMigration: boolean;
+}
+
+/** The capture ledger, newest first — the Quick Drop / Inbox surface. */
+export async function getInboxData(): Promise<InboxData> {
+  const sb = getSupabase();
+  const today = todayISO();
+
+  const [entriesRes, mattersRes, projects] = await Promise.all([
+    sb
+      .from("entries")
+      .select(ENTRY_COLUMNS)
+      .order("created_at", { ascending: false })
+      .limit(500),
+    sb.from("matters").select("id,name,status,disposition"),
+    fetchProjects(),
+  ]);
+  if (mattersRes.error) throw mattersRes.error;
+
+  const matters: MatterOption[] = (mattersRes.data as {
+    id: string;
+    name: string;
+    status: string | null;
+    disposition: string | null;
+  }[])
+    .map((m) => ({ id: m.id, name: m.name, closed: m.status === "Closed" || !!m.disposition }))
+    .sort((a, b) => Number(a.closed) - Number(b.closed) || a.name.localeCompare(b.name));
+
+  // Migration 0012 not applied yet — show the setup notice instead of crashing.
+  if (entriesRes.error) {
+    return { entries: [], matters, projects, today, needsMigration: true };
+  }
+
+  return {
+    entries: (entriesRes.data as EntryRowDB[]).map(rowToEntry),
+    matters,
+    projects,
+    today,
+    needsMigration: false,
   };
 }
 
