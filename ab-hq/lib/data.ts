@@ -27,7 +27,7 @@ export interface Task {
   doTime?: string; // HH:MM
   durationMin?: number; // block length on the schedule
   matterId?: string;
-  project?: string;
+  projectId?: string;
   notes?: string;
   dueTag?: string; // display-only (time / date)
   completedAt?: string; // ISO timestamp, set while status is Done
@@ -41,6 +41,17 @@ export interface Matter {
   status: string;
   next?: string;
   nextColor?: string;
+}
+
+export type ProjectStatus = "Active" | "Done" | "Archived";
+
+export interface Project {
+  id: string;
+  name: string;
+  matterId?: string;
+  deadline?: string; // YYYY-MM-DD — the terminal date
+  status: ProjectStatus;
+  notes?: string;
 }
 
 export interface TimeSession {

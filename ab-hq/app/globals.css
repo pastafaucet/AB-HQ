@@ -3536,3 +3536,86 @@ button.check {
 .glance-hot {
   color: var(--orange) !important;
 }
+
+/* ============================================================
+   Projects hub — progress bar + drawer task list
+   ============================================================ */
+.proj-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.proj-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 3px;
+  background: var(--line-field);
+  overflow: hidden;
+}
+.proj-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--green);
+}
+.proj-bar-label {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+.proj-progress-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+}
+.proj-notes {
+  resize: vertical;
+  min-height: 64px;
+  line-height: 1.5;
+}
+
+.ptask-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--line-row);
+}
+.ptask-check {
+  width: 15px;
+  height: 15px;
+}
+.ptask-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--ink-body);
+}
+.ptask-title-done {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--faint);
+  text-decoration: line-through;
+}
+.ptask-due {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.ptask-due.today {
+  color: var(--amber);
+}
+.ptask-due.over {
+  color: var(--orange);
+}
+.ptask-done-group {
+  margin-top: 4px;
+  opacity: 0.75;
+}
+.ptask-add {
+  margin-top: 10px;
+}

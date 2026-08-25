@@ -1,9 +1,18 @@
-import type { Task, Matter, Domain, TaskType, TaskStatus, Priority } from "@/lib/data";
+import type {
+  Task,
+  Matter,
+  Project,
+  ProjectStatus,
+  Domain,
+  TaskType,
+  TaskStatus,
+  Priority,
+} from "@/lib/data";
 
 // Shared DB-row → app-object mapping (used by queries and task actions).
 
 export const TASK_COLUMNS =
-  "id,title,status,domain,type,priority,mit,do_date,do_time,duration_min,matter_id,project,notes,completed_at";
+  "id,title,status,domain,type,priority,mit,do_date,do_time,duration_min,matter_id,project_id,notes,completed_at";
 
 export interface TaskRowDB {
   id: string;
@@ -17,9 +26,31 @@ export interface TaskRowDB {
   do_time: string | null;
   duration_min: number | null;
   matter_id: string | null;
-  project: string | null;
+  project_id: string | null;
   notes: string | null;
   completed_at: string | null;
+}
+
+export const PROJECT_COLUMNS = "id,name,matter_id,deadline,status,notes";
+
+export interface ProjectRowDB {
+  id: string;
+  name: string;
+  matter_id: string | null;
+  deadline: string | null;
+  status: ProjectStatus;
+  notes: string | null;
+}
+
+export function rowToProject(row: ProjectRowDB): Project {
+  return {
+    id: row.id,
+    name: row.name,
+    matterId: row.matter_id ?? undefined,
+    deadline: row.deadline ?? undefined,
+    status: row.status,
+    notes: row.notes ?? undefined,
+  };
 }
 
 export interface MatterRowDB {
@@ -81,7 +112,7 @@ export function rowToTask(row: TaskRowDB, today: string): Task {
     doTime: row.do_time ? row.do_time.slice(0, 5) : undefined,
     durationMin: row.duration_min ?? undefined,
     matterId: row.matter_id ?? undefined,
-    project: row.project ?? undefined,
+    projectId: row.project_id ?? undefined,
     notes: row.notes ?? undefined,
     dueTag: dueTagFor(row.do_date, row.do_time ? row.do_time.slice(0, 5) : null, today),
     completedAt: row.completed_at ?? undefined,

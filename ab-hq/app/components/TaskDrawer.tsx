@@ -4,6 +4,7 @@ import { useEffect, useState, type MouseEvent } from "react";
 import type {
   Task,
   Matter,
+  Project,
   Domain,
   TaskType,
   TaskStatus,
@@ -12,6 +13,7 @@ import type {
   ActivityItem,
 } from "@/lib/data";
 import type { TaskPatch } from "@/app/(app)/task-actions";
+import { createProject } from "@/app/(app)/project-actions";
 import ConfirmButton from "./ConfirmButton";
 
 const STATUSES: TaskStatus[] = ["Inbox", "To Do", "In Progress", "Done", "Someday", "Cancelled"];
@@ -82,6 +84,7 @@ function fmtActDate(iso: string): string {
 export default function TaskDrawer({
   task,
   matters,
+  projects,
   mitCount,
   saving,
   saved,
@@ -103,6 +106,7 @@ export default function TaskDrawer({
 }: {
   task: Task;
   matters: Matter[];
+  projects: Project[];
   mitCount: number;
   saving: boolean;
   saved: boolean;
@@ -126,6 +130,26 @@ export default function TaskDrawer({
   activityLoading: boolean;
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Projects created from this drawer, so the select stays current without a reload.
+  const [localProjects, setLocalProjects] = useState<Project[]>([]);
+  const [newProjOpen, setNewProjOpen] = useState(false);
+  const [newProjName, setNewProjName] = useState("");
+  const allProjects = [
+    ...projects,
+    ...localProjects.filter((lp) => !projects.some((p) => p.id === lp.id)),
+  ];
+
+  async function submitNewProject() {
+    const name = newProjName.trim();
+    if (!name) return;
+    const r = await createProject(name, task.matterId ?? null);
+    if (r.ok && r.project) {
+      setLocalProjects((prev) => [...prev, r.project!]);
+      onField({ projectId: r.project.id });
+      setNewProjOpen(false);
+      setNewProjName("");
+    }
+  }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -257,13 +281,46 @@ export default function TaskDrawer({
           </label>
           <label className="drawer-field">
             <div className="drawer-label">PROJECT</div>
-            <input
-              type="text"
-              className="drawer-select"
-              placeholder="—"
-              value={task.project ?? ""}
-              onChange={(e) => onField({ project: e.target.value || null })}
-            />
+            {newProjOpen ? (
+              <input
+                type="text"
+                className="drawer-select"
+                placeholder="New project name…  (Enter)"
+                autoFocus
+                value={newProjName}
+                onChange={(e) => setNewProjName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    submitNewProject();
+                  }
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setNewProjOpen(false);
+                  }
+                }}
+                onBlur={() => {
+                  if (!newProjName.trim()) setNewProjOpen(false);
+                }}
+              />
+            ) : (
+              <select
+                className="drawer-select"
+                value={task.projectId ?? ""}
+                onChange={(e) => {
+                  if (e.target.value === "__new__") setNewProjOpen(true);
+                  else onField({ projectId: e.target.value || null });
+                }}
+              >
+                <option value="">— None —</option>
+                {allProjects
+                  .filter((p) => p.status === "Active" || p.id === task.projectId)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                <option value="__new__">＋ New project…</option>
+              </select>
+            )}
           </label>
         </div>
 

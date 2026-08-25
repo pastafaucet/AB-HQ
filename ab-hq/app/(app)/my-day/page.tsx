@@ -5,7 +5,7 @@ export const metadata = { title: "My Day · AB HQ" };
 export const dynamic = "force-dynamic";
 
 export default async function MyDayPage() {
-  const { tasks, matters, today, running, logged } = await getMyDayData();
+  const { tasks, matters, projects, today, running, logged } = await getMyDayData();
   const dateLabel = new Date(`${today}T12:00:00`).toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
@@ -16,6 +16,7 @@ export default async function MyDayPage() {
     <MyDayClient
       initialTasks={tasks}
       matters={matters}
+      projects={projects}
       today={today}
       dateLabel={dateLabel}
       initialRunning={running}

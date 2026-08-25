@@ -1,21 +1,37 @@
 import "server-only";
 import { getSupabase } from "@/lib/supabase";
-import type { Task, Matter, RunningTimer } from "@/lib/data";
+import type { Task, Matter, Project, RunningTimer } from "@/lib/data";
 import {
   TASK_COLUMNS,
+  PROJECT_COLUMNS,
   todayISO,
   rowToTask,
   rowToMatter,
+  rowToProject,
   type TaskRowDB,
   type MatterRowDB,
+  type ProjectRowDB,
 } from "@/lib/task-map";
 
 export interface MyDayData {
   tasks: Task[]; // all tasks relevant to today (mits ∪ also-today ∪ in-progress)
   matters: Matter[];
+  projects: Project[];
   today: string;
   running: RunningTimer | null;
   logged: Record<string, number>; // taskId → completed seconds tracked
+}
+
+/** All projects, active first — the shared picker list. */
+async function fetchProjects(): Promise<Project[]> {
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("projects")
+    .select(PROJECT_COLUMNS)
+    .order("created_at", { ascending: true });
+  // Migration 0011 not applied yet — degrade to no projects.
+  if (error) return [];
+  return (data as ProjectRowDB[]).map(rowToProject);
 }
 
 export interface CaseRow {
@@ -334,6 +350,7 @@ export async function getNotesPageData(): Promise<NotesPageData> {
 export interface TasksPageData {
   tasks: Task[]; // every open task (not Done, not Cancelled)
   matters: Matter[];
+  projects: Project[];
   today: string;
   running: RunningTimer | null;
 }
@@ -343,7 +360,7 @@ export async function getTasksPageData(): Promise<TasksPageData> {
   const sb = getSupabase();
   const today = todayISO();
 
-  const [tasksRes, mattersRes, runRes] = await Promise.all([
+  const [tasksRes, mattersRes, runRes, projects] = await Promise.all([
     sb
       .from("tasks")
       .select(TASK_COLUMNS)
@@ -358,6 +375,7 @@ export async function getTasksPageData(): Promise<TasksPageData> {
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    fetchProjects(),
   ]);
 
   if (tasksRes.error) throw tasksRes.error;
@@ -374,14 +392,122 @@ export async function getTasksPageData(): Promise<TasksPageData> {
   return {
     tasks: (tasksRes.data as TaskRowDB[]).map((r) => rowToTask(r, today)),
     matters: (mattersRes.data as MatterRowDB[]).map((r) => rowToMatter(r, today)),
+    projects,
     today,
     running,
   };
 }
 
+export interface ProjectRow {
+  id: string;
+  name: string;
+  matterId: string | null;
+  matterName: string | null;
+  deadline: string | null; // the project's own terminal date
+  status: string;
+  notes: string | null;
+  openCount: number;
+  overdueCount: number;
+  doneCount: number;
+  totalCount: number;
+  nextDue: string | null; // soonest open task date
+  nextDueTitle: string | null;
+}
+
+/** Every project with task rollups — the Projects hub list. */
+export async function getProjectsPageData(): Promise<{
+  projects: ProjectRow[];
+  matters: MatterOption[];
+  today: string;
+}> {
+  const sb = getSupabase();
+  const today = todayISO();
+
+  const [projRes, tasksRes, mattersRes] = await Promise.all([
+    sb
+      .from("projects")
+      .select(PROJECT_COLUMNS + ",created_at")
+      .order("created_at", { ascending: false }),
+    sb
+      .from("tasks")
+      .select("project_id,status,do_date,title")
+      .not("project_id", "is", null)
+      .neq("status", "Cancelled"),
+    sb.from("matters").select("id,name,status,disposition"),
+  ]);
+  if (projRes.error) throw projRes.error;
+  if (tasksRes.error) throw tasksRes.error;
+  if (mattersRes.error) throw mattersRes.error;
+
+  const agg = new Map<
+    string,
+    { open: number; overdue: number; done: number; nextDue: string | null; nextTitle: string | null }
+  >();
+  for (const t of tasksRes.data as {
+    project_id: string;
+    status: string;
+    do_date: string | null;
+    title: string;
+  }[]) {
+    const a =
+      agg.get(t.project_id) ??
+      { open: 0, overdue: 0, done: 0, nextDue: null, nextTitle: null };
+    if (t.status === "Done") a.done += 1;
+    else if (t.status !== "Someday") {
+      a.open += 1;
+      if (t.do_date && t.do_date < today) a.overdue += 1;
+      if (t.do_date && (!a.nextDue || t.do_date < a.nextDue)) {
+        a.nextDue = t.do_date;
+        a.nextTitle = t.title;
+      }
+    }
+    agg.set(t.project_id, a);
+  }
+
+  const matterRows = mattersRes.data as {
+    id: string;
+    name: string;
+    status: string | null;
+    disposition: string | null;
+  }[];
+  const matterName = new Map(matterRows.map((m) => [m.id, m.name]));
+  const matters: MatterOption[] = matterRows
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      closed: m.status === "Closed" || !!m.disposition,
+    }))
+    .sort((a, b) => Number(a.closed) - Number(b.closed) || a.name.localeCompare(b.name));
+
+  const projects: ProjectRow[] = (projRes.data as unknown as (ProjectRowDB & { created_at: string })[]).map(
+    (p) => {
+      const a =
+        agg.get(p.id) ?? { open: 0, overdue: 0, done: 0, nextDue: null, nextTitle: null };
+      return {
+        id: p.id,
+        name: p.name,
+        matterId: p.matter_id,
+        matterName: p.matter_id ? matterName.get(p.matter_id) ?? null : null,
+        deadline: p.deadline,
+        status: p.status,
+        notes: p.notes,
+        openCount: a.open,
+        overdueCount: a.overdue,
+        doneCount: a.done,
+        totalCount: a.open + a.done,
+        nextDue: a.nextDue,
+        nextDueTitle: a.nextTitle,
+      };
+    }
+  );
+
+  return { projects, matters, today };
+}
+
 export interface StartUpData {
   tasks: Task[]; // every open task (not Done / Cancelled)
   matters: Matter[];
+  projects: Project[];
   today: string;
   intention: string | null; // today's, if already set
   onTapFromYesterday: string | null; // seeded by last Wind Down
@@ -402,7 +528,7 @@ export async function getStartUpData(): Promise<StartUpData> {
   // (Unfinished MITs stay protected: they roll into today until dropped.)
   await sb.from("tasks").update({ mit: false }).eq("mit", true).eq("status", "Done");
 
-  const [tasksRes, mattersRes, entriesRes] = await Promise.all([
+  const [tasksRes, mattersRes, entriesRes, projects] = await Promise.all([
     sb
       .from("tasks")
       .select(TASK_COLUMNS)
@@ -414,6 +540,7 @@ export async function getStartUpData(): Promise<StartUpData> {
       .from("daily_entries")
       .select("date,intention,on_tap_for_tomorrow")
       .in("date", [today, yesterday]),
+    fetchProjects(),
   ]);
   if (tasksRes.error) throw tasksRes.error;
   if (mattersRes.error) throw mattersRes.error;
@@ -429,6 +556,7 @@ export async function getStartUpData(): Promise<StartUpData> {
   return {
     tasks: (tasksRes.data as TaskRowDB[]).map((r) => rowToTask(r, today)),
     matters: (mattersRes.data as MatterRowDB[]).map((r) => rowToMatter(r, today)),
+    projects,
     today,
     intention: todayEntry?.intention ?? null,
     onTapFromYesterday: yEntry?.on_tap_for_tomorrow ?? null,
@@ -440,7 +568,7 @@ export async function getMyDayData(): Promise<MyDayData> {
   const sb = getSupabase();
   const today = todayISO();
 
-  const [tasksRes, mattersRes, runRes] = await Promise.all([
+  const [tasksRes, mattersRes, runRes, projects] = await Promise.all([
     sb
       .from("tasks")
       .select(TASK_COLUMNS)
@@ -454,6 +582,7 @@ export async function getMyDayData(): Promise<MyDayData> {
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    fetchProjects(),
   ]);
 
   if (tasksRes.error) throw tasksRes.error;
@@ -494,5 +623,5 @@ export async function getMyDayData(): Promise<MyDayData> {
     }
   }
 
-  return { tasks, matters, today, running, logged };
+  return { tasks, matters, projects, today, running, logged };
 }

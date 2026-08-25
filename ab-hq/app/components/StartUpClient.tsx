@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Task, Matter } from "@/lib/data";
+import type { Task, Matter, Project } from "@/lib/data";
 import { PRIORITY_META, DOMAIN_DOT } from "@/lib/data";
 import { applyPatch } from "@/lib/task-patch";
 import { updateTask, type TaskPatch } from "@/app/(app)/task-actions";
@@ -38,6 +38,7 @@ function fmtEffort(min: number | undefined): string | null {
 export default function StartUpClient({
   initialTasks,
   matters,
+  projects,
   today,
   dateLabel,
   initialIntention,
@@ -45,6 +46,7 @@ export default function StartUpClient({
 }: {
   initialTasks: Task[];
   matters: Matter[];
+  projects: Project[];
   today: string;
   dateLabel: string;
   initialIntention: string | null;
@@ -80,8 +82,9 @@ export default function StartUpClient({
     .filter((t) => !t.mit && t.doDate && t.doDate < today)
     .sort((a, b) => (a.doDate! < b.doDate! ? -1 : 1));
   const horizon = isoShift(today, 7);
+  const projectName = new Map(projects.map((p) => [p.id, p.name]));
   const obligations = open
-    .filter((t) => !t.mit && t.project && t.doDate && t.doDate > today && t.doDate <= horizon)
+    .filter((t) => !t.mit && t.projectId && t.doDate && t.doDate > today && t.doDate <= horizon)
     .sort((a, b) => (a.doDate! < b.doDate! ? -1 : 1));
 
   // Load readout for the lock-in button, from effort estimates on the picks.
@@ -269,7 +272,7 @@ export default function StartUpClient({
                   <div className="task-title">{t.title}</div>
                   <div className="meta">
                     <span className="meta-scope">
-                      {t.project!.toUpperCase()}
+                      {(projectName.get(t.projectId!) ?? "PROJECT").toUpperCase()}
                       {matterName(t) ? ` — ${matterName(t)!.toUpperCase()}` : ""}
                     </span>
                     {fmtEffort(t.durationMin) && (

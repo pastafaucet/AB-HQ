@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import type {
   Task,
   Matter,
+  Project,
   RunningTimer,
   TimeSession,
   ActivityItem,
@@ -104,12 +105,14 @@ interface Group {
 export default function TasksClient({
   initialTasks,
   matters,
+  projects,
   today,
   initialRunning,
   initialMatterId = null,
 }: {
   initialTasks: Task[];
   matters: Matter[];
+  projects: Project[];
   today: string;
   initialRunning: RunningTimer | null;
   initialMatterId?: string | null;
@@ -1092,6 +1095,7 @@ export default function TasksClient({
         <TaskDrawer
           task={openTask}
           matters={matters}
+          projects={projects}
           mitCount={mitCount}
           saving={saving}
           saved={saved}

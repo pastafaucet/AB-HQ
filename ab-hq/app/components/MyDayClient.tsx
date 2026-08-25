@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import type {
   Task,
   Matter,
+  Project,
   RunningTimer,
   TimeSession,
   ActivityItem,
@@ -58,6 +59,7 @@ function fmtHourLabel(h: number): string {
 export default function MyDayClient({
   initialTasks,
   matters,
+  projects,
   today,
   dateLabel,
   initialRunning,
@@ -65,6 +67,7 @@ export default function MyDayClient({
 }: {
   initialTasks: Task[];
   matters: Matter[];
+  projects: Project[];
   today: string;
   dateLabel: string;
   initialRunning: RunningTimer | null;
@@ -676,6 +679,7 @@ export default function MyDayClient({
         <TaskDrawer
           task={openTask}
           matters={matters}
+          projects={projects}
           mitCount={mits.length}
           saving={saving}
           saved={saved}

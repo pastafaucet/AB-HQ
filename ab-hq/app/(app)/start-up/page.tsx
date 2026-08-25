@@ -5,7 +5,8 @@ export const metadata = { title: "Start of Day · AB HQ" };
 export const dynamic = "force-dynamic";
 
 export default async function StartUpPage() {
-  const { tasks, matters, today, intention, onTapFromYesterday } = await getStartUpData();
+  const { tasks, matters, projects, today, intention, onTapFromYesterday } =
+    await getStartUpData();
   const dateLabel = new Date(`${today}T12:00:00`).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
@@ -16,6 +17,7 @@ export default async function StartUpPage() {
     <StartUpClient
       initialTasks={tasks}
       matters={matters}
+      projects={projects}
       today={today}
       dateLabel={dateLabel}
       initialIntention={intention}

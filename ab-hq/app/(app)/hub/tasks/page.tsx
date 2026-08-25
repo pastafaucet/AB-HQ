@@ -9,7 +9,7 @@ export default async function TasksPage({
 }: {
   searchParams: Promise<{ matter?: string }>;
 }) {
-  const [{ tasks, matters, today, running }, { matter }] = await Promise.all([
+  const [{ tasks, matters, projects, today, running }, { matter }] = await Promise.all([
     getTasksPageData(),
     searchParams,
   ]);
@@ -17,6 +17,7 @@ export default async function TasksPage({
     <TasksClient
       initialTasks={tasks}
       matters={matters}
+      projects={projects}
       today={today}
       initialRunning={running}
       initialMatterId={matter ?? null}
