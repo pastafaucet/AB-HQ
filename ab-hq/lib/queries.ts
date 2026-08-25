@@ -38,6 +38,7 @@ export async function getCasesPageData(): Promise<{ cases: CaseRow[]; today: str
   const sb = getSupabase();
   const today = todayISO();
 
+  // eslint-disable-next-line prefer-const -- mattersRes is reassigned by the retry below
   let [mattersRes, tasksRes] = await Promise.all([
     sb
       .from("matters")
@@ -375,6 +376,62 @@ export async function getTasksPageData(): Promise<TasksPageData> {
     matters: (mattersRes.data as MatterRowDB[]).map((r) => rowToMatter(r, today)),
     today,
     running,
+  };
+}
+
+export interface StartUpData {
+  tasks: Task[]; // every open task (not Done / Cancelled)
+  matters: Matter[];
+  today: string;
+  intention: string | null; // today's, if already set
+  onTapFromYesterday: string | null; // seeded by last Wind Down
+}
+
+/** All data the Start of Day surface needs: open tasks + ritual state. */
+export async function getStartUpData(): Promise<StartUpData> {
+  const sb = getSupabase();
+  const today = todayISO();
+  const d = new Date(`${today}T12:00:00`);
+  d.setDate(d.getDate() - 1);
+  const yesterday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+
+  // Morning reset: a completed task no longer needs protection — release the
+  // slot so today's picks aren't blocked by yesterday's finished MITs.
+  // (Unfinished MITs stay protected: they roll into today until dropped.)
+  await sb.from("tasks").update({ mit: false }).eq("mit", true).eq("status", "Done");
+
+  const [tasksRes, mattersRes, entriesRes] = await Promise.all([
+    sb
+      .from("tasks")
+      .select(TASK_COLUMNS)
+      .neq("status", "Cancelled")
+      .neq("status", "Done")
+      .order("created_at", { ascending: true }),
+    sb.from("matters").select("id,name,client,status,next_deadline"),
+    sb
+      .from("daily_entries")
+      .select("date,intention,on_tap_for_tomorrow")
+      .in("date", [today, yesterday]),
+  ]);
+  if (tasksRes.error) throw tasksRes.error;
+  if (mattersRes.error) throw mattersRes.error;
+
+  const entries = (entriesRes.error ? [] : entriesRes.data) as {
+    date: string;
+    intention: string | null;
+    on_tap_for_tomorrow: string | null;
+  }[];
+  const todayEntry = entries.find((e) => e.date === today);
+  const yEntry = entries.find((e) => e.date === yesterday);
+
+  return {
+    tasks: (tasksRes.data as TaskRowDB[]).map((r) => rowToTask(r, today)),
+    matters: (mattersRes.data as MatterRowDB[]).map((r) => rowToMatter(r, today)),
+    today,
+    intention: todayEntry?.intention ?? null,
+    onTapFromYesterday: yEntry?.on_tap_for_tomorrow ?? null,
   };
 }
 

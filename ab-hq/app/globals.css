@@ -3247,3 +3247,292 @@ button.check {
 .mit-toggle .mit-star {
   color: var(--amber);
 }
+
+/* ============================================================
+   Start of Day — commitment cards, lock-in, obligations, triage
+   ============================================================ */
+.ontap {
+  padding: 13px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin-bottom: 26px;
+}
+.ontap-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--faint);
+  margin-bottom: 6px;
+}
+.ontap-body {
+  font-size: 13.5px;
+  color: var(--ink-body);
+  white-space: pre-wrap;
+}
+
+.su-load-note {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--amber);
+}
+.su-load-note::before {
+  content: "● ";
+  font-size: 8px;
+  vertical-align: 1px;
+}
+
+.su-commit {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+@media (max-width: 1100px) {
+  .su-commit {
+    grid-template-columns: 1fr;
+  }
+}
+.su-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 104px;
+  padding: 13px 15px;
+  background: var(--inset);
+  border: 1px solid var(--line-raised);
+  border-left: 3px solid var(--accent);
+  border-radius: 12px;
+}
+.su-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.su-card-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.su-eff {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.su-x {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--faint);
+  cursor: pointer;
+}
+.su-x:hover {
+  color: var(--orange);
+}
+.su-card-title {
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ink-strong);
+  flex: 1;
+}
+.su-card.su-empty {
+  align-items: center;
+  flex-direction: row;
+  gap: 14px;
+  border: 1px dashed var(--line-raised-2);
+  border-left: 1px dashed var(--line-raised-2);
+  background: none;
+}
+
+.intent-input {
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: none;
+  border: 1px solid var(--line-field);
+  border-radius: 10px;
+  color: var(--ink-body);
+  font-size: 13.5px;
+  outline: none;
+}
+.intent-input:focus {
+  border-color: var(--line-raised-2);
+}
+.intent-input::placeholder {
+  color: var(--disabled);
+  font-style: italic;
+}
+
+.btn-lock {
+  width: 100%;
+  margin-top: 12px;
+  padding: 13px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--accent);
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-lock:hover:not(:disabled) {
+  background: var(--accent-2);
+}
+.btn-lock:disabled {
+  background: var(--inset);
+  color: var(--disabled);
+  cursor: default;
+}
+.btn-lock .lock-load {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+/* promote (+) — protect a task from any list below */
+.row-promote {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px dashed var(--line-check);
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.row-promote:hover {
+  border-color: var(--accent);
+  border-style: solid;
+  color: var(--accent);
+}
+
+/* project obligations */
+.ob-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ob-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 11px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-raised-2);
+  border-radius: 10px;
+}
+.ob-due {
+  flex: none;
+  align-self: center;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.ob-due.warm {
+  color: var(--amber);
+}
+.ob-due.hot {
+  color: var(--orange);
+}
+
+/* overdue triage chips */
+.overdue-tag {
+  font-family: var(--font-mono);
+  color: var(--orange);
+}
+.ov-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  align-self: center;
+}
+.ov-chip {
+  padding: 3px 8px;
+  background: none;
+  border: 1px solid var(--line-raised);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.ov-chip:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.ov-date {
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--line-raised);
+  border-radius: 6px;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+.ov-date::-webkit-calendar-picker-indicator {
+  filter: invert(0.6);
+  cursor: pointer;
+}
+
+/* rail: read-only schedule + glance */
+.su-sched-row {
+  display: flex;
+  gap: 12px;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--line-row);
+}
+.su-sched-time {
+  flex: none;
+  width: 52px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--cyan);
+  padding-top: 1px;
+}
+.su-sched-title {
+  font-size: 13.5px;
+  color: var(--ink-body);
+}
+.su-sched-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.glance-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--line-row);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.glance-row span:last-child {
+  font-family: var(--font-mono);
+  color: var(--ink-body);
+}
+.glance-hot {
+  color: var(--orange) !important;
+}

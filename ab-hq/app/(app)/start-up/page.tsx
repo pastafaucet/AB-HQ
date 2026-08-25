@@ -1,13 +1,25 @@
-import Placeholder from "@/app/components/Placeholder";
+import StartUpClient from "@/app/components/StartUpClient";
+import { getStartUpData } from "@/lib/queries";
 
-export const metadata = { title: "Start Up · AB HQ" };
+export const metadata = { title: "Start of Day · AB HQ" };
+export const dynamic = "force-dynamic";
 
-export default function StartUpPage() {
+export default async function StartUpPage() {
+  const { tasks, matters, today, intention, onTapFromYesterday } = await getStartUpData();
+  const dateLabel = new Date(`${today}T12:00:00`).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+
   return (
-    <Placeholder
-      code="AM"
-      title="Start Up"
-      note="The morning ritual — orient, triage overdue, and pick today's three. Built after My Day locks in."
+    <StartUpClient
+      initialTasks={tasks}
+      matters={matters}
+      today={today}
+      dateLabel={dateLabel}
+      initialIntention={intention}
+      onTapFromYesterday={onTapFromYesterday}
     />
   );
 }
