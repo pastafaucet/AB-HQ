@@ -81,12 +81,26 @@ export interface MatterRowDB {
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
+// The app's "day" is Andy's day, not the server's — Vercel runs on UTC,
+// which would roll every surface to tomorrow at 5pm Pacific.
+export const APP_TZ = "America/Los_Angeles";
+
 export function todayISO(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  // en-CA formats as YYYY-MM-DD.
+  return new Intl.DateTimeFormat("en-CA", { timeZone: APP_TZ }).format(new Date());
+}
+
+/** UTC instants for [midnight, midnight) of a calendar day in APP_TZ. */
+export function dayBounds(date: string): { startIso: string; endIso: string } {
+  const offsetOf = (d: Date) =>
+    new Intl.DateTimeFormat("en-US", { timeZone: APP_TZ, timeZoneName: "longOffset" })
+      .formatToParts(d)
+      .find((p) => p.type === "timeZoneName")!
+      .value.replace("GMT", "") || "+00:00";
+  const off = offsetOf(new Date(`${date}T12:00:00Z`));
+  const start = new Date(`${date}T00:00:00${off}`);
+  const end = new Date(start.getTime() + 24 * 3600 * 1000);
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
 }
 
 /** "09:30" → "9:30A" */

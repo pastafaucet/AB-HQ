@@ -6,6 +6,7 @@ import {
   PROJECT_COLUMNS,
   selectTaskRows,
   todayISO,
+  dayBounds,
   rowToTask,
   rowToMatter,
   rowToProject,
@@ -847,15 +848,10 @@ export interface DayLedgerData {
   needsMigration: boolean;
 }
 
-/** Everything that happened on one day, grouped by matter — feeds billing. */
+/** Everything that happened on one day (Pacific), grouped by matter — feeds billing. */
 export async function getDayLedgerData(date: string): Promise<DayLedgerData> {
   const sb = getSupabase();
-  const dayStart = `${date}T00:00:00`;
-  const d = new Date(`${date}T12:00:00`);
-  d.setDate(d.getDate() + 1);
-  const dayEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}T00:00:00`;
+  const { startIso: dayStart, endIso: dayEnd } = dayBounds(date);
 
   const [entriesRes, mattersRes, sessRes, doneRes] = await Promise.all([
     sb
@@ -870,8 +866,7 @@ export async function getDayLedgerData(date: string): Promise<DayLedgerData> {
       .from("time_sessions")
       .select("task_id,started_at,ended_at")
       .gte("started_at", dayStart)
-      .lt("started_at", dayEnd)
-      .not("ended_at", "is", null),
+      .lt("started_at", dayEnd),
     sb
       .from("tasks")
       .select("id,title,matter_id,completed_at")
@@ -890,7 +885,7 @@ export async function getDayLedgerData(date: string): Promise<DayLedgerData> {
   const sess = (sessRes.error ? [] : sessRes.data) as {
     task_id: string;
     started_at: string;
-    ended_at: string;
+    ended_at: string | null; // null = timer still running — counts up to now
   }[];
   const doneTasks = (doneRes.error ? [] : doneRes.data) as {
     id: string;
@@ -932,9 +927,8 @@ export async function getDayLedgerData(date: string): Promise<DayLedgerData> {
   for (const e of entries) groupFor(e.matterId ?? null).entries.push(e);
   for (const s of sess) {
     const info = taskInfo.get(s.task_id);
-    const minutes = Math.round(
-      Math.max(0, new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000
-    );
+    const endMs = s.ended_at ? new Date(s.ended_at).getTime() : Date.now();
+    const minutes = Math.round(Math.max(0, endMs - new Date(s.started_at).getTime()) / 60000);
     if (minutes < 1) continue;
     const g = groupFor(info?.matterId ?? null);
     const existing = g.sessions.find((x) => x.taskTitle === (info?.title ?? "Untimed work"));
