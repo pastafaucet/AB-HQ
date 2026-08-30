@@ -10,6 +10,8 @@ export interface RecurRule {
   interval: number;
   byDay?: number[];
   byMonthDay?: number;
+  byWeekday?: { week: number; day: number }; // "2nd Tuesday": week 1–4, or -1 = last
+  lastWorkday?: boolean; // last non-weekend day of the month
 }
 
 const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -53,6 +55,34 @@ function addDays(d: Date, n: number): Date {
   return x;
 }
 
+/** This rule's occurrence within a given month (or null). `anchor` supplies the fallback day-of-month. */
+function monthlyOccurrence(rule: RecurRule, year: number, month: number, anchor: Date): Date | null {
+  const lastDom = new Date(year, month + 1, 0).getDate();
+
+  if (rule.lastWorkday) {
+    const d = new Date(year, month, lastDom);
+    if (d.getDay() === 6) d.setDate(d.getDate() - 1); // Sat → Fri
+    else if (d.getDay() === 0) d.setDate(d.getDate() - 2); // Sun → Fri
+    return d;
+  }
+
+  if (rule.byWeekday) {
+    const { week, day } = rule.byWeekday;
+    if (week === -1) {
+      const d = new Date(year, month, lastDom);
+      while (d.getDay() !== day) d.setDate(d.getDate() - 1);
+      return d;
+    }
+    const first = new Date(year, month, 1);
+    const dom = 1 + ((day - first.getDay() + 7) % 7) + (week - 1) * 7;
+    if (dom > lastDom) return null; // 5th occurrence doesn't exist this month
+    return new Date(year, month, dom);
+  }
+
+  const day = rule.byMonthDay ?? anchor.getDate();
+  return new Date(year, month, Math.min(day, lastDom));
+}
+
 /** The next occurrence strictly AFTER fromIso. */
 export function nextOccurrence(rule: RecurRule, fromIso: string): string {
   const from = fromISO(fromIso);
@@ -78,12 +108,10 @@ export function nextOccurrence(rule: RecurRule, fromIso: string): string {
   }
 
   if (rule.freq === "monthly") {
-    const day = rule.byMonthDay ?? from.getDate();
     for (let k = 0; k <= 24; k++) {
       const m = new Date(from.getFullYear(), from.getMonth() + k * interval, 1);
-      const dim = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
-      const d = new Date(m.getFullYear(), m.getMonth(), Math.min(day, dim));
-      if (d > from) return toISO(d);
+      const d = monthlyOccurrence(rule, m.getFullYear(), m.getMonth(), from);
+      if (d && d > from) return toISO(d);
     }
   }
 
@@ -104,11 +132,9 @@ export function firstOccurrence(rule: RecurRule, fromIso: string): string {
       if (rule.byDay.includes(d.getDay())) return toISO(d);
     }
   }
-  if (rule.freq === "monthly" && rule.byMonthDay) {
-    if (from.getDate() <= rule.byMonthDay) {
-      const dim = new Date(from.getFullYear(), from.getMonth() + 1, 0).getDate();
-      return toISO(new Date(from.getFullYear(), from.getMonth(), Math.min(rule.byMonthDay, dim)));
-    }
+  if (rule.freq === "monthly" && (rule.byMonthDay || rule.byWeekday || rule.lastWorkday)) {
+    const d = monthlyOccurrence(rule, from.getFullYear(), from.getMonth(), from);
+    if (d && d >= from) return toISO(d);
     return nextOccurrence(rule, fromIso);
   }
   return fromIso; // daily / yearly / plain weekly start today
@@ -124,8 +150,14 @@ export function describeRule(rule: RecurRule): string {
     if (n === 1) return names ? `every ${names}` : "weekly";
     return `every ${n} wks${names ? ` (${names})` : ""}`;
   }
-  if (rule.freq === "monthly")
+  if (rule.freq === "monthly") {
+    if (rule.lastWorkday) return "monthly, last workday";
+    if (rule.byWeekday) {
+      const ord = rule.byWeekday.week === -1 ? "last" : ["1st", "2nd", "3rd", "4th"][rule.byWeekday.week - 1];
+      return `monthly, ${ord} ${DOW_SHORT[rule.byWeekday.day]}`;
+    }
     return rule.byMonthDay ? `monthly on the ${rule.byMonthDay}` : "monthly";
+  }
   return "yearly";
 }
 
@@ -148,6 +180,28 @@ export function findRecurPhrase(text: string): RecurHit | null {
 
   m = /\bevery\s+weekday\b/i.exec(text);
   if (m) return mk(m, { freq: "weekly", interval: 1, byDay: [1, 2, 3, 4, 5] });
+
+  // "last workday of the month", "every last business day of each month"
+  m =
+    /\b(?:every\s+|monthly\s+on\s+the\s+|on\s+the\s+)?last\s+(?:work\s*day|business\s+day)\s+of\s+(?:the\s+|every\s+|each\s+)?month\b/i.exec(
+      text
+    );
+  if (m) return mk(m, { freq: "monthly", interval: 1, lastWorkday: true });
+
+  // "2nd Tuesday of the month", "every first monday of each month", "last friday of the month"
+  m =
+    /\b(?:every\s+|monthly\s+on\s+the\s+|on\s+the\s+)?(1st|first|2nd|second|3rd|third|4th|fourth|last)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|weds?|thu(?:rs?)?|fri|sat|sun)\s+of\s+(?:the\s+|every\s+|each\s+)?month\b/i.exec(
+      text
+    );
+  if (m) {
+    const ORD: Record<string, number> = {
+      "1st": 1, first: 1, "2nd": 2, second: 2, "3rd": 3, third: 3, "4th": 4, fourth: 4, last: -1,
+    };
+    const week = ORD[m[1].toLowerCase()];
+    const day = DOW_INDEX[m[2].toLowerCase()];
+    if (week !== undefined && day !== undefined)
+      return mk(m, { freq: "monthly", interval: 1, byWeekday: { week, day } });
+  }
 
   m = /\b(?:every\s+day|daily)\b/i.exec(text);
   if (m) return mk(m, { freq: "daily", interval: 1 });

@@ -24,23 +24,32 @@ function recurOptions(anchorIso: string | undefined): { value: string; label: st
   const d = anchorIso ? new Date(`${anchorIso}T12:00:00`) : new Date();
   const dow = d.getDay();
   const dom = d.getDate();
-  const rules: RecurRule[] = [
-    { freq: "daily", interval: 1 },
-    { freq: "weekly", interval: 1, byDay: [1, 2, 3, 4, 5] },
-    { freq: "weekly", interval: 1, byDay: [dow] },
-    { freq: "weekly", interval: 2, byDay: [dow] },
-    { freq: "monthly", interval: 1, byMonthDay: dom },
-    { freq: "yearly", interval: 1 },
+  const week = Math.ceil(dom / 7);
+  const ordinal = week <= 4 ? ["1st", "2nd", "3rd", "4th"][week - 1] : null;
+  const rules: { rule: RecurRule; label: string }[] = [
+    { rule: { freq: "daily", interval: 1 }, label: "Daily" },
+    { rule: { freq: "weekly", interval: 1, byDay: [1, 2, 3, 4, 5] }, label: "Every weekday" },
+    { rule: { freq: "weekly", interval: 1, byDay: [dow] }, label: `Weekly on ${DOW_FULL[dow]}` },
+    {
+      rule: { freq: "weekly", interval: 2, byDay: [dow] },
+      label: `Every 2 weeks on ${DOW_FULL[dow]}`,
+    },
+    { rule: { freq: "monthly", interval: 1, byMonthDay: dom }, label: `Monthly on the ${dom}` },
   ];
-  const labels = [
-    "Daily",
-    "Every weekday",
-    `Weekly on ${DOW_FULL[dow]}`,
-    `Every 2 weeks on ${DOW_FULL[dow]}`,
-    `Monthly on the ${dom}`,
-    "Yearly",
-  ];
-  return rules.map((r, i) => ({ value: ruleToJson(r), label: labels[i] }));
+  if (ordinal)
+    rules.push({
+      rule: { freq: "monthly", interval: 1, byWeekday: { week, day: dow } },
+      label: `Monthly, ${ordinal} ${DOW_FULL[dow]}`,
+    });
+  rules.push(
+    {
+      rule: { freq: "monthly", interval: 1, byWeekday: { week: -1, day: dow } },
+      label: `Monthly, last ${DOW_FULL[dow]}`,
+    },
+    { rule: { freq: "monthly", interval: 1, lastWorkday: true }, label: "Monthly, last workday" },
+    { rule: { freq: "yearly", interval: 1 }, label: "Yearly" }
+  );
+  return rules.map((r) => ({ value: ruleToJson(r.rule), label: r.label }));
 }
 
 const STATUSES: TaskStatus[] = ["Inbox", "To Do", "In Progress", "Done", "Someday", "Cancelled"];
@@ -349,30 +358,6 @@ export default function TaskDrawer({
               </select>
             )}
           </label>
-        </div>
-
-        <div className="drawer-field">
-          <div className="drawer-label">SITTING WITH</div>
-          <div className="seg-select">
-            {(
-              [
-                ["Me", null],
-                ["Chris", "Chris"],
-                ["Opp. Counsel", "Opposing Counsel"],
-                ["Court", "Court"],
-                ["Other", "Other"],
-              ] as [string, string | null][]
-            ).map(([label, value]) => (
-              <button
-                key={label}
-                type="button"
-                className={`seg-opt${(task.waitingOn ?? null) === value ? " is-sel" : ""}`}
-                onClick={() => onField({ waitingOn: value })}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
         </div>
 
         <div className="drawer-field">

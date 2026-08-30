@@ -81,7 +81,7 @@ const SCHEMA = {
     recur_phrase: {
       type: ["string", "null"],
       description:
-        "If the entry is explicitly recurring, a normalized phrase: 'every day', 'every weekday', 'every tuesday', 'every other friday', 'every 2 weeks', 'every month on the 15th', 'every year'. null when not recurring.",
+        "If the entry is explicitly recurring, a normalized phrase: 'every day', 'every weekday', 'every tuesday', 'every other friday', 'every 2 weeks', 'every month on the 15th', '2nd tuesday of the month', 'last workday of the month', 'last friday of the month', 'every year'. null when not recurring.",
     },
     summary: {
       type: "string",
