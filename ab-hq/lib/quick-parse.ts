@@ -8,6 +8,12 @@ export interface QuickMatter {
   client?: string;
 }
 
+export interface QuickProject {
+  id: string;
+  name: string;
+  matterId?: string;
+}
+
 export interface QuickParsed {
   title: string;
   type?: "Task" | "Event" | "Deadline"; // inferred: deadline words/"by date" → Deadline; event words or a time → Event
@@ -16,10 +22,12 @@ export interface QuickParsed {
   durationMin?: number; // from a time range ("2-3:30") or "for 45 min"
   priority?: number; // 1–4, from "p1"…"p4"
   matterId?: string;
+  projectId?: string;
   dateLabel?: string; // "Tomorrow", "Friday", "Aug 12"
   timeLabel?: string; // "2:30 PM"
   durationLabel?: string; // "1h 30m"
   matterLabel?: string; // matched matter name
+  projectLabel?: string; // matched project name
 }
 
 const WEEKDAYS = [
@@ -458,6 +466,49 @@ function findMatter(text: string, matters: QuickMatter[]): MatterHit | null {
   return best;
 }
 
+interface ProjectHit {
+  index: number;
+  length: number;
+  id: string;
+  name: string;
+  matterId?: string;
+}
+
+/** Same idea as findMatter: full project name verbatim, else a distinctive unique word. */
+function findProject(text: string, projects: QuickProject[]): ProjectHit | null {
+  const lower = text.toLowerCase();
+
+  const sorted = [...projects].sort((a, b) => b.name.length - a.name.length);
+  for (const p of sorted) {
+    const phrase = p.name.trim().toLowerCase();
+    if (phrase.length < 3) continue;
+    const i = lower.indexOf(phrase);
+    if (i >= 0 && isBoundary(lower[i - 1]) && isBoundary(lower[i + phrase.length])) {
+      return { index: i, length: phrase.length, id: p.id, name: p.name, matterId: p.matterId };
+    }
+  }
+
+  const owner = new Map<string, QuickProject | null>();
+  for (const p of projects) {
+    const seen = new Set<string>();
+    for (const w of wordsOf(p.name)) {
+      if (w.length < 3 || MATTER_STOPWORDS.has(w) || seen.has(w)) continue;
+      seen.add(w);
+      owner.set(w, owner.has(w) && owner.get(w)?.id !== p.id ? null : p);
+    }
+  }
+  let best: ProjectHit | null = null;
+  const re = /[a-z0-9][a-z0-9''-]*/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const p = owner.get(m[0].toLowerCase());
+    if (p && (!best || m[0].length > best.length)) {
+      best = { index: m.index, length: m[0].length, id: p.id, name: p.name, matterId: p.matterId };
+    }
+  }
+  return best;
+}
+
 function cut(text: string, index: number, length: number): string {
   return `${text.slice(0, index)} ${text.slice(index + length)}`;
 }
@@ -475,7 +526,8 @@ function cleanTitle(s: string): string {
 export function parseQuickAdd(
   raw: string,
   todayIso: string,
-  matters: QuickMatter[] = []
+  matters: QuickMatter[] = [],
+  projects: QuickProject[] = []
 ): QuickParsed {
   const today = fromISO(todayIso);
   let text = raw;
@@ -499,10 +551,18 @@ export function parseQuickAdd(
   const matter = findMatter(text, matters);
   if (matter) text = cut(text, matter.index, matter.length);
 
+  const project = findProject(text, projects);
+  if (project) text = cut(text, project.index, project.length);
+
   const title = cleanTitle(text) || raw.trim();
   const doTime = range?.hhmm ?? time?.hhmm;
   const durationMin = range?.durationMin ?? dur?.durationMin;
   const type = inferType(raw, !!date?.by, !!doTime);
+  // A matched project implies its case when none was typed.
+  const matterId = matter?.id ?? project?.matterId;
+  const matterLabel =
+    matter?.name ??
+    (project?.matterId ? matters.find((m) => m.id === project.matterId)?.name : undefined);
 
   return {
     title,
@@ -511,10 +571,12 @@ export function parseQuickAdd(
     doTime,
     durationMin,
     priority: pri?.priority,
-    matterId: matter?.id,
+    matterId,
+    projectId: project?.id,
     dateLabel: date ? dateLabelFor(date.iso, todayIso) : undefined,
     timeLabel: doTime ? timeLabelFor(doTime) : undefined,
     durationLabel: durationMin ? durationLabelFor(durationMin) : undefined,
-    matterLabel: matter?.name,
+    matterLabel,
+    projectLabel: project?.name,
   };
 }

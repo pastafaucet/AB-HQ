@@ -413,11 +413,12 @@ export default function MyDayClient({
     });
   }
 
-  const quickParsed = quick.trim() ? parseQuickAdd(quick.trim(), today, matters) : null;
+  const activeProjects = projects.filter((p) => p.status === "Active");
+  const quickParsed = quick.trim() ? parseQuickAdd(quick.trim(), today, matters, activeProjects) : null;
 
   function submitQuick() {
     if (!quick.trim()) return;
-    const p = parseQuickAdd(quick.trim(), today, matters);
+    const p = parseQuickAdd(quick.trim(), today, matters, activeProjects);
     setQuick("");
     startTransition(async () => {
       const r = await createTask({
@@ -429,6 +430,7 @@ export default function MyDayClient({
         durationMin: p.durationMin ?? null,
         priority: p.priority,
         matterId: p.matterId ?? null,
+        projectId: p.projectId ?? null,
       });
       if (r.ok && r.task) {
         setTasks((prev) => [...prev, r.task!]);
@@ -595,6 +597,12 @@ export default function MyDayClient({
               )}
               {quickParsed.matterLabel && (
                 <span className="qp-chip"> · {quickParsed.matterLabel}</span>
+              )}
+              {quickParsed.projectLabel && (
+                <span className="qp-chip" style={{ color: "var(--violet)" }}>
+                  {" "}
+                  · {quickParsed.projectLabel}
+                </span>
               )}
             </div>
           )}

@@ -474,11 +474,12 @@ export default function TasksClient({
     });
   }
 
-  const quickParsed = quick.trim() ? parseQuickAdd(quick.trim(), today, matters) : null;
+  const activeProjects = projects.filter((p) => p.status === "Active");
+  const quickParsed = quick.trim() ? parseQuickAdd(quick.trim(), today, matters, activeProjects) : null;
 
   function submitQuick() {
     if (!quick.trim()) return;
-    const p = parseQuickAdd(quick.trim(), today, matters);
+    const p = parseQuickAdd(quick.trim(), today, matters, activeProjects);
     setQuick("");
     startTransition(async () => {
       const r = await createTask({
@@ -490,6 +491,7 @@ export default function TasksClient({
         durationMin: p.durationMin ?? null,
         priority: p.priority,
         matterId: p.matterId ?? null,
+        projectId: p.projectId ?? null,
       });
       if (r.ok && r.task) setTasks((prev) => [...prev, r.task!]);
       else flash(r.error ?? "Couldn't add.");
@@ -974,6 +976,12 @@ export default function TasksClient({
               )}
               {quickParsed.matterLabel && (
                 <span className="qp-chip"> · {quickParsed.matterLabel}</span>
+              )}
+              {quickParsed.projectLabel && (
+                <span className="qp-chip" style={{ color: "var(--violet)" }}>
+                  {" "}
+                  · {quickParsed.projectLabel}
+                </span>
               )}
             </div>
           )}
