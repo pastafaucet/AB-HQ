@@ -2,6 +2,8 @@
 // { title: "Call Bob", doDate: <tomorrow>, doTime: "14:30" }.
 // Pure string/date logic — no deps, safe on client and server.
 
+import { findRecurPhrase, firstOccurrence, ruleToJson } from "./recur";
+
 export interface QuickMatter {
   id: string;
   name: string;
@@ -28,6 +30,8 @@ export interface QuickParsed {
   durationLabel?: string; // "1h 30m"
   matterLabel?: string; // matched matter name
   projectLabel?: string; // matched project name
+  recur?: string; // JSON recurrence rule for tasks.recur
+  recurLabel?: string; // "every Tue", "monthly on the 15"
 }
 
 const WEEKDAYS = [
@@ -532,7 +536,11 @@ export function parseQuickAdd(
   const today = fromISO(todayIso);
   let text = raw;
 
-  // Ranges first — "2-3:30pm" must not be half-eaten by the single-time pass.
+  // Recurrence first — "every monday" must not be eaten as a weekday date.
+  const recur = findRecurPhrase(text);
+  if (recur) text = cut(text, recur.index, recur.length);
+
+  // Ranges next — "2-3:30pm" must not be half-eaten by the single-time pass.
   const range = findTimeRange(text);
   if (range) text = cut(text, range.index, range.length);
 
@@ -558,6 +566,8 @@ export function parseQuickAdd(
   const doTime = range?.hhmm ?? time?.hhmm;
   const durationMin = range?.durationMin ?? dur?.durationMin;
   const type = inferType(raw, !!date?.by, !!doTime);
+  // A recurring item with no explicit date starts at its first occurrence.
+  const doDate = date?.iso ?? (recur ? firstOccurrence(recur.rule, todayIso) : undefined);
   // A matched project implies its case when none was typed.
   const matterId = matter?.id ?? project?.matterId;
   const matterLabel =
@@ -567,16 +577,18 @@ export function parseQuickAdd(
   return {
     title,
     type,
-    doDate: date?.iso,
+    doDate,
     doTime,
     durationMin,
     priority: pri?.priority,
     matterId,
     projectId: project?.id,
-    dateLabel: date ? dateLabelFor(date.iso, todayIso) : undefined,
+    dateLabel: doDate ? dateLabelFor(doDate, todayIso) : undefined,
     timeLabel: doTime ? timeLabelFor(doTime) : undefined,
     durationLabel: durationMin ? durationLabelFor(durationMin) : undefined,
     matterLabel,
     projectLabel: project?.name,
+    recur: recur ? ruleToJson(recur.rule) : undefined,
+    recurLabel: recur?.label,
   };
 }

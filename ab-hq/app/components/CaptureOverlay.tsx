@@ -146,6 +146,11 @@ export default function CaptureOverlay() {
                   {p.dateLabel && <span className="qp-chip">· {p.dateLabel} </span>}
                   {p.timeLabel && <span className="qp-chip">· {p.timeLabel} </span>}
                   {p.durationLabel && <span className="qp-chip">· {p.durationLabel} </span>}
+                  {p.recurLabel && (
+                    <span className="qp-chip" style={{ color: "var(--teal)" }}>
+                      · ↻ {p.recurLabel}{" "}
+                    </span>
+                  )}
                   <span className="capture-modal-hint">— AI files the case on Enter</span>
                 </div>
               );

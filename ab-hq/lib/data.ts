@@ -29,6 +29,7 @@ export interface Task {
   matterId?: string;
   projectId?: string;
   waitingOn?: WaitingOn; // who the ball is with, when it's not Andy
+  recur?: string; // JSON recurrence rule (lib/recur.ts) — completing spawns the next instance
   notes?: string;
   dueTag?: string; // display-only (time / date)
   completedAt?: string; // ISO timestamp, set while status is Done

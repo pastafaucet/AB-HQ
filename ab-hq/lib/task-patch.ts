@@ -16,6 +16,7 @@ export function applyPatch(t: Task, p: TaskPatch, today: string): Task {
   if (p.matterId !== undefined) next.matterId = p.matterId ?? undefined;
   if (p.projectId !== undefined) next.projectId = p.projectId ?? undefined;
   if (p.waitingOn !== undefined) next.waitingOn = (p.waitingOn as Task["waitingOn"]) ?? undefined;
+  if (p.recur !== undefined) next.recur = p.recur ?? undefined;
   if (p.doDate !== undefined) next.doDate = p.doDate ?? undefined;
   if (p.doTime !== undefined) next.doTime = p.doTime ?? undefined;
   if (p.durationMin !== undefined) next.durationMin = p.durationMin ?? undefined;
@@ -37,6 +38,7 @@ export function fullPatch(t: Task): TaskPatch {
     matterId: t.matterId ?? null,
     projectId: t.projectId ?? null,
     waitingOn: t.waitingOn ?? null,
+    recur: t.recur ?? null,
     doDate: t.doDate ?? null,
     doTime: t.doTime ?? null,
     durationMin: t.durationMin ?? null,

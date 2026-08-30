@@ -7,6 +7,7 @@ import {
   rowToEntry,
   type EntryRowDB,
 } from "@/lib/entry-map";
+import { parseRule, nextOccurrence } from "@/lib/recur";
 import {
   PROJECT_COLUMNS,
   selectTaskRows,
@@ -538,6 +539,25 @@ export async function getStartUpData(): Promise<StartUpData> {
   // slot so today's picks aren't blocked by yesterday's finished MITs.
   // (Unfinished MITs stay protected: they roll into today until dropped.)
   await sb.from("tasks").update({ mit: false }).eq("mit", true).eq("status", "Done");
+
+  // Recurring EVENTS whose date passed roll forward on their own — a weekly
+  // call that happened (or didn't) shouldn't linger as overdue. Recurring
+  // TASKS stay overdue until completed; completion spawns the next one.
+  const { data: staleRecur } = await sb
+    .from("tasks")
+    .select("id,recur,do_date")
+    .eq("type", "Event")
+    .not("recur", "is", null)
+    .lt("do_date", today)
+    .neq("status", "Done")
+    .neq("status", "Cancelled");
+  for (const r of (staleRecur ?? []) as { id: string; recur: string; do_date: string }[]) {
+    const rule = parseRule(r.recur);
+    if (!rule) continue;
+    let next = r.do_date;
+    for (let i = 0; i < 400 && next < today; i++) next = nextOccurrence(rule, next);
+    if (next >= today) await sb.from("tasks").update({ do_date: next }).eq("id", r.id);
+  }
 
   const [taskRows, mattersRes, entriesRes, projects, runRes] = await Promise.all([
     selectTaskRows((cols) =>

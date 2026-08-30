@@ -94,9 +94,12 @@ async function captureOne(
       project_id: route.projectId,
     };
     if (route.waitingOn) taskRow.waiting_on = route.waitingOn;
+    if (route.recur) taskRow.recur = route.recur;
     let { data: t, error: tErr } = await sb.from("tasks").insert(taskRow).select("id").single();
-    if (tErr && route.waitingOn) {
+    if (tErr && (route.waitingOn || route.recur)) {
+      // Pre-0012/0014 tasks table — retry without the newer columns.
       delete taskRow.waiting_on;
+      delete taskRow.recur;
       ({ data: t, error: tErr } = await sb.from("tasks").insert(taskRow).select("id").single());
     }
     if (!tErr && t) {
@@ -116,6 +119,7 @@ async function captureOne(
         bits.push(when);
       }
       if ((route.taskType ?? "") === "Deadline") bits.push("DEADLINE");
+      if (route.recur) bits.push("↻ recurring");
       madeTask = bits.join(" · ");
     }
   }

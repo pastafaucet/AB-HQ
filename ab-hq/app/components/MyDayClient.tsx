@@ -431,6 +431,7 @@ export default function MyDayClient({
         priority: p.priority,
         matterId: p.matterId ?? null,
         projectId: p.projectId ?? null,
+        recur: p.recur ?? null,
       });
       if (r.ok && r.task) {
         setTasks((prev) => [...prev, r.task!]);
@@ -456,6 +457,7 @@ export default function MyDayClient({
         {proj && <span className="meta-project">{proj.toUpperCase()}</span>}
         <span className={kindCls}>{t.type.toUpperCase()}</span>
         {t.dueTag && <span className="time-tag">{t.dueTag}</span>}
+        {t.recur && <span className="kind-event" title="Repeats">↻</span>}
       </div>
     );
   }
@@ -602,6 +604,12 @@ export default function MyDayClient({
                 <span className="qp-chip" style={{ color: "var(--violet)" }}>
                   {" "}
                   · {quickParsed.projectLabel}
+                </span>
+              )}
+              {quickParsed.recurLabel && (
+                <span className="qp-chip" style={{ color: "var(--teal)" }}>
+                  {" "}
+                  · ↻ {quickParsed.recurLabel}
                 </span>
               )}
             </div>

@@ -14,7 +14,34 @@ import type {
 } from "@/lib/data";
 import type { TaskPatch } from "@/app/(app)/task-actions";
 import { createProject } from "@/app/(app)/project-actions";
+import { parseRule, describeRule, ruleToJson, type RecurRule } from "@/lib/recur";
 import ConfirmButton from "./ConfirmButton";
+
+const DOW_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** Repeat options built around the task's current date (or today). */
+function recurOptions(anchorIso: string | undefined): { value: string; label: string }[] {
+  const d = anchorIso ? new Date(`${anchorIso}T12:00:00`) : new Date();
+  const dow = d.getDay();
+  const dom = d.getDate();
+  const rules: RecurRule[] = [
+    { freq: "daily", interval: 1 },
+    { freq: "weekly", interval: 1, byDay: [1, 2, 3, 4, 5] },
+    { freq: "weekly", interval: 1, byDay: [dow] },
+    { freq: "weekly", interval: 2, byDay: [dow] },
+    { freq: "monthly", interval: 1, byMonthDay: dom },
+    { freq: "yearly", interval: 1 },
+  ];
+  const labels = [
+    "Daily",
+    "Every weekday",
+    `Weekly on ${DOW_FULL[dow]}`,
+    `Every 2 weeks on ${DOW_FULL[dow]}`,
+    `Monthly on the ${dom}`,
+    "Yearly",
+  ];
+  return rules.map((r, i) => ({ value: ruleToJson(r), label: labels[i] }));
+}
 
 const STATUSES: TaskStatus[] = ["Inbox", "To Do", "In Progress", "Done", "Someday", "Cancelled"];
 const DOMAINS: Domain[] = ["Work", "Personal"];
@@ -365,6 +392,32 @@ export default function TaskDrawer({
             />
           </div>
         </div>
+
+        <label className="drawer-field">
+          <div className="drawer-label">REPEATS</div>
+          <select
+            className="drawer-select"
+            value={task.recur ?? ""}
+            onChange={(e) => onField({ recur: e.target.value || null })}
+          >
+            <option value="">— doesn&rsquo;t repeat —</option>
+            {(() => {
+              const opts = recurOptions(task.doDate);
+              const cur = task.recur ? parseRule(task.recur) : null;
+              if (task.recur && cur && !opts.some((o) => o.value === task.recur)) {
+                opts.unshift({ value: task.recur, label: describeRule(cur) });
+              }
+              return opts.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ));
+            })()}
+          </select>
+          <div className="drawer-hint-quiet">
+            Completing a repeating task creates the next one automatically.
+          </div>
+        </label>
 
         <label className="drawer-field">
           <div className="drawer-label">ESTIMATE</div>

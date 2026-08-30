@@ -8,7 +8,9 @@ import {
   TASK_COLUMNS,
   TASK_COLUMNS_LEGACY,
   todayISO,
+  type TaskRowDB,
 } from "@/lib/task-map";
+import { parseRule, nextOccurrence } from "@/lib/recur";
 import type { Task, ActivityItem } from "@/lib/data";
 
 async function logActivity(taskId: string, detail: string) {
@@ -42,6 +44,7 @@ export interface TaskPatch {
   matterId?: string | null;
   projectId?: string | null;
   waitingOn?: string | null;
+  recur?: string | null;
   doDate?: string | null;
   doTime?: string | null;
   durationMin?: number | null;
@@ -75,6 +78,7 @@ function toDbPatch(patch: TaskPatch): Record<string, unknown> {
   if (patch.matterId !== undefined) db.matter_id = patch.matterId;
   if (patch.projectId !== undefined) db.project_id = patch.projectId;
   if (patch.waitingOn !== undefined) db.waiting_on = patch.waitingOn;
+  if (patch.recur !== undefined) db.recur = patch.recur;
   if (patch.doDate !== undefined) db.do_date = patch.doDate;
   if (patch.doTime !== undefined) db.do_time = patch.doTime;
   if (patch.durationMin !== undefined) db.duration_min = patch.durationMin;
@@ -93,9 +97,54 @@ export async function setTaskDone(id: string, done: boolean): Promise<ActionResu
       completed_at: done ? new Date().toISOString() : null,
     })
     .eq("id", id);
-  if (!error) await logActivity(id, done ? "Completed" : "Reopened");
+  if (!error) {
+    await logActivity(id, done ? "Completed" : "Reopened");
+    if (done) await spawnNextIfRecurring(id);
+  }
   revalidatePath("/my-day");
   return { ok: !error, error: error?.message };
+}
+
+/**
+ * Completing a recurring task spawns the next instance and hands the rule
+ * to it (the done instance stays in history, rule cleared). The next date
+ * is the first occurrence after both the task's date and today — so an
+ * overdue weekly task completed late doesn't spawn into the past.
+ */
+async function spawnNextIfRecurring(id: string): Promise<void> {
+  const sb = getSupabase();
+  const { data: t } = await sb.from("tasks").select(TASK_COLUMNS).eq("id", id).maybeSingle();
+  const row = t as TaskRowDB | null;
+  if (!row?.recur) return;
+  const rule = parseRule(row.recur);
+  if (!rule) return;
+
+  const today = todayISO();
+  let next = row.do_date && row.do_date > today ? row.do_date : today;
+  // Advance from the later of (scheduled date, today) to the next occurrence.
+  next = nextOccurrence(rule, next);
+
+  const clone: Record<string, unknown> = {
+    title: row.title,
+    status: "To Do",
+    domain: row.domain,
+    type: row.type,
+    priority: row.priority,
+    mit: false,
+    do_date: next,
+    do_time: row.do_time,
+    duration_min: row.duration_min,
+    matter_id: row.matter_id,
+    project_id: row.project_id,
+    waiting_on: row.waiting_on,
+    recur: row.recur,
+  };
+  const { data: created, error } = await sb.from("tasks").insert(clone).select("id").single();
+  if (!error && created) {
+    await sb.from("tasks").update({ recur: null }).eq("id", id);
+    await logActivity(id, `Recurred → next on ${next}`);
+    await logActivity((created as { id: string }).id, "Created (recurrence)");
+  }
 }
 
 export async function updateTask(id: string, patch: TaskPatch): Promise<ActionResult> {
@@ -113,8 +162,10 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<ActionRe
     const today = todayISO();
     if (patch.priority !== undefined && patch.priority !== cur.priority)
       await logActivity(id, `Priority set to P${patch.priority}`);
-    if (patch.status !== undefined && patch.status !== cur.status)
+    if (patch.status !== undefined && patch.status !== cur.status) {
       await logActivity(id, patch.status === "Done" ? "Completed" : `Status → ${patch.status}`);
+      if (patch.status === "Done") await spawnNextIfRecurring(id);
+    }
     if (patch.doDate !== undefined && patch.doDate === today && cur.do_date !== today)
       await logActivity(id, "Moved to today");
     if (patch.mit !== undefined && patch.mit !== cur.mit)
@@ -143,6 +194,7 @@ export async function createTask(input: TaskPatch & { title: string }): Promise<
     // Omitted when unset so inserts still work before migrations 0011/0012.
     ...(input.projectId ? { project_id: input.projectId } : {}),
     ...(input.waitingOn ? { waiting_on: input.waitingOn } : {}),
+    ...(input.recur ? { recur: input.recur } : {}),
     notes: input.notes ?? null,
   };
 

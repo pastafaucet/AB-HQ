@@ -1,5 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { findRecurPhrase, ruleToJson } from "@/lib/recur";
 
 // AI routing for captured entries: classify the raw text, match it to a
 // matter/project, extract dates and delegation, and draft the one-line
@@ -17,6 +18,7 @@ export interface RouteResult {
   taskType: "Task" | "Event" | "Deadline" | null;
   priority: number | null;
   waitingOn: "Chris" | "Opposing Counsel" | "Court" | "Other" | null;
+  recur: string | null; // JSON rule (lib/recur.ts), parsed from the AI's phrase
   summary: string;
 }
 
@@ -76,6 +78,11 @@ const SCHEMA = {
       description:
         "Who the ball is with if it's not Andy: something owed BY someone else. null when Andy owns the next move.",
     },
+    recur_phrase: {
+      type: ["string", "null"],
+      description:
+        "If the entry is explicitly recurring, a normalized phrase: 'every day', 'every weekday', 'every tuesday', 'every other friday', 'every 2 weeks', 'every month on the 15th', 'every year'. null when not recurring.",
+    },
     summary: {
       type: "string",
       description:
@@ -93,6 +100,7 @@ const SCHEMA = {
     "task_type",
     "priority",
     "waiting_on",
+    "recur_phrase",
     "summary",
   ],
   additionalProperties: false,
@@ -179,6 +187,13 @@ ${raw}`,
       waitingOn: (["Chris", "Opposing Counsel", "Court", "Other"].includes(j.waiting_on as string)
         ? j.waiting_on
         : null) as RouteResult["waitingOn"],
+      recur:
+        typeof j.recur_phrase === "string" && j.recur_phrase
+          ? (() => {
+              const hit = findRecurPhrase(j.recur_phrase as string);
+              return hit ? ruleToJson(hit.rule) : null;
+            })()
+          : null,
       summary: typeof j.summary === "string" ? j.summary : raw,
     };
   } catch {
