@@ -10,12 +10,15 @@ export interface QuickMatter {
 
 export interface QuickParsed {
   title: string;
+  type?: "Task" | "Event" | "Deadline"; // inferred: deadline words/"by date" → Deadline; event words or a time → Event
   doDate?: string; // YYYY-MM-DD
   doTime?: string; // HH:MM, 24h
+  durationMin?: number; // from a time range ("2-3:30") or "for 45 min"
   priority?: number; // 1–4, from "p1"…"p4"
   matterId?: string;
   dateLabel?: string; // "Tomorrow", "Friday", "Aug 12"
   timeLabel?: string; // "2:30 PM"
+  durationLabel?: string; // "1h 30m"
   matterLabel?: string; // matched matter name
 }
 
@@ -125,16 +128,19 @@ interface DateHit {
   index: number;
   length: number;
   iso: string;
+  by?: boolean; // matched as "by <date>" — a deadline signal
 }
 
 function findDate(text: string, today: Date, todayIso: string): DateHit | null {
   let m: RegExpExecArray | null;
+  const isBy = (s: string) => /^by\s/i.test(s);
 
-  m = /\b(?:on\s+)?(today|tonight)\b/i.exec(text);
-  if (m) return { index: m.index, length: m[0].length, iso: todayIso };
+  m = /\b(?:(?:on|by)\s+)?(today|tonight)\b/i.exec(text);
+  if (m) return { index: m.index, length: m[0].length, iso: todayIso, by: isBy(m[0]) };
 
-  m = /\b(?:on\s+)?(tomorrow|tmrw|tmw|tmr)\b/i.exec(text);
-  if (m) return { index: m.index, length: m[0].length, iso: toISO(addDays(today, 1)) };
+  m = /\b(?:(?:on|by)\s+)?(tomorrow|tmrw|tmw|tmr)\b/i.exec(text);
+  if (m)
+    return { index: m.index, length: m[0].length, iso: toISO(addDays(today, 1)), by: isBy(m[0]) };
 
   m = /\bin\s+(\d{1,2})\s+(day|days|week|weeks)\b/i.exec(text);
   if (m) {
@@ -143,7 +149,7 @@ function findDate(text: string, today: Date, todayIso: string): DateHit | null {
   }
 
   m =
-    /\b(?:(on|next|this)\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|weds?|thu(?:rs?)?|fri|sat|sun)\b/i.exec(
+    /\b(?:(on|by|next|this)\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|weds?|thu(?:rs?)?|fri|sat|sun)\b/i.exec(
       text
     );
   if (m) {
@@ -154,12 +160,17 @@ function findDate(text: string, today: Date, todayIso: string): DateHit | null {
     if (ok && target >= 0) {
       let ahead = (target - today.getDay() + 7) % 7;
       if (prefix === "next") ahead = ahead === 0 ? 7 : ahead + 7;
-      return { index: m.index, length: m[0].length, iso: toISO(addDays(today, ahead)) };
+      return {
+        index: m.index,
+        length: m[0].length,
+        iso: toISO(addDays(today, ahead)),
+        by: prefix === "by",
+      };
     }
   }
 
   m =
-    /\b(?:on\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b/i.exec(
+    /\b(?:(?:on|by)\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b/i.exec(
       text
     );
   if (m) {
@@ -168,11 +179,11 @@ function findDate(text: string, today: Date, todayIso: string): DateHit | null {
     if (mo !== undefined && day >= 1 && day <= 31) {
       let d = new Date(today.getFullYear(), mo, day);
       if (d < today) d = new Date(today.getFullYear() + 1, mo, day);
-      return { index: m.index, length: m[0].length, iso: toISO(d) };
+      return { index: m.index, length: m[0].length, iso: toISO(d), by: isBy(m[0]) };
     }
   }
 
-  m = /\b(?:on\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/.exec(text);
+  m = /\b(?:(?:on|by)\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/i.exec(text);
   if (m) {
     const mo = Number(m[1]) - 1;
     const day = Number(m[2]);
@@ -181,17 +192,17 @@ function findDate(text: string, today: Date, todayIso: string): DateHit | null {
       if (m[3] && year < 100) year += 2000;
       let d = new Date(year, mo, day);
       if (!m[3] && d < today) d = new Date(year + 1, mo, day);
-      return { index: m.index, length: m[0].length, iso: toISO(d) };
+      return { index: m.index, length: m[0].length, iso: toISO(d), by: isBy(m[0]) };
     }
   }
 
-  m = /\b(?:on\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b/i.exec(text);
+  m = /\b(?:(?:on|by)\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b/i.exec(text);
   if (m) {
     const day = Number(m[1]);
     if (day >= 1 && day <= 31) {
       let d = new Date(today.getFullYear(), today.getMonth(), day);
       if (d < today) d = new Date(today.getFullYear(), today.getMonth() + 1, day);
-      return { index: m.index, length: m[0].length, iso: toISO(d) };
+      return { index: m.index, length: m[0].length, iso: toISO(d), by: isBy(m[0]) };
     }
   }
 
@@ -248,6 +259,110 @@ function findTime(text: string): TimeHit | null {
   return null;
 }
 
+interface RangeHit {
+  index: number;
+  length: number;
+  hhmm: string;
+  durationMin: number;
+}
+
+/**
+ * Time ranges: "2-3:30", "2:00-3:30pm", "from 2 to 4pm", "10a-12p".
+ * To avoid eating things like "2-3 days" or page ranges, a range only
+ * counts when it carries a time signal: minutes, a meridiem, or an
+ * explicit at/from prefix.
+ */
+function findTimeRange(text: string): RangeHit | null {
+  const re =
+    /\b(?:(at|from)\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|a|p)?\s*(?:-|–|—|to|until|till)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a|p)?\b/i;
+  const m = re.exec(text);
+  if (!m) return null;
+  const [, prefix, h1, min1, mer1raw, h2, min2, mer2raw] = m;
+  const hasSignal = !!(prefix || min1 || min2 || mer1raw || mer2raw);
+  if (!hasSignal) return null;
+  const mer1 = mer1raw?.toLowerCase() ?? null;
+  const mer2 = mer2raw?.toLowerCase() ?? null;
+
+  const endH = inferHour(Number(h2), mer2 ?? mer1);
+  const endTotal = endH * 60 + Number(min2 ?? 0);
+
+  // Start hour: use its own meridiem; otherwise try the end's, then the
+  // plain inference — pick the first that lands before the end.
+  const candidates: number[] = [];
+  if (mer1) candidates.push(inferHour(Number(h1), mer1));
+  else {
+    if (mer2) {
+      candidates.push(inferHour(Number(h1), mer2));
+      candidates.push(inferHour(Number(h1), mer2.startsWith("p") ? "a" : "p"));
+    }
+    candidates.push(inferHour(Number(h1), null));
+  }
+  let startTotal: number | null = null;
+  for (const h of candidates) {
+    const t = h * 60 + Number(min1 ?? 0);
+    if (h <= 23 && t < endTotal && endTotal - t <= 12 * 60) {
+      startTotal = t;
+      break;
+    }
+  }
+  if (startTotal === null || endH > 23) return null;
+
+  const durationMin = endTotal - startTotal;
+  if (durationMin < 5) return null;
+  return {
+    index: m.index,
+    length: m[0].length,
+    hhmm: `${String(Math.floor(startTotal / 60)).padStart(2, "0")}:${String(
+      startTotal % 60
+    ).padStart(2, "0")}`,
+    durationMin,
+  };
+}
+
+interface DurationHit {
+  index: number;
+  length: number;
+  durationMin: number;
+}
+
+/** "for 45 min", "for 1.5 hours", "for 2h". */
+function findDuration(text: string): DurationHit | null {
+  const m = /\bfor\s+(\d+(?:\.\d+)?)\s*(m|min|mins|minutes|h|hr|hrs|hour|hours)\b/i.exec(text);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  const isHours = m[2].toLowerCase().startsWith("h");
+  const durationMin = Math.round(isHours ? n * 60 : n);
+  if (durationMin < 5 || durationMin > 12 * 60) return null;
+  return { index: m.index, length: m[0].length, durationMin };
+}
+
+const DEADLINE_RE =
+  /\b(due|deadline|last day|expires?|expiration|statute of limitations|sol)\b/i;
+const EVENT_RE =
+  /\b(meet(?:ing)?|mtg|call|zoom|teams|hearing|depo(?:sition)?|trial|mediation|arbitration|conference|conf|appt|appointment|lunch|dinner|interview|argument|inspection|walkthrough|cmc|osc|ime|msc|fsc|mtsc)\b/i;
+// Work verbs: "draft mediation brief" is a task ABOUT a mediation, not the
+// mediation itself. A work verb vetoes the event-noun (and bare-time) signal.
+const TASK_VERB_RE =
+  /\b(draft|prepare|prep|review|revise|write|research|finalize|edit|outline|analyze|summarize|serve|file|send|email|text|update|read|cite-?check|proof(?:read)?)\b/i;
+
+function inferType(
+  raw: string,
+  byDate: boolean,
+  hasTime: boolean
+): "Task" | "Event" | "Deadline" | undefined {
+  if (DEADLINE_RE.test(raw) || byDate) return "Deadline";
+  if (TASK_VERB_RE.test(raw)) return undefined; // work item, even if timed
+  if (EVENT_RE.test(raw) || hasTime) return "Event";
+  return undefined; // plain Task — leave unset so callers use their default
+}
+
+function durationLabelFor(min: number): string {
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
 interface PriorityHit {
   index: number;
   length: number;
@@ -293,16 +408,26 @@ function isBoundary(ch: string | undefined): boolean {
 function findMatter(text: string, matters: QuickMatter[]): MatterHit | null {
   const lower = text.toLowerCase();
 
-  // 1) Full matter or client name verbatim (longest first).
-  const verbatim: { phrase: string; mt: QuickMatter }[] = [];
+  // 1) Full matter name, client name, or the distinctive part of a
+  //    "Client - Party" style name ("COLA - Fight Club 2" → "fight club 2"),
+  //    verbatim, longest first. Phrases shared by several matters are skipped.
+  const phraseOwner = new Map<string, QuickMatter | null>();
+  const claim = (phrase: string | undefined, mt: QuickMatter) => {
+    const p = phrase?.trim().toLowerCase();
+    if (!p || p.length < 3) return;
+    phraseOwner.set(p, phraseOwner.has(p) && phraseOwner.get(p)?.id !== mt.id ? null : mt);
+  };
   for (const mt of matters) {
-    verbatim.push({ phrase: mt.name.trim().toLowerCase(), mt });
+    claim(mt.name, mt);
     const client = mt.client?.trim().toLowerCase();
-    if (client && wordsOf(client).length > 1) verbatim.push({ phrase: client, mt });
+    if (client && wordsOf(client).length > 1) claim(client, mt);
+    const dash = mt.name.split(/\s+-\s+/);
+    if (dash.length > 1) claim(dash.slice(1).join(" - "), mt);
   }
-  verbatim.sort((a, b) => b.phrase.length - a.phrase.length);
-  for (const { phrase, mt } of verbatim) {
-    if (phrase.length < 3) continue;
+  const phrases = [...phraseOwner.keys()].sort((a, b) => b.length - a.length);
+  for (const phrase of phrases) {
+    const mt = phraseOwner.get(phrase);
+    if (!mt) continue;
     const i = lower.indexOf(phrase);
     if (i >= 0 && isBoundary(lower[i - 1]) && isBoundary(lower[i + phrase.length])) {
       return { index: i, length: phrase.length, id: mt.id, name: mt.name };
@@ -355,11 +480,18 @@ export function parseQuickAdd(
   const today = fromISO(todayIso);
   let text = raw;
 
+  // Ranges first — "2-3:30pm" must not be half-eaten by the single-time pass.
+  const range = findTimeRange(text);
+  if (range) text = cut(text, range.index, range.length);
+
   const date = findDate(text, today, todayIso);
   if (date) text = cut(text, date.index, date.length);
 
-  const time = findTime(text);
+  const time = range ? null : findTime(text);
   if (time) text = cut(text, time.index, time.length);
+
+  const dur = range ? null : findDuration(text);
+  if (dur) text = cut(text, dur.index, dur.length);
 
   const pri = findPriority(text);
   if (pri) text = cut(text, pri.index, pri.length);
@@ -368,15 +500,21 @@ export function parseQuickAdd(
   if (matter) text = cut(text, matter.index, matter.length);
 
   const title = cleanTitle(text) || raw.trim();
+  const doTime = range?.hhmm ?? time?.hhmm;
+  const durationMin = range?.durationMin ?? dur?.durationMin;
+  const type = inferType(raw, !!date?.by, !!doTime);
 
   return {
     title,
+    type,
     doDate: date?.iso,
-    doTime: time?.hhmm,
+    doTime,
+    durationMin,
     priority: pri?.priority,
     matterId: matter?.id,
     dateLabel: date ? dateLabelFor(date.iso, todayIso) : undefined,
-    timeLabel: time ? timeLabelFor(time.hhmm) : undefined,
+    timeLabel: doTime ? timeLabelFor(doTime) : undefined,
+    durationLabel: durationMin ? durationLabelFor(durationMin) : undefined,
     matterLabel: matter?.name,
   };
 }

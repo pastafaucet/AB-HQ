@@ -423,8 +423,10 @@ export default function MyDayClient({
       const r = await createTask({
         title: p.title,
         status: "To Do",
+        type: p.type ?? "Task",
         doDate: p.doDate ?? today,
         doTime: p.doTime ?? null,
+        durationMin: p.durationMin ?? null,
         priority: p.priority,
         matterId: p.matterId ?? null,
       });
@@ -565,11 +567,26 @@ export default function MyDayClient({
           (quickParsed.dateLabel ||
             quickParsed.timeLabel ||
             quickParsed.priority ||
+            quickParsed.type ||
             quickParsed.matterLabel) && (
             <div className="quick-parse-hint">
               ↳ {quickParsed.title || "…"}
+              {quickParsed.type && (
+                <span
+                  className="qp-chip"
+                  style={{
+                    color: quickParsed.type === "Deadline" ? "var(--orange)" : "var(--cyan)",
+                  }}
+                >
+                  {" "}
+                  · {quickParsed.type.toUpperCase()}
+                </span>
+              )}
               {quickParsed.dateLabel && <span className="qp-chip"> · {quickParsed.dateLabel}</span>}
               {quickParsed.timeLabel && <span className="qp-chip"> · {quickParsed.timeLabel}</span>}
+              {quickParsed.durationLabel && (
+                <span className="qp-chip"> · {quickParsed.durationLabel}</span>
+              )}
               {quickParsed.priority && (
                 <span className="qp-chip" style={{ color: PRI_COLOR[quickParsed.priority] }}>
                   {" "}

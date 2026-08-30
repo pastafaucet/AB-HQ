@@ -13,6 +13,7 @@ export interface RouteResult {
   title: string | null;
   doDate: string | null; // YYYY-MM-DD
   doTime: string | null; // HH:MM
+  durationMin: number | null;
   taskType: "Task" | "Event" | "Deadline" | null;
   priority: number | null;
   waitingOn: "Chris" | "Opposing Counsel" | "Court" | "Other" | null;
@@ -49,7 +50,13 @@ const SCHEMA = {
     },
     do_time: {
       type: ["string", "null"],
-      description: "HH:MM 24-hour, for events with a stated time. null otherwise.",
+      description:
+        "HH:MM 24-hour, for events with a stated time. For a range ('2-3:30pm') this is the START time. null otherwise.",
+    },
+    duration_min: {
+      anyOf: [{ type: "integer" }, { type: "null" }],
+      description:
+        "Duration in minutes, when stated or implied by a time range ('2-3:30pm' → 90, 'all day' → 480). null when unknown.",
     },
     task_type: {
       anyOf: [{ type: "string", enum: ["Task", "Event", "Deadline"] }, { type: "null" }],
@@ -82,6 +89,7 @@ const SCHEMA = {
     "title",
     "do_date",
     "do_time",
+    "duration_min",
     "task_type",
     "priority",
     "waiting_on",
@@ -159,6 +167,10 @@ ${raw}`,
       title: typeof j.title === "string" && j.title.trim() ? j.title.trim() : null,
       doDate: typeof j.do_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(j.do_date) ? j.do_date : null,
       doTime: typeof j.do_time === "string" && /^\d{2}:\d{2}$/.test(j.do_time) ? j.do_time : null,
+      durationMin:
+        typeof j.duration_min === "number" && j.duration_min >= 5 && j.duration_min <= 720
+          ? Math.round(j.duration_min)
+          : null,
       taskType: (["Task", "Event", "Deadline"].includes(j.task_type as string)
         ? j.task_type
         : null) as RouteResult["taskType"],

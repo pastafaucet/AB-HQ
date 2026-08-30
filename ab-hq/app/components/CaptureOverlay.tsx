@@ -2,6 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { captureEntry, type CaptureResult } from "@/app/(app)/entry-actions";
+import { parseQuickAdd } from "@/lib/quick-parse";
+import { splitBillingLine } from "@/lib/entry-map";
+
+function localTodayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
 
 // The one box: opened with ⌘K, the sidebar Capture button, or the header
 // search bar, from any page. Type, Enter, done — the entry lands in the
@@ -99,7 +108,7 @@ export default function CaptureOverlay() {
             <textarea
               ref={inputRef}
               className="capture-input"
-              placeholder="Judge set MSJ hearing for Oct 30 in Henderson…"
+              placeholder="Depo of Dr. Mehta Sept 15 10a-4p Theberge…"
               rows={2}
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -110,6 +119,37 @@ export default function CaptureOverlay() {
                 }
               }}
             />
+            {(() => {
+              if (!text.trim()) return null;
+              const segs = splitBillingLine(text.trim());
+              if (segs.length > 1) {
+                const total = segs.reduce((a, s) => a + (s.tenths ?? 0), 0);
+                return (
+                  <div className="quick-parse-hint">
+                    ↳ billing line · {segs.length} activities · {(total / 10).toFixed(1)}h
+                  </div>
+                );
+              }
+              const p = parseQuickAdd(text.trim(), localTodayISO());
+              if (!p.type && !p.dateLabel && !p.timeLabel && !segs[0].tenths) return null;
+              return (
+                <div className="quick-parse-hint">
+                  ↳ {segs[0].tenths ? `logs .${segs[0].tenths} · ` : ""}
+                  {p.type && (
+                    <span
+                      className="qp-chip"
+                      style={{ color: p.type === "Deadline" ? "var(--orange)" : "var(--cyan)" }}
+                    >
+                      {p.type.toUpperCase()}{" "}
+                    </span>
+                  )}
+                  {p.dateLabel && <span className="qp-chip">· {p.dateLabel} </span>}
+                  {p.timeLabel && <span className="qp-chip">· {p.timeLabel} </span>}
+                  {p.durationLabel && <span className="qp-chip">· {p.durationLabel} </span>}
+                  <span className="capture-modal-hint">— AI files the case on Enter</span>
+                </div>
+              );
+            })()}
             {sent.length > 0 && (
               <div className="capture-log">
                 {sent.map((s) => (

@@ -89,6 +89,7 @@ async function captureOne(
       mit: false,
       do_date: route.doDate,
       do_time: route.doTime,
+      duration_min: route.durationMin,
       matter_id: route.matterId,
       project_id: route.projectId,
     };
@@ -100,7 +101,22 @@ async function captureOne(
     }
     if (!tErr && t) {
       taskId = (t as { id: string }).id;
-      madeTask = route.title;
+      // Toast shows what got scheduled, so misreads are caught immediately.
+      const bits: string[] = [route.title];
+      if (route.doDate) {
+        const [, m, d] = route.doDate.split("-").map(Number);
+        const MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        let when = `${MO[m - 1]} ${d}`;
+        if (route.doTime) {
+          const [h, min] = route.doTime.split(":").map(Number);
+          const ap = h >= 12 ? "p" : "a";
+          const h12 = h % 12 === 0 ? 12 : h % 12;
+          when += ` ${h12}${min ? `:${String(min).padStart(2, "0")}` : ""}${ap}`;
+        }
+        bits.push(when);
+      }
+      if ((route.taskType ?? "") === "Deadline") bits.push("DEADLINE");
+      madeTask = bits.join(" · ");
     }
   }
 
