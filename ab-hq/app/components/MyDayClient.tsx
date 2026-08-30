@@ -574,7 +574,7 @@ export default function MyDayClient({
         {quickFocus && !quick.trim() && (
           <div className="qp-cheat">
             hearing Theberge 10/30 at 9:30 &nbsp;·&nbsp; oppo due friday p1 &nbsp;·&nbsp; every
-            tuesday &nbsp;·&nbsp; 2nd tuesday of the month &nbsp;·&nbsp; ~2h or (.5) = estimate
+            tuesday &nbsp;·&nbsp; 2nd tuesday of the month &nbsp;·&nbsp; (1) (.5) ~2h = estimate
             &nbsp;·&nbsp; 2-3:30pm &nbsp;·&nbsp; #personal
           </div>
         )}

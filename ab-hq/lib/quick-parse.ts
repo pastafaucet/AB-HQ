@@ -361,11 +361,16 @@ function findDuration(text: string): DurationHit | null {
     if (min) return { index: m.index, length: m[0].length, durationMin: min };
   }
 
-  // "(.5)" — tenths of an hour, Andy's billing shorthand, as an estimate here.
-  m = /\((\.\d)\)/.exec(text);
-  if (m) {
-    const min = Math.round(parseFloat(m[1]) * 60);
-    if (min >= 5) return { index: m.index, length: m[0].length, durationMin: min };
+  // Bare parenthesized number = hours, matching the billing convention:
+  // "(.5)" → 30m, "(1)" → 1h, "(1.5)" → 90m. Two digits max, so "(2024)"
+  // and other big numbers stay in the title.
+  m = /\((\d{0,2}(?:\.\d+)?)\)/.exec(text);
+  if (m && m[1] && m[1] !== ".") {
+    const h = parseFloat(m[1]);
+    if (isFinite(h) && h >= 0.1 && h <= 12) {
+      const min = Math.round(h * 60);
+      if (min >= 5) return { index: m.index, length: m[0].length, durationMin: min };
+    }
   }
 
   return null;
@@ -566,6 +571,7 @@ function cut(text: string, index: number, length: number): string {
 
 function cleanTitle(s: string): string {
   return s
+    .replace(/\(\s*\)/g, " ") // husks left when a date/time was cut from inside parens
     .replace(/\s+/g, " ")
     .replace(/\s+(at|on|by|from|re|for)\s*$/i, "") // dangling connectors
     .replace(/^\s*(at|on)\s+/i, "")
