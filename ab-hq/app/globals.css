@@ -3999,3 +3999,13 @@ button.check {
   line-height: 1.55;
   color: var(--ink-body);
 }
+
+/* syntax cheat line under empty, focused quick-add / capture boxes */
+.qp-cheat {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--disabled);
+  line-height: 1.7;
+}

@@ -475,6 +475,7 @@ export default function TasksClient({
   }
 
   const activeProjects = projects.filter((p) => p.status === "Active");
+  const [quickFocus, setQuickFocus] = useState(false);
   const quickParsed = quick.trim() ? parseQuickAdd(quick.trim(), today, matters, activeProjects) : null;
 
   function submitQuick() {
@@ -936,9 +937,11 @@ export default function TasksClient({
         <div className="capture-row">
           <input
             className="quick-add"
-            placeholder="+  Add a task…  (try: “file reply brief smith p1 next friday”)"
+            placeholder="+  Add a task…"
             value={quick}
             onChange={(e) => setQuick(e.target.value)}
+            onFocus={() => setQuickFocus(true)}
+            onBlur={() => setQuickFocus(false)}
             onKeyDown={(e) => {
               if (e.key === "Enter") submitQuick();
             }}
@@ -947,6 +950,13 @@ export default function TasksClient({
             + Task
           </button>
         </div>
+        {quickFocus && !quick.trim() && (
+          <div className="qp-cheat">
+            hearing Theberge 10/30 at 9:30 &nbsp;·&nbsp; oppo due friday p1 &nbsp;·&nbsp; every
+            tuesday &nbsp;·&nbsp; 2nd tuesday of the month &nbsp;·&nbsp; ~2h or (.5) = estimate
+            &nbsp;·&nbsp; 2-3:30pm &nbsp;·&nbsp; #personal
+          </div>
+        )}
         {quickParsed &&
           (quickParsed.dateLabel ||
             quickParsed.timeLabel ||

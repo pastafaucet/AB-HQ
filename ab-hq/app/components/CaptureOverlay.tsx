@@ -119,6 +119,13 @@ export default function CaptureOverlay() {
                 }
               }}
             />
+            {!text.trim() && (
+              <div className="qp-cheat">
+                hearing Theberge 10/30 at 9:30 &nbsp;·&nbsp; oppo due friday p1 &nbsp;·&nbsp;
+                every tuesday &nbsp;·&nbsp; emails with CoCo re same (.2) = logs time
+                &nbsp;·&nbsp; 2-3:30pm &nbsp;·&nbsp; case names auto-file
+              </div>
+            )}
             {(() => {
               if (!text.trim()) return null;
               const segs = splitBillingLine(text.trim());
