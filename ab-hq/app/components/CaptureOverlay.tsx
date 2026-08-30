@@ -138,28 +138,47 @@ export default function CaptureOverlay() {
                 );
               }
               const p = parseQuickAdd(text.trim(), localTodayISO());
-              if (!p.type && !p.dateLabel && !p.timeLabel && !segs[0].tenths) return null;
               return (
                 <div className="quick-parse-hint">
-                  ↳ {segs[0].tenths ? `logs .${segs[0].tenths} · ` : ""}
+                  ↳ {p.title || "…"}
+                  {segs[0].tenths && (
+                    <span className="qp-chip" style={{ color: "var(--teal)" }}>
+                      {" "}
+                      · logs .{segs[0].tenths}
+                    </span>
+                  )}
                   {p.type && (
                     <span
                       className="qp-chip"
                       style={{ color: p.type === "Deadline" ? "var(--orange)" : "var(--cyan)" }}
                     >
-                      {p.type.toUpperCase()}{" "}
+                      {" "}
+                      · {p.type.toUpperCase()}
                     </span>
                   )}
-                  {p.dateLabel && <span className="qp-chip">· {p.dateLabel} </span>}
-                  {p.timeLabel && <span className="qp-chip">· {p.timeLabel} </span>}
+                  {p.dateLabel && <span className="qp-chip"> · {p.dateLabel}</span>}
+                  {p.timeLabel && <span className="qp-chip"> · {p.timeLabel}</span>}
                   {p.durationLabel && !segs[0].tenths && (
-                    <span className="qp-chip">· {p.durationLabel} </span>
+                    <span className="qp-chip"> · {p.durationLabel}</span>
+                  )}
+                  {p.priority && (
+                    <span className="qp-chip" style={{ color: "var(--p" + p.priority + ")" }}>
+                      {" "}
+                      · P{p.priority}
+                    </span>
                   )}
                   {p.recurLabel && (
                     <span className="qp-chip" style={{ color: "var(--teal)" }}>
-                      · ↻ {p.recurLabel}{" "}
+                      {" "}
+                      · ↻ {p.recurLabel}
                     </span>
                   )}
+                  {p.domain === "Personal" && (
+                    <span className="qp-chip" style={{ color: "var(--violet)" }}>
+                      {" "}
+                      · PERSONAL
+                    </span>
+                  )}{" "}
                   <span className="capture-modal-hint">— AI files the case on Enter</span>
                 </div>
               );
