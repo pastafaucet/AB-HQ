@@ -432,6 +432,7 @@ export default function MyDayClient({
         matterId: p.matterId ?? null,
         projectId: p.projectId ?? null,
         recur: p.recur ?? null,
+        domain: p.domain ?? "Work",
       });
       if (r.ok && r.task) {
         setTasks((prev) => [...prev, r.task!]);
@@ -611,6 +612,9 @@ export default function MyDayClient({
                   {" "}
                   · ↻ {quickParsed.recurLabel}
                 </span>
+              )}
+              {quickParsed.domain === "Personal" && (
+                <span className="qp-chip" style={{ color: "var(--violet)" }}> · PERSONAL</span>
               )}
             </div>
           )}

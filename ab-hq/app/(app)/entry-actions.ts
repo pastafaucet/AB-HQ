@@ -83,7 +83,7 @@ async function captureOne(
     const taskRow: Record<string, unknown> = {
       title: route.title,
       status: route.doDate ? "To Do" : "Inbox",
-      domain: "Work",
+      domain: route.domain,
       type: route.taskType ?? (route.kind === "event" ? "Event" : "Task"),
       priority: route.priority ?? 3,
       mit: false,

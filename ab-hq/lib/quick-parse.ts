@@ -32,6 +32,7 @@ export interface QuickParsed {
   projectLabel?: string; // matched project name
   recur?: string; // JSON recurrence rule for tasks.recur
   recurLabel?: string; // "every Tue", "monthly on the 15"
+  domain?: "Work" | "Personal"; // from #personal / #work / trailing "personal"
 }
 
 const WEEKDAYS = [
@@ -337,15 +338,61 @@ interface DurationHit {
   durationMin: number;
 }
 
-/** "for 45 min", "for 1.5 hours", "for 2h". */
+/** "for 45 min", "~1.5h", "(30m)", "(1h)", "(.5)" — the estimate on a task. */
 function findDuration(text: string): DurationHit | null {
-  const m = /\bfor\s+(\d+(?:\.\d+)?)\s*(m|min|mins|minutes|h|hr|hrs|hour|hours)\b/i.exec(text);
-  if (!m) return null;
-  const n = parseFloat(m[1]);
-  const isHours = m[2].toLowerCase().startsWith("h");
-  const durationMin = Math.round(isHours ? n * 60 : n);
-  if (durationMin < 5 || durationMin > 12 * 60) return null;
-  return { index: m.index, length: m[0].length, durationMin };
+  const toMin = (nStr: string, unit: string): number | null => {
+    const n = parseFloat(nStr);
+    if (!isFinite(n) || n <= 0) return null;
+    const min = Math.round(unit.toLowerCase().startsWith("h") ? n * 60 : n);
+    return min >= 5 && min <= 12 * 60 ? min : null;
+  };
+  let m: RegExpExecArray | null;
+
+  m = /(?:\bfor\s+|~\s*)(\d+(?:\.\d+)?)\s*(m|min|mins|minutes|h|hr|hrs|hour|hours)\b/i.exec(text);
+  if (m) {
+    const min = toMin(m[1], m[2]);
+    if (min) return { index: m.index, length: m[0].length, durationMin: min };
+  }
+
+  // "(30m)", "(1.5h)"
+  m = /\((\d+(?:\.\d+)?)\s*(m|min|mins|minutes|h|hr|hrs|hour|hours)\)/i.exec(text);
+  if (m) {
+    const min = toMin(m[1], m[2]);
+    if (min) return { index: m.index, length: m[0].length, durationMin: min };
+  }
+
+  // "(.5)" — tenths of an hour, Andy's billing shorthand, as an estimate here.
+  m = /\((\.\d)\)/.exec(text);
+  if (m) {
+    const min = Math.round(parseFloat(m[1]) * 60);
+    if (min >= 5) return { index: m.index, length: m[0].length, durationMin: min };
+  }
+
+  return null;
+}
+
+interface DomainHit {
+  index: number;
+  length: number;
+  domain: "Work" | "Personal";
+}
+
+/**
+ * "#personal" / "#work" anywhere, or a bare trailing "personal".
+ * Never a bare mid-sentence "personal" — "research personal jurisdiction"
+ * must stay a Work task with its title intact.
+ */
+function findDomain(text: string): DomainHit | null {
+  let m = /#(personal|work)\b/i.exec(text);
+  if (m)
+    return {
+      index: m.index,
+      length: m[0].length,
+      domain: m[1].toLowerCase() === "personal" ? "Personal" : "Work",
+    };
+  m = /\bpersonal\s*$/i.exec(text.trimEnd());
+  if (m) return { index: m.index, length: m[0].length, domain: "Personal" };
+  return null;
 }
 
 const DEADLINE_RE =
@@ -553,6 +600,9 @@ export function parseQuickAdd(
   const dur = range ? null : findDuration(text);
   if (dur) text = cut(text, dur.index, dur.length);
 
+  const dom = findDomain(text);
+  if (dom) text = cut(text, dom.index, dom.length);
+
   const pri = findPriority(text);
   if (pri) text = cut(text, pri.index, pri.length);
 
@@ -590,5 +640,6 @@ export function parseQuickAdd(
     projectLabel: project?.name,
     recur: recur ? ruleToJson(recur.rule) : undefined,
     recurLabel: recur?.label,
+    domain: dom?.domain,
   };
 }

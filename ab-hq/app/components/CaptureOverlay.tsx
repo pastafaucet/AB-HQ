@@ -145,7 +145,9 @@ export default function CaptureOverlay() {
                   )}
                   {p.dateLabel && <span className="qp-chip">· {p.dateLabel} </span>}
                   {p.timeLabel && <span className="qp-chip">· {p.timeLabel} </span>}
-                  {p.durationLabel && <span className="qp-chip">· {p.durationLabel} </span>}
+                  {p.durationLabel && !segs[0].tenths && (
+                    <span className="qp-chip">· {p.durationLabel} </span>
+                  )}
                   {p.recurLabel && (
                     <span className="qp-chip" style={{ color: "var(--teal)" }}>
                       · ↻ {p.recurLabel}{" "}

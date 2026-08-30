@@ -361,7 +361,7 @@ export default function TaskDrawer({
         </div>
 
         <div className="drawer-field">
-          <div className="drawer-label">DUE</div>
+          <div className="drawer-label">DO</div>
           <div className="due-cell">
             <input
               type="date"

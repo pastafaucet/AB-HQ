@@ -9,6 +9,7 @@ import { findRecurPhrase, ruleToJson } from "@/lib/recur";
 
 export interface RouteResult {
   kind: "log" | "task" | "note" | "event";
+  domain: "Work" | "Personal";
   matterId: string | null;
   projectId: string | null;
   title: string | null;
@@ -30,6 +31,12 @@ const SCHEMA = {
       enum: ["log", "task", "note", "event"],
       description:
         "log = a record of something that happened (a call taken, a ruling, work done). task = something that must be done. note = an idea or reference to keep. event = a scheduled occurrence with a date/time (hearing, call, meeting).",
+    },
+    domain: {
+      type: "string",
+      enum: ["Work", "Personal"],
+      description:
+        "Personal for errands, family, health, hobbies (dive club, 3D printing); Work for everything law-practice related. Default Work when unclear.",
     },
     matter_id: {
       type: ["string", "null"],
@@ -91,6 +98,7 @@ const SCHEMA = {
   },
   required: [
     "kind",
+    "domain",
     "matter_id",
     "project_id",
     "title",
@@ -170,6 +178,7 @@ ${raw}`,
       kind: (["log", "task", "note", "event"].includes(j.kind as string)
         ? j.kind
         : "log") as RouteResult["kind"],
+      domain: j.domain === "Personal" ? "Personal" : "Work",
       matterId,
       projectId,
       title: typeof j.title === "string" && j.title.trim() ? j.title.trim() : null,

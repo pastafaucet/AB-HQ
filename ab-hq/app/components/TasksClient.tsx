@@ -493,6 +493,7 @@ export default function TasksClient({
         matterId: p.matterId ?? null,
         projectId: p.projectId ?? null,
         recur: p.recur ?? null,
+        domain: p.domain ?? "Work",
       });
       if (r.ok && r.task) setTasks((prev) => [...prev, r.task!]);
       else flash(r.error ?? "Couldn't add.");
@@ -990,6 +991,9 @@ export default function TasksClient({
                   {" "}
                   · ↻ {quickParsed.recurLabel}
                 </span>
+              )}
+              {quickParsed.domain === "Personal" && (
+                <span className="qp-chip" style={{ color: "var(--violet)" }}> · PERSONAL</span>
               )}
             </div>
           )}
