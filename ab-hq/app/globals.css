@@ -4009,3 +4009,10 @@ button.check {
   color: var(--disabled);
   line-height: 1.7;
 }
+
+/* inside the capture modal, the parse hint sits below the textarea normally —
+   the quick-add pages' negative top margin would clip it under the input */
+.capture-modal .quick-parse-hint,
+.capture-modal .qp-cheat {
+  margin: 10px 2px 0;
+}
