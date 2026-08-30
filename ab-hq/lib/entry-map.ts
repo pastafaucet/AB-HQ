@@ -48,22 +48,38 @@ export function rowToEntry(row: EntryRowDB): Entry {
 export function splitBillingLine(raw: string): { text: string; tenths: number | null }[] {
   const trimmed = raw.trim();
   const toTenths = (s: string): number | null => {
+    // "(25 mins)" / "(30 min)" → tenths, rounded, minimum .1
+    const mins = s.match(/^(\d+)\s*min(?:ute)?s?$/i);
+    if (mins) {
+      const t = Math.max(1, Math.round(parseInt(mins[1], 10) / 6));
+      return t <= 240 ? t : null;
+    }
+    // "(.4)" / "(1.2)" — hours in tenths
+    if (!/^\d*\.?\d+$/.test(s)) return null;
     const h = parseFloat(s);
     if (!isFinite(h) || h <= 0) return null;
     const t = Math.round(h * 10);
     return t > 0 && t <= 240 ? t : null;
   };
 
-  // Each match = the text leading up to a "(N)" time marker, plus the marker.
-  const re = /(.+?)\((\d*\.?\d+)\)\s*[;:.]?\s*/gs;
+  // Each match = the text leading up to a short "(…)" marker. Non-time parens
+  // ("(the causation expert)") fail toTenths and are folded back into the text.
+  const re = /(.+?)\(([^()]{1,12})\)\s*[;:.]?\s*/gs;
   const found: { text: string; tenths: number | null }[] = [];
+  let buffer = "";
   let lastEnd = 0;
   for (const m of trimmed.matchAll(re)) {
-    const text = m[1].trim().replace(/^[;:.,]\s*/, "").replace(/[;:,]$/, "").trim();
-    if (text) found.push({ text, tenths: toTenths(m[2]) });
     lastEnd = (m.index ?? 0) + m[0].length;
+    const tenths = toTenths(m[2].trim());
+    if (tenths === null) {
+      buffer += m[0];
+      continue;
+    }
+    const text = (buffer + m[1]).trim().replace(/^[;:.,]\s*/, "").replace(/[;:,]$/, "").trim();
+    buffer = "";
+    if (text) found.push({ text, tenths });
   }
-  const remainder = trimmed.slice(lastEnd).trim().replace(/^[;:.,]\s*/, "");
+  const remainder = (buffer + trimmed.slice(lastEnd)).trim().replace(/^[;:.,]\s*/, "");
 
   if (found.length >= 2) {
     if (remainder) found.push({ text: remainder, tenths: null });
