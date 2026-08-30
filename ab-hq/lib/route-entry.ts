@@ -72,7 +72,7 @@ const SCHEMA = {
     summary: {
       type: "string",
       description:
-        "One sentence, past tense where apt, in neutral billing-narrative style (e.g. 'Telephone conference with Dr. Mehta regarding causation opinions.'). Written even for tasks/notes — describe what the entry records.",
+        "One sentence, past tense where apt, in neutral billing-narrative style (e.g. 'Telephone conference with Dr. Mehta regarding causation opinions.'). Written even for tasks/notes — describe what the entry records. NEVER include time amounts — no '(.4)', no '(25 mins)', no '(0.4 hours)'; time is tracked separately.",
     },
   },
   required: [

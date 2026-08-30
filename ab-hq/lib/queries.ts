@@ -967,7 +967,13 @@ export async function getDayLedgerData(date: string): Promise<DayLedgerData> {
     else g.sessions.push({ taskTitle: info?.title ?? "Untimed work", minutes });
     g.totalMinutes += minutes;
   }
-  for (const t of doneTasks) groupFor(t.matter_id).doneTasks.push(t.title);
+  // A completed task that also has timer sessions today is already shown
+  // (and timed) via its sessions — don't list it twice.
+  const sessTaskSet = new Set(sess.map((s) => s.task_id));
+  for (const t of doneTasks) {
+    if (sessTaskSet.has(t.id)) continue;
+    groupFor(t.matter_id).doneTasks.push(t.title);
+  }
 
   const list = [...groups.values()].sort((a, b) => {
     if (a.matterId === null) return 1;

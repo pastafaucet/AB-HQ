@@ -48,10 +48,10 @@ export function rowToEntry(row: EntryRowDB): Entry {
 export function splitBillingLine(raw: string): { text: string; tenths: number | null }[] {
   const trimmed = raw.trim();
   const toTenths = (s: string): number | null => {
-    // "(25 mins)" / "(30 min)" → tenths, rounded, minimum .1
+    // "(25 mins)" / "(30 min)" → tenths, rounded UP (billing convention: 25m → .5)
     const mins = s.match(/^(\d+)\s*min(?:ute)?s?$/i);
     if (mins) {
-      const t = Math.max(1, Math.round(parseInt(mins[1], 10) / 6));
+      const t = Math.max(1, Math.ceil(parseInt(mins[1], 10) / 6));
       return t <= 240 ? t : null;
     }
     // "(.4)" / "(1.2)" — hours in tenths
@@ -87,4 +87,13 @@ export function splitBillingLine(raw: string): { text: string; tenths: number | 
   }
   if (found.length === 1 && !remainder) return found;
   return [{ text: trimmed, tenths: null }];
+}
+
+/** Strip embedded time markers — "(.4)", "(25 mins)", "(0.4 hours)." — from display text. */
+export function stripTimeMarkers(text: string): string {
+  return text
+    .replace(/\s*\((?:\d*\.?\d+|\d+\s*min(?:ute)?s?|\d*\.?\d+\s*h(?:ou)?rs?)\)\s*\.?/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([;,.])/g, "$1")
+    .trim();
 }

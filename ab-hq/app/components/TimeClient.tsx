@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { DayLedgerData } from "@/lib/queries";
+import type { DayLedgerData, LedgerGroup } from "@/lib/queries";
+import { stripTimeMarkers } from "@/lib/entry-map";
 import { draftNarratives, type NarrativeDraft } from "@/app/(app)/billing-actions";
 
 function fmtMin(min: number): string {
@@ -14,6 +15,26 @@ function fmtMin(min: number): string {
 
 function fmtTenths(t: number): string {
   return t < 10 ? `(.${t})` : `(${(t / 10).toFixed(1)})`;
+}
+
+// The matter's day as one billing line, assembled deterministically —
+// Andy's format: "activity (.4); activity (.2); …". Tracked timer time
+// converts to tenths rounded up; unknown times get (.__) to fill in.
+function billingLine(g: LedgerGroup): string {
+  const parts: string[] = [];
+  for (const e of g.entries) {
+    const text = stripTimeMarkers(e.summary ?? e.raw).replace(/[.;]\s*$/, "");
+    if (!text) continue;
+    parts.push(`${text} ${e.billedTenths ? fmtTenths(e.billedTenths) : "(.__)"}`);
+  }
+  for (const s of g.sessions) {
+    const t = Math.max(1, Math.ceil(s.minutes / 6));
+    parts.push(`${stripTimeMarkers(s.taskTitle).replace(/[.;]\s*$/, "")} ${fmtTenths(t)}`);
+  }
+  for (const t of g.doneTasks) {
+    parts.push(`${stripTimeMarkers(t).replace(/[.;]\s*$/, "")} (.__)`);
+  }
+  return parts.join("; ");
 }
 
 export default function TimeClient({ data }: { data: DayLedgerData }) {
@@ -171,13 +192,24 @@ export default function TimeClient({ data }: { data: DayLedgerData }) {
               {g.totalMinutes > 0 && (
                 <span className="narrative-time">{fmtMin(g.totalMinutes)} tracked</span>
               )}
+              <span className="head-spacer" />
+              <button
+                type="button"
+                className="ov-chip"
+                onClick={() => copy(billingLine(g), `line-${g.matterId}`)}
+              >
+                {copied === `line-${g.matterId}` ? "COPIED ✓" : "COPY LINE"}
+              </button>
             </div>
+            <div className="billing-line">{billingLine(g)}</div>
             {g.entries.map((e) => (
               <div key={e.id} className="ledger-line">
                 <span className="ledger-line-kind" style={{ color: "var(--ink-2)" }}>
                   {e.billedTenths ? fmtTenths(e.billedTenths) : e.kind.toUpperCase()}
                 </span>
-                <span className="ledger-line-text">{e.summary ?? e.raw}</span>
+                <span className="ledger-line-text">
+                  {stripTimeMarkers(e.summary ?? e.raw)}
+                </span>
               </div>
             ))}
             {g.sessions.map((s, i) => (

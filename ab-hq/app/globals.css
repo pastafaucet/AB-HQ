@@ -3987,3 +3987,15 @@ button.check {
   font-size: 13.5px;
   color: var(--ink-body);
 }
+
+/* the matter's day as one billing line */
+.billing-line {
+  margin: 6px 0 8px;
+  padding: 9px 12px;
+  background: var(--inset);
+  border: 1px solid var(--line-field);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-body);
+}
