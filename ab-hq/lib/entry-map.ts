@@ -64,7 +64,8 @@ export function splitBillingLine(raw: string): { text: string; tenths: number | 
 
   // Each match = the text leading up to a short "(…)" marker. Non-time parens
   // ("(the causation expert)") fail toTenths and are folded back into the text.
-  const re = /(.+?)\(([^()]{1,12})\)\s*[;:.]?\s*/gs;
+  // [\s\S] instead of the dotAll flag — the project's TS target predates es2018.
+  const re = /([\s\S]+?)\(([^()]{1,12})\)\s*[;:.]?\s*/g;
   const found: { text: string; tenths: number | null }[] = [];
   let buffer = "";
   let lastEnd = 0;
