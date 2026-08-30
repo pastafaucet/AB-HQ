@@ -10,7 +10,8 @@ import { getDayLedgerData } from "@/lib/queries";
 export interface NarrativeDraft {
   matterId: string | null;
   matterName: string;
-  totalMinutes: number;
+  totalMinutes: number; // tracked timer time
+  enteredTenths: number; // billed tenths entered on captures
   narrative: string;
 }
 
@@ -29,7 +30,7 @@ const SCHEMA = {
           narrative: {
             type: "string",
             description:
-              "The billing narrative for this matter's day: professional past-tense activity descriptions separated by semicolons, e.g. 'Telephone conference with Dr. Mehta regarding causation opinions; reviewed deposition transcript excerpts in preparation for expert disclosure.' No time amounts, no client name, no editorializing.",
+              "The billing narrative for this matter's day, in the attorney's house style: terse activity fragments, each ending with its time in tenths in parentheses, separated by semicolons. Example: 'Review redlines from appellate counsel to immunity motion (.4); emails with CoCo re same (.2); review fact sheets from Brown Greer re settlement updates (.4)'. Use the exact time given for each activity; write (.__) when no time was given. Never invent a time.",
           },
         },
         required: ["matter_key", "narrative"],
@@ -55,12 +56,19 @@ export async function draftNarratives(
     return { ok: false, error: "Nothing attributed to a matter on this day.", drafts: [] };
   }
 
+  const fmtTenths = (t: number) => (t < 10 ? `.${t}` : (t / 10).toFixed(1));
   const input = billable
     .map((g) => {
       const lines: string[] = [`MATTER ${g.matterId} — ${g.matterName}`];
-      for (const e of g.entries) lines.push(`  entry: ${e.summary ?? e.raw}`);
-      for (const s of g.sessions) lines.push(`  timed work (${s.minutes}m): ${s.taskTitle}`);
-      for (const t of g.doneTasks) lines.push(`  completed: ${t}`);
+      for (const e of g.entries) {
+        const time = e.billedTenths ? ` | time: ${fmtTenths(e.billedTenths)}` : " | time: unknown";
+        lines.push(`  activity: ${e.raw}${time}`);
+      }
+      for (const s of g.sessions) {
+        const tenths = Math.max(1, Math.round(s.minutes / 6));
+        lines.push(`  tracked work: ${s.taskTitle} | timer ran ${s.minutes}m ≈ ${fmtTenths(tenths)}`);
+      }
+      for (const t of g.doneTasks) lines.push(`  completed task: ${t} | time: unknown`);
       return lines.join("\n");
     })
     .join("\n\n");
@@ -74,8 +82,11 @@ export async function draftNarratives(
         effort: "medium",
         format: { type: "json_schema", schema: SCHEMA as unknown as Record<string, unknown> },
       },
-      system:
-        "You draft first-pass billing narratives for a litigation attorney from his day's activity ledger. One narrative per matter. Standard defense-billing style: past tense, specific but concise, activities separated by semicolons, ending with a period. Describe only what the ledger supports — never pad, never invent detail, never include time amounts or client names. If an activity is vague, describe it at the level of detail given.",
+      system: `You draft billing narratives for a litigation attorney from his day's activity ledger, in his exact house style. One narrative per matter: terse verb-first activity fragments, each ending with its time in tenths of an hour in parentheses, separated by semicolons. His own example of the style:
+
+"Review redlines from appellate counsel to immunity motion (.4); review new cases cited in motion (.3); emails with CoCo re same (.2); texts with Boris/Todd re Group A/C updates (.2); review fact sheets and settlement updates from Brown Greer re same (.4)"
+
+Rules: keep his shorthand ("re", people's short names) as captured; clean up typos lightly but do not formalize the voice. Use each activity's given time exactly; for tracked work use the ≈ tenths given; when time is unknown write (.__) for him to fill in. Never invent a time or an activity. If an entry and a completed task clearly describe the same work, merge them into one activity. Describe only what the ledger supports — no padding, no client names, no editorializing.`,
       messages: [
         {
           role: "user",
@@ -95,6 +106,7 @@ export async function draftNarratives(
       matterId: g.matterId,
       matterName: g.matterName ?? "Unknown matter",
       totalMinutes: g.totalMinutes,
+      enteredTenths: g.totalTenths,
       narrative:
         parsed.narratives.find((n) => n.matter_key === g.matterId)?.narrative ??
         "(no draft produced — write manually)",

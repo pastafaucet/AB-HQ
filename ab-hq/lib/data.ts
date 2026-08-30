@@ -68,6 +68,7 @@ export interface Entry {
   projectId?: string;
   taskId?: string; // derived task, if routing created one
   summary?: string; // one-line normalization (billing narrative seed)
+  billedTenths?: number; // billed time in tenths of an hour, parsed from "(.4)"
   routedBy?: "ai" | "manual";
   createdAt: string;
 }

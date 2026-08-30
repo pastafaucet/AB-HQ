@@ -12,6 +12,10 @@ function fmtMin(min: number): string {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
+function fmtTenths(t: number): string {
+  return t < 10 ? `(.${t})` : `(${(t / 10).toFixed(1)})`;
+}
+
 export default function TimeClient({ data }: { data: DayLedgerData }) {
   const router = useRouter();
   const [drafts, setDrafts] = useState<NarrativeDraft[] | null>(null);
@@ -120,6 +124,11 @@ export default function TimeClient({ data }: { data: DayLedgerData }) {
               <div key={d.matterId ?? "none"} className="narrative-card">
                 <div className="narrative-head">
                   <span className="narrative-matter">{d.matterName.toUpperCase()}</span>
+                  {d.enteredTenths > 0 && (
+                    <span className="narrative-time">
+                      {(d.enteredTenths / 10).toFixed(1)}h entered
+                    </span>
+                  )}
                   {d.totalMinutes > 0 && (
                     <span className="narrative-time">{fmtMin(d.totalMinutes)} tracked</span>
                   )}
@@ -154,14 +163,19 @@ export default function TimeClient({ data }: { data: DayLedgerData }) {
             <div className="ledger-group-head">
               <span className="ledger-matter">{g.matterName}</span>
               {g.client && <span className="ledger-client">{g.client.toUpperCase()}</span>}
+              {g.totalTenths > 0 && (
+                <span className="narrative-time">
+                  {(g.totalTenths / 10).toFixed(1)}h entered
+                </span>
+              )}
               {g.totalMinutes > 0 && (
-                <span className="narrative-time">{fmtMin(g.totalMinutes)}</span>
+                <span className="narrative-time">{fmtMin(g.totalMinutes)} tracked</span>
               )}
             </div>
             {g.entries.map((e) => (
               <div key={e.id} className="ledger-line">
                 <span className="ledger-line-kind" style={{ color: "var(--ink-2)" }}>
-                  {e.kind.toUpperCase()}
+                  {e.billedTenths ? fmtTenths(e.billedTenths) : e.kind.toUpperCase()}
                 </span>
                 <span className="ledger-line-text">{e.summary ?? e.raw}</span>
               </div>

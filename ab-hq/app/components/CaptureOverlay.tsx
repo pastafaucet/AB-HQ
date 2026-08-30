@@ -55,6 +55,7 @@ export default function CaptureOverlay() {
 
   function describe(r: CaptureResult): string {
     if (!r.ok) return r.error ?? "Couldn't save.";
+    if (r.label) return r.label;
     const bits: string[] = [];
     if (r.routedTo) bits.push(`filed to ${r.routedTo}`);
     if (r.madeTask) bits.push(`task: “${r.madeTask}”`);
@@ -91,7 +92,8 @@ export default function CaptureOverlay() {
             <div className="capture-modal-head">
               <span className="capture-modal-label">CAPTURE</span>
               <span className="capture-modal-hint">
-                a call, a date, something owed, an idea — Enter to file, Esc to close
+                end with (.2) to log time · paste a whole billing line and it splits · Enter to
+                file
               </span>
             </div>
             <textarea

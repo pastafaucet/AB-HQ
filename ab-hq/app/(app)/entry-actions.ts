@@ -5,7 +5,13 @@ import { getSupabase } from "@/lib/supabase";
 import type { Entry, EntryKind } from "@/lib/data";
 import { routeEntry, hasRoutingKey } from "@/lib/route-entry";
 import { todayISO } from "@/lib/task-map";
-import { ENTRY_COLUMNS, rowToEntry as toEntry, type EntryRowDB } from "@/lib/entry-map";
+import {
+  ENTRY_COLUMNS,
+  ENTRY_COLUMNS_LEGACY,
+  rowToEntry as toEntry,
+  splitBillingLine,
+  type EntryRowDB,
+} from "@/lib/entry-map";
 
 function revalidate() {
   revalidatePath("/hub/inbox");
@@ -20,24 +26,37 @@ export interface CaptureResult {
   // Human-readable routing outcome for the capture toast.
   routedTo?: string | null; // matter/project label, null = unfiled
   madeTask?: string | null; // created task title, if any
+  label?: string; // precomputed outcome line (used for multi-segment captures)
 }
 
-/**
- * The one box. Insert the raw entry immediately (capture never waits on AI),
- * then route it: classify, attach matter/project, extract a task if one is
- * implied. AI-routed entries with a matter file themselves; everything
- * uncertain stays in the Inbox for a one-click correction.
- */
-export async function captureEntry(raw: string): Promise<CaptureResult> {
-  const clean = raw.trim();
-  if (!clean) return { ok: false, error: "Empty entry." };
+interface RoutingContext {
+  matters: { id: string; name: string; client: string | null }[];
+  projects: { id: string; name: string }[];
+}
+
+async function captureOne(
+  text: string,
+  tenths: number | null,
+  ctx: RoutingContext
+): Promise<CaptureResult> {
   const sb = getSupabase();
 
-  const { data: inserted, error: insErr } = await sb
+  const insertRow: Record<string, unknown> = { raw: text };
+  if (tenths) insertRow.billed_tenths = tenths;
+  let { data: inserted, error: insErr } = await sb
     .from("entries")
-    .insert({ raw: clean })
+    .insert(insertRow)
     .select(ENTRY_COLUMNS)
     .single();
+  if (insErr && tenths) {
+    // Pre-0013 — retry without the tenths column, legacy select.
+    delete insertRow.billed_tenths;
+    ({ data: inserted, error: insErr } = await sb
+      .from("entries")
+      .insert(insertRow)
+      .select(ENTRY_COLUMNS_LEGACY)
+      .single());
+  }
   if (insErr || !inserted) {
     const hint = insErr?.message?.includes("entries")
       ? "The entries table doesn't exist yet — run migration 0012 in Supabase."
@@ -46,25 +65,8 @@ export async function captureEntry(raw: string): Promise<CaptureResult> {
   }
   const entry = toEntry(inserted as EntryRowDB);
 
-  // Fetch routing context (open matters + active projects).
-  const [mattersRes, projectsRes] = await Promise.all([
-    sb.from("matters").select("id,name,client,status,disposition"),
-    sb.from("projects").select("id,name,status"),
-  ]);
-  const matters = ((mattersRes.data ?? []) as {
-    id: string;
-    name: string;
-    client: string | null;
-    status: string | null;
-    disposition: string | null;
-  }[]).filter((m) => m.status !== "Closed" && !m.disposition);
-  const projects = ((projectsRes.data ?? []) as { id: string; name: string; status: string }[]).filter(
-    (p) => p.status === "Active"
-  );
-
-  const route = await routeEntry(clean, todayISO(), matters, projects);
+  const route = await routeEntry(text, todayISO(), ctx.matters, ctx.projects);
   if (!route) {
-    revalidate();
     return {
       ok: true,
       entry,
@@ -93,7 +95,6 @@ export async function captureEntry(raw: string): Promise<CaptureResult> {
     if (route.waitingOn) taskRow.waiting_on = route.waitingOn;
     let { data: t, error: tErr } = await sb.from("tasks").insert(taskRow).select("id").single();
     if (tErr && route.waitingOn) {
-      // Pre-0012 tasks table — retry without the new column.
       delete taskRow.waiting_on;
       ({ data: t, error: tErr } = await sb.from("tasks").insert(taskRow).select("id").single());
     }
@@ -121,15 +122,75 @@ export async function captureEntry(raw: string): Promise<CaptureResult> {
     .select(ENTRY_COLUMNS)
     .single();
 
-  revalidate();
   const matterName = route.matterId
-    ? matters.find((m) => m.id === route.matterId)?.name ?? null
+    ? ctx.matters.find((m) => m.id === route.matterId)?.name ?? null
     : null;
   return {
     ok: true,
     entry: updated ? toEntry(updated as EntryRowDB) : entry,
     routedTo: matterName,
     madeTask,
+  };
+}
+
+/**
+ * The one box. Saves the raw text immediately (capture never loses anything),
+ * then routes it. A pasted billing line — "reviewed redlines (.4); emails with
+ * CoCo re same (.2); …" — is split into one entry per activity, each with its
+ * billed tenths, each routed on its own.
+ */
+export async function captureEntry(raw: string): Promise<CaptureResult> {
+  const clean = raw.trim();
+  if (!clean) return { ok: false, error: "Empty entry." };
+  const sb = getSupabase();
+
+  // Fetch routing context once (open matters + active projects).
+  const [mattersRes, projectsRes] = await Promise.all([
+    sb.from("matters").select("id,name,client,status,disposition"),
+    sb.from("projects").select("id,name,status"),
+  ]);
+  const ctx: RoutingContext = {
+    matters: ((mattersRes.data ?? []) as {
+      id: string;
+      name: string;
+      client: string | null;
+      status: string | null;
+      disposition: string | null;
+    }[]).filter((m) => m.status !== "Closed" && !m.disposition),
+    projects: ((projectsRes.data ?? []) as { id: string; name: string; status: string }[]).filter(
+      (p) => p.status === "Active"
+    ),
+  };
+
+  const segments = splitBillingLine(clean);
+  if (segments.length === 1) {
+    const r = await captureOne(segments[0].text, segments[0].tenths, ctx);
+    if (r.ok && segments[0].tenths) {
+      r.label = [
+        `.${segments[0].tenths} logged`,
+        r.routedTo ? `filed to ${r.routedTo}` : "unfiled — in Quick Drop",
+      ].join(" · ");
+    }
+    revalidate();
+    return r;
+  }
+
+  const results = await Promise.all(segments.map((s) => captureOne(s.text, s.tenths, ctx)));
+  revalidate();
+  const okCount = results.filter((r) => r.ok).length;
+  const totalTenths = segments.reduce((a, s) => a + (s.tenths ?? 0), 0);
+  const matterNames = [...new Set(results.map((r) => r.routedTo).filter(Boolean))] as string[];
+  const unfiled = results.filter((r) => r.ok && !r.routedTo).length;
+  const bits = [`${okCount} entries`, `${(totalTenths / 10).toFixed(1)}h logged`];
+  if (matterNames.length) bits.push(`filed to ${matterNames.join(", ")}`);
+  if (unfiled) bits.push(`${unfiled} unfiled`);
+  return {
+    ok: okCount > 0,
+    error: okCount === 0 ? results[0]?.error : undefined,
+    entry: results.find((r) => r.entry)?.entry,
+    routedTo: matterNames[0] ?? null,
+    madeTask: null,
+    label: bits.join(" · "),
   };
 }
 

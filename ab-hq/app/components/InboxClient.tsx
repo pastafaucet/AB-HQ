@@ -171,6 +171,13 @@ export default function InboxClient({
                   <span className="entry-kind" style={{ color: KIND_COLOR[e.kind] }}>
                     {e.kind.toUpperCase()}
                   </span>
+                  {e.billedTenths && (
+                    <span className="entry-kind" style={{ color: "var(--teal)" }}>
+                      {e.billedTenths < 10
+                        ? `(.${e.billedTenths})`
+                        : `(${(e.billedTenths / 10).toFixed(1)})`}
+                    </span>
+                  )}
                   {matterName(e.matterId) && (
                     <span className="meta-scope">{matterName(e.matterId)!.toUpperCase()}</span>
                   )}

@@ -1,7 +1,12 @@
 import "server-only";
 import { getSupabase } from "@/lib/supabase";
 import type { Task, Matter, Project, Entry, RunningTimer } from "@/lib/data";
-import { ENTRY_COLUMNS, rowToEntry, type EntryRowDB } from "@/lib/entry-map";
+import {
+  ENTRY_COLUMNS,
+  ENTRY_COLUMNS_LEGACY,
+  rowToEntry,
+  type EntryRowDB,
+} from "@/lib/entry-map";
 import {
   PROJECT_COLUMNS,
   selectTaskRows,
@@ -597,7 +602,8 @@ export async function getInboxData(): Promise<InboxData> {
   const sb = getSupabase();
   const today = todayISO();
 
-  const [entriesRes, mattersRes, projects] = await Promise.all([
+  // eslint-disable-next-line prefer-const -- entriesRes is reassigned by the legacy retry below
+  let [entriesRes, mattersRes, projects] = await Promise.all([
     sb
       .from("entries")
       .select(ENTRY_COLUMNS)
@@ -606,6 +612,14 @@ export async function getInboxData(): Promise<InboxData> {
     sb.from("matters").select("id,name,status,disposition"),
     fetchProjects(),
   ]);
+  if (entriesRes.error) {
+    // Migration 0013 not applied yet — retry without billed_tenths.
+    entriesRes = (await sb
+      .from("entries")
+      .select(ENTRY_COLUMNS_LEGACY)
+      .order("created_at", { ascending: false })
+      .limit(500)) as typeof entriesRes;
+  }
   if (mattersRes.error) throw mattersRes.error;
 
   const matters: MatterOption[] = (mattersRes.data as {
@@ -839,7 +853,8 @@ export interface LedgerGroup {
   entries: Entry[];
   sessions: { taskTitle: string; minutes: number }[];
   doneTasks: string[];
-  totalMinutes: number;
+  totalMinutes: number; // tracked timer time
+  totalTenths: number; // entered billed time (sum of entry tenths)
 }
 
 export interface DayLedgerData {
@@ -853,7 +868,8 @@ export async function getDayLedgerData(date: string): Promise<DayLedgerData> {
   const sb = getSupabase();
   const { startIso: dayStart, endIso: dayEnd } = dayBounds(date);
 
-  const [entriesRes, mattersRes, sessRes, doneRes] = await Promise.all([
+  // eslint-disable-next-line prefer-const -- entriesRes is reassigned by the legacy retry below
+  let [entriesRes, mattersRes, sessRes, doneRes] = await Promise.all([
     sb
       .from("entries")
       .select(ENTRY_COLUMNS)
@@ -875,6 +891,16 @@ export async function getDayLedgerData(date: string): Promise<DayLedgerData> {
       .lt("completed_at", dayEnd),
   ]);
   if (mattersRes.error) throw mattersRes.error;
+  if (entriesRes.error) {
+    // Migration 0013 not applied yet — retry without billed_tenths.
+    entriesRes = (await sb
+      .from("entries")
+      .select(ENTRY_COLUMNS_LEGACY)
+      .gte("created_at", dayStart)
+      .lt("created_at", dayEnd)
+      .neq("status", "dismissed")
+      .order("created_at", { ascending: true })) as typeof entriesRes;
+  }
   const needsMigration = !!entriesRes.error;
 
   const matters = mattersRes.data as { id: string; name: string; client: string | null }[];
@@ -918,13 +944,18 @@ export async function getDayLedgerData(date: string): Promise<DayLedgerData> {
         sessions: [],
         doneTasks: [],
         totalMinutes: 0,
+        totalTenths: 0,
       };
       groups.set(key, g);
     }
     return g;
   };
 
-  for (const e of entries) groupFor(e.matterId ?? null).entries.push(e);
+  for (const e of entries) {
+    const g = groupFor(e.matterId ?? null);
+    g.entries.push(e);
+    g.totalTenths += e.billedTenths ?? 0;
+  }
   for (const s of sess) {
     const info = taskInfo.get(s.task_id);
     const endMs = s.ended_at ? new Date(s.ended_at).getTime() : Date.now();
