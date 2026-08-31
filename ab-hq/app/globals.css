@@ -2057,7 +2057,9 @@ button.check {
 }
 .cal-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  /* minmax(0, 1fr): columns may shrink below content width, so long task
+     titles ellipsize instead of blowing the calendar past the viewport */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   border-top: 1px solid var(--line);
   border-left: 1px solid var(--line);
 }
@@ -2073,6 +2075,8 @@ button.check {
 }
 .cal-cell {
   min-height: 96px;
+  min-width: 0;
+  overflow: hidden;
   padding: 5px 6px 7px;
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
