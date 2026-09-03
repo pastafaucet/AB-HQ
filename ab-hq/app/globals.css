@@ -4020,3 +4020,36 @@ button.check {
 .capture-modal .qp-cheat {
   margin: 10px 2px 0;
 }
+
+/* ============================================================
+   Wind Down — close the day
+   ============================================================ */
+.wd-done-check {
+  flex: none;
+  margin-top: 1px;
+  cursor: default;
+}
+.wd-pick-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: var(--disabled);
+  margin: 10px 0 2px;
+}
+.wd-ontap {
+  resize: vertical;
+  min-height: 52px;
+  margin-top: 0;
+}
+.wd-draft-btn {
+  margin-top: 0;
+}
+.wd-close {
+  margin-top: 26px;
+}
+.mit-row .ov-chips {
+  align-self: center;
+}
+.mit-row .su-x {
+  align-self: flex-start;
+}

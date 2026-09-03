@@ -1004,6 +1004,114 @@ export async function getDayLedgerData(date: string): Promise<DayLedgerData> {
   return { date, groups: list, needsMigration };
 }
 
+export interface WindDownData {
+  today: string;
+  tomorrow: string;
+  doneToday: Task[];
+  mits: Task[]; // still-protected MITs (the roll/drop decisions)
+  candidates: Task[]; // open, unprotected picks for tomorrow's 3
+  inboxEntries: Entry[]; // Quick Drop items still needing a home
+  capturedToday: number;
+  tenthsToday: number;
+  matters: Matter[];
+  matterOptions: MatterOption[];
+  projects: Project[];
+  onTapForTomorrow: string | null;
+  reflection: string | null;
+  entriesReady: boolean; // false until migration 0012
+}
+
+/** Everything the evening ritual needs: close loops, clear the inbox, set tomorrow. */
+export async function getWindDownData(): Promise<WindDownData> {
+  const sb = getSupabase();
+  const today = todayISO();
+  const { startIso, endIso } = dayBounds(today);
+  const d = new Date(`${today}T12:00:00`);
+  d.setDate(d.getDate() + 1);
+  const tomorrow = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+
+  const [taskRows, doneRows, mattersRes, projects, entriesRes, entryRes] = await Promise.all([
+    selectTaskRows((cols) =>
+      sb
+        .from("tasks")
+        .select(cols)
+        .neq("status", "Cancelled")
+        .neq("status", "Done")
+        .order("created_at", { ascending: true })
+    ),
+    selectTaskRows((cols) =>
+      sb
+        .from("tasks")
+        .select(cols)
+        .eq("status", "Done")
+        .gte("completed_at", startIso)
+        .lt("completed_at", endIso)
+        .order("completed_at", { ascending: true })
+    ),
+    sb.from("matters").select("id,name,client,status,next_deadline,disposition"),
+    fetchProjects(),
+    sb.from("entries").select(ENTRY_COLUMNS).order("created_at", { ascending: false }).limit(300),
+    sb
+      .from("daily_entries")
+      .select("on_tap_for_tomorrow,reflection")
+      .eq("date", today)
+      .maybeSingle(),
+  ]);
+  if (mattersRes.error) throw mattersRes.error;
+
+  const matterRows = mattersRes.data as (MatterRowDB & { disposition: string | null })[];
+  const matters = matterRows.map((r) => rowToMatter(r, today));
+  const matterOptions: MatterOption[] = matterRows
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      closed: m.status === "Closed" || !!m.disposition,
+    }))
+    .sort((a, b) => Number(a.closed) - Number(b.closed) || a.name.localeCompare(b.name));
+
+  const entriesReady = !entriesRes.error;
+  const allEntries = (entriesRes.error ? [] : (entriesRes.data as EntryRowDB[])).map(rowToEntry);
+  const inboxEntries = allEntries.filter((e) => e.status === "inbox");
+  const todaysEntries = allEntries.filter(
+    (e) => e.createdAt >= startIso && e.createdAt < endIso && e.status !== "dismissed"
+  );
+
+  const open = taskRows.map((r) => rowToTask(r, today)).filter((t) => t.status !== "Someday");
+  const mits = open.filter((t) => t.mit);
+  const candidates = open
+    .filter(
+      (t) =>
+        !t.mit &&
+        ((t.doDate && t.doDate <= tomorrow) || (t.priority <= 2 && t.status !== "Inbox"))
+    )
+    .sort((a, b) => {
+      const ad = a.doDate ?? "9999";
+      const bd = b.doDate ?? "9999";
+      if (ad !== bd) return ad < bd ? -1 : 1;
+      return a.priority - b.priority;
+    })
+    .slice(0, 20);
+
+  return {
+    today,
+    tomorrow,
+    doneToday: doneRows.map((r) => rowToTask(r, today)),
+    mits,
+    candidates,
+    inboxEntries,
+    capturedToday: todaysEntries.length,
+    tenthsToday: todaysEntries.reduce((a, e) => a + (e.billedTenths ?? 0), 0),
+    matters,
+    matterOptions,
+    projects,
+    onTapForTomorrow: entryRes.data?.on_tap_for_tomorrow ?? null,
+    reflection: entryRes.data?.reflection ?? null,
+    entriesReady,
+  };
+}
+
 /** All data the My Day (Today) surface needs, for the current calendar day. */
 export async function getMyDayData(): Promise<MyDayData> {
   const sb = getSupabase();

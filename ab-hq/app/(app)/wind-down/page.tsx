@@ -1,13 +1,34 @@
-import Placeholder from "@/app/components/Placeholder";
+import WindDownClient from "@/app/components/WindDownClient";
+import { getWindDownData } from "@/lib/queries";
 
 export const metadata = { title: "Wind Down · AB HQ" };
+export const dynamic = "force-dynamic";
 
-export default function WindDownPage() {
+export default async function WindDownPage() {
+  const data = await getWindDownData();
+  const dateLabel = new Date(`${data.today}T12:00:00`).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
   return (
-    <Placeholder
-      code="PM"
-      title="Wind Down"
-      note="The evening ritual — close loops, clear the inbox, and set up tomorrow's three."
+    <WindDownClient
+      today={data.today}
+      tomorrow={data.tomorrow}
+      dateLabel={dateLabel}
+      doneToday={data.doneToday}
+      mits={data.mits}
+      candidates={data.candidates}
+      inboxEntries={data.inboxEntries}
+      capturedToday={data.capturedToday}
+      tenthsToday={data.tenthsToday}
+      matters={data.matters}
+      matterOptions={data.matterOptions}
+      projects={data.projects}
+      onTapForTomorrow={data.onTapForTomorrow}
+      reflection={data.reflection}
+      entriesReady={data.entriesReady}
     />
   );
 }
