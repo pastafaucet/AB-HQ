@@ -13,6 +13,7 @@ import {
   selectTaskRows,
   todayISO,
   dayBounds,
+  APP_TZ,
   rowToTask,
   rowToMatter,
   rowToProject,
@@ -703,6 +704,116 @@ export interface WeeklyReviewData {
   silent: SilentMatter[];
   quiet: SilentMatter[]; // touched recently but nothing scheduled
   entriesThisWeek: number;
+}
+
+export interface CommandCenterData {
+  today: string;
+  hour: number; // 0–23 in app timezone, for the greeting
+  // attention band
+  dueToday: number;
+  overdue: number;
+  needsHome: number;
+  silent: number;
+  // daily flow state
+  intentionSet: boolean;
+  mitCount: number;
+  mitDone: number;
+  dayClosed: boolean; // reflection or on-tap written
+  habitsDone: number;
+  habitsTotal: number;
+  // hub cards
+  openTasks: number;
+  activeMatters: number;
+  quietMatters: number;
+  activeProjects: number;
+  nextProjectDeadline: string | null;
+  ledgerCount: number; // total entries in the ledger
+  tenthsToday: number;
+  due30: number;
+  waiting: number;
+  noteCount: number;
+  peopleCount: number;
+}
+
+/** Where things stand at a glance — the home surface. */
+export async function getCommandCenterData(): Promise<CommandCenterData> {
+  const sb = getSupabase();
+  const today = todayISO();
+  const { startIso, endIso } = dayBounds(today);
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", { timeZone: APP_TZ, hour: "numeric", hour12: false }).format(
+      new Date()
+    )
+  );
+
+  const [weekly, life, taskRows, entriesCounts, todayEntries, daily, notesRes, peopleRes] =
+    await Promise.all([
+      getWeeklyReviewData(),
+      fetchLifeData(today),
+      selectTaskRows((cols) =>
+        sb.from("tasks").select(cols).neq("status", "Cancelled").neq("status", "Done")
+      ),
+      sb.from("entries").select("id,status", { count: "exact" }).limit(2000),
+      sb
+        .from("entries")
+        .select("billed_tenths")
+        .gte("created_at", startIso)
+        .lt("created_at", endIso)
+        .neq("status", "dismissed"),
+      sb
+        .from("daily_entries")
+        .select("intention,reflection,on_tap_for_tomorrow")
+        .eq("date", today)
+        .maybeSingle(),
+      sb.from("notes").select("id", { count: "exact", head: true }),
+      sb.from("people").select("id", { count: "exact", head: true }),
+    ]);
+
+  const open = taskRows.map((r) => rowToTask(r, today)).filter((t) => t.status !== "Someday");
+  const mits = open.filter((t) => t.mit);
+  // Done MITs left today's list at completion; count Done-with-mit via a cheap check.
+  const { count: mitDoneCount } = await sb
+    .from("tasks")
+    .select("id", { count: "exact", head: true })
+    .eq("mit", true)
+    .eq("status", "Done");
+
+  const entryRows = (entriesCounts.error ? [] : entriesCounts.data) as { status: string }[];
+  const todaysTenths = (todayEntries.error ? [] : (todayEntries.data as { billed_tenths: number | null }[]))
+    .reduce((a, e) => a + (e.billed_tenths ?? 0), 0);
+
+  const projects = await fetchProjects();
+  const activeP = projects.filter((p) => p.status === "Active");
+  const nextDl = activeP
+    .map((p) => p.deadline)
+    .filter((d): d is string => !!d && d >= today)
+    .sort()[0] ?? null;
+
+  return {
+    today,
+    hour,
+    dueToday: open.filter((t) => t.doDate === today).length,
+    overdue: open.filter((t) => t.doDate && t.doDate < today).length,
+    needsHome: entryRows.filter((e) => e.status === "inbox").length,
+    silent: weekly.silent.length,
+    intentionSet: !!daily.data?.intention,
+    mitCount: mits.length + (mitDoneCount ?? 0),
+    mitDone: mitDoneCount ?? 0,
+    dayClosed: !!(daily.data?.reflection || daily.data?.on_tap_for_tomorrow),
+    habitsDone: life.habits.filter((h) => h.checkedToday).length,
+    habitsTotal: life.habits.length,
+    openTasks: open.length,
+    activeMatters: weekly.activeMatters,
+    quietMatters: weekly.quiet.length,
+    activeProjects: activeP.length,
+    nextProjectDeadline: nextDl,
+    ledgerCount: entriesCounts.count ?? entryRows.length,
+    tenthsToday: todaysTenths,
+    due30: weekly.due.length,
+    waiting: weekly.waiting.length,
+    noteCount: notesRes.count ?? 0,
+    peopleCount: peopleRes.count ?? 0,
+  };
 }
 
 const SILENCE_DAYS = 21;

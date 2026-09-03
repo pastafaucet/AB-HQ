@@ -4219,3 +4219,73 @@ button.check {
   margin-top: 0;
   resize: vertical;
 }
+
+/* ============================================================
+   Command Center — attention band, day flow, live hub grid
+   ============================================================ */
+.cc-attention {
+  margin-bottom: 4px;
+}
+.cc-stat {
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cc-stat:hover {
+  border-color: var(--line-raised-2);
+}
+.cc-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 900px) {
+  .cc-flow { grid-template-columns: 1fr; }
+}
+.cc-flow-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+.cc-flow-card:hover {
+  border-color: var(--line-raised-2);
+}
+.cc-flow-card.is-done {
+  border-left: 3px solid var(--green);
+}
+.cc-flow-title {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  color: var(--ink);
+}
+.cc-flow-status {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.cc-flow-card.is-done .cc-flow-status {
+  color: var(--green);
+}
+.cc-hub-card {
+  text-align: left;
+  font-family: inherit;
+}
+.cc-hub-line {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.cc-hub-line.is-hot {
+  color: var(--orange);
+}
