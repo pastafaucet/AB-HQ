@@ -1144,6 +1144,7 @@ export interface WindDownData {
   reflection: string | null;
   entriesReady: boolean; // false until migration 0012
   life: LifeData;
+  running: RunningTimer | null;
 }
 
 /** Everything the evening ritual needs: close loops, clear the inbox, set tomorrow. */
@@ -1157,7 +1158,8 @@ export async function getWindDownData(): Promise<WindDownData> {
     d.getDate()
   ).padStart(2, "0")}`;
 
-  const [taskRows, doneRows, mattersRes, projects, entriesRes, entryRes, life] = await Promise.all([
+  const [taskRows, doneRows, mattersRes, projects, entriesRes, entryRes, life, runRes] =
+    await Promise.all([
     selectTaskRows((cols) =>
       sb
         .from("tasks")
@@ -1184,6 +1186,13 @@ export async function getWindDownData(): Promise<WindDownData> {
       .eq("date", today)
       .maybeSingle(),
     fetchLifeData(today),
+    sb
+      .from("time_sessions")
+      .select("id,task_id,started_at")
+      .is("ended_at", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
   if (mattersRes.error) throw mattersRes.error;
 
@@ -1206,11 +1215,15 @@ export async function getWindDownData(): Promise<WindDownData> {
 
   const open = taskRows.map((r) => rowToTask(r, today)).filter((t) => t.status !== "Someday");
   const mits = open.filter((t) => t.mit);
+  // Candidates for tomorrow's 3: overdue, today's leftovers, and tomorrow's
+  // items — plus UNDATED high-priority work. Never dated-future tasks.
   const candidates = open
     .filter(
       (t) =>
         !t.mit &&
-        ((t.doDate && t.doDate <= tomorrow) || (t.priority <= 2 && t.status !== "Inbox"))
+        (t.doDate
+          ? t.doDate <= tomorrow
+          : t.priority <= 2 && t.status !== "Inbox")
     )
     .sort((a, b) => {
       const ad = a.doDate ?? "9999";
@@ -1236,6 +1249,13 @@ export async function getWindDownData(): Promise<WindDownData> {
     reflection: entryRes.data?.reflection ?? null,
     entriesReady,
     life,
+    running: runRes.data
+      ? {
+          sessionId: runRes.data.id as string,
+          taskId: runRes.data.task_id as string,
+          startedAt: runRes.data.started_at as string,
+        }
+      : null,
   };
 }
 

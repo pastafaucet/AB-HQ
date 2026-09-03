@@ -30,6 +30,7 @@ export default async function WindDownPage() {
       reflection={data.reflection}
       entriesReady={data.entriesReady}
       life={data.life}
+      initialRunning={data.running}
     />
   );
 }

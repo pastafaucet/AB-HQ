@@ -1,14 +1,38 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Task, Entry, EntryKind, Matter, Project } from "@/lib/data";
+import type {
+  Task,
+  Entry,
+  EntryKind,
+  Matter,
+  Project,
+  RunningTimer,
+  TimeSession,
+  ActivityItem,
+} from "@/lib/data";
 import type { MatterOption, LifeData } from "@/lib/queries";
 import { HabitChecklist, BodyForm } from "./LifeBits";
 import { saveJournal, logMedia, deleteMedia, type MediaItem } from "@/app/(app)/life-actions";
 import { PRIORITY_META, DOMAIN_DOT } from "@/lib/data";
-import { applyPatch } from "@/lib/task-patch";
-import { updateTask, type TaskPatch } from "@/app/(app)/task-actions";
+import { applyPatch, fullPatch } from "@/lib/task-patch";
+import {
+  updateTask,
+  deleteTask,
+  setTaskDone,
+  listActivity,
+  type TaskPatch,
+} from "@/app/(app)/task-actions";
+import {
+  startTimer,
+  stopTimer,
+  listSessions,
+  addSession,
+  updateSession,
+  deleteSession,
+} from "@/app/(app)/time-actions";
+import TaskDrawer from "./TaskDrawer";
 import { updateEntry, entryToTask, deleteEntry, type EntryPatch } from "@/app/(app)/entry-actions";
 import { saveWindDown } from "@/app/(app)/daily-actions";
 import { draftNarratives, type NarrativeDraft } from "@/app/(app)/billing-actions";
@@ -38,6 +62,7 @@ export default function WindDownClient({
   reflection: initialReflection,
   entriesReady,
   life,
+  initialRunning,
 }: {
   today: string;
   tomorrow: string;
@@ -55,9 +80,14 @@ export default function WindDownClient({
   reflection: string | null;
   entriesReady: boolean;
   life: LifeData;
+  initialRunning: RunningTimer | null;
 }) {
   const router = useRouter();
-  const [tasks, setTasks] = useState<Task[]>([...initialMits, ...initialCandidates]);
+  const [tasks, setTasks] = useState<Task[]>([
+    ...doneToday,
+    ...initialMits,
+    ...initialCandidates,
+  ]);
   const [entries, setEntries] = useState<Entry[]>(initialInbox);
   const [onTap, setOnTap] = useState(onTapForTomorrow ?? "");
   const [reflection, setReflection] = useState(initialReflection ?? "");
@@ -87,11 +117,192 @@ export default function WindDownClient({
     });
   }
 
-  const mits = tasks.filter((t) => t.mit);
+  // --- drawer state (same mechanics as Start Up / My Day) ---
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+  const openIdRef = useRef(openId);
+  openIdRef.current = openId;
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [running, setRunning] = useState<RunningTimer | null>(initialRunning);
+  const [nowTs, setNowTs] = useState<number>(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    setNowTs(Date.now());
+    const t = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [running]);
+  function elapsedLabel(startedAtIso: string): string {
+    const s = Math.max(0, Math.floor((nowTs - new Date(startedAtIso).getTime()) / 1000));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    return h > 0
+      ? `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
+      : `${m}:${String(ss).padStart(2, "0")}`;
+  }
+  function toggleTimer(taskId: string) {
+    if (running?.taskId === taskId) {
+      setRunning(null);
+      startTransition(async () => {
+        const r = await stopTimer();
+        if (!r.ok) flash(r.error ?? "Couldn't stop.");
+        if (openIdRef.current === taskId) refreshSessions(taskId);
+      });
+    } else {
+      setRunning({ taskId, sessionId: "pending", startedAt: new Date().toISOString() });
+      setNowTs(Date.now());
+      startTransition(async () => {
+        const r = await startTimer(taskId);
+        if (r.ok && r.session) {
+          setRunning({ taskId, sessionId: r.session.id, startedAt: r.session.startedAt });
+          if (openIdRef.current === taskId) refreshSessions(taskId);
+        } else {
+          setRunning(null);
+          flash(r.error ?? "Couldn't start.");
+        }
+      });
+    }
+  }
+
+  const [sessions, setSessions] = useState<TimeSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  async function refreshSessions(taskId: string) {
+    setSessionsLoading(true);
+    const r = await listSessions(taskId);
+    setSessionsLoading(false);
+    if (r.ok) setSessions(r.sessions);
+  }
+  async function refreshActivity(taskId: string) {
+    setActivityLoading(true);
+    const r = await listActivity(taskId);
+    setActivityLoading(false);
+    if (r.ok) setActivity(r.activity);
+  }
+  useEffect(() => {
+    if (openId) {
+      refreshSessions(openId);
+      refreshActivity(openId);
+    } else {
+      setSessions([]);
+      setActivity([]);
+    }
+  }, [openId]);
+
+  const openTask = tasks.find((t) => t.id === openId) ?? null;
+
+  function openExisting(id: string) {
+    setOpenId(id);
+    setSaved(false);
+    setSaving(false);
+  }
+
+  function scheduleUpdate(id: string) {
+    setSaving(true);
+    setSaved(false);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      const t = tasksRef.current.find((x) => x.id === id);
+      if (!t) return;
+      startTransition(async () => {
+        const r = await updateTask(id, fullPatch(t));
+        setSaving(false);
+        if (r.ok) {
+          setSaved(true);
+          setTimeout(() => setSaved(false), 1500);
+          if (openIdRef.current === id) refreshActivity(id);
+        } else flash(r.error ?? "Couldn't save.");
+      });
+    }, 450);
+  }
+
+  function onField(patch: TaskPatch) {
+    if (!openId) return;
+    if (patch.mit === true && openTask && !openTask.mit && mits.length >= 3) {
+      flash("3 protected already — clear one first.");
+      return;
+    }
+    setTasks((prev) => prev.map((x) => (x.id === openId ? applyPatch(x, patch, today) : x)));
+    scheduleUpdate(openId);
+  }
+
+  function closeDrawer() {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (openId) {
+      const t = tasksRef.current.find((x) => x.id === openId);
+      if (t) startTransition(async () => void (await updateTask(openId, fullPatch(t))));
+    }
+    setOpenId(null);
+    setSaved(false);
+  }
+
+  function onDeleteTask() {
+    if (!openId) return;
+    const id = openId;
+    setOpenId(null);
+    setTasks((prev) => prev.filter((x) => x.id !== id));
+    startTransition(async () => {
+      const r = await deleteTask(id);
+      if (!r.ok) flash(r.error ?? "Couldn't delete.");
+    });
+  }
+
+  function onMarkComplete() {
+    if (!openTask) return;
+    const t = openTask;
+    const done = t.status !== "Done";
+    setTasks((prev) =>
+      prev.map((x) => (x.id === t.id ? { ...x, status: done ? "Done" : "To Do" } : x))
+    );
+    startTransition(async () => {
+      const r = await setTaskDone(t.id, done);
+      if (!r.ok) flash(r.error ?? "Couldn't save.");
+      else if (openIdRef.current === t.id) refreshActivity(t.id);
+    });
+  }
+
+  function onAddEntry() {
+    const id = openIdRef.current;
+    if (!id) return;
+    const end = new Date();
+    const start = new Date(end.getTime() - 30 * 60000);
+    startTransition(async () => {
+      const r = await addSession(id, start.toISOString(), end.toISOString());
+      if (r.ok) refreshSessions(id);
+      else flash(r.error ?? "Couldn't add entry.");
+    });
+  }
+  function onSessionPatch(
+    id: string,
+    patch: { startedAt?: string; endedAt?: string | null; note?: string | null }
+  ) {
+    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+    startTransition(async () => {
+      const r = await updateSession(id, patch);
+      if (!r.ok) flash(r.error ?? "Couldn't save.");
+    });
+  }
+  function onSessionDelete(id: string) {
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    startTransition(async () => {
+      const r = await deleteSession(id);
+      if (!r.ok) flash(r.error ?? "Couldn't delete.");
+    });
+  }
+
+  const doneList = tasks.filter((t) => t.status === "Done");
+  const openTasks = tasks.filter((t) => t.status !== "Done");
+  const mits = openTasks.filter((t) => t.mit);
   const unresolved = mits.filter((t) => !t.doDate || t.doDate <= today);
   const rolled = mits.filter((t) => t.doDate === tomorrow);
-  const candidates = tasks.filter(
-    (t) => !t.mit && ((t.doDate && t.doDate <= tomorrow) || t.priority <= 2)
+  // Only tomorrow-or-sooner (or undated high-priority) — never dated-future work.
+  const candidates = openTasks.filter(
+    (t) => !t.mit && (t.doDate ? t.doDate <= tomorrow : t.priority <= 2)
   );
 
   function roll(t: Task) {
@@ -213,9 +424,19 @@ export default function WindDownClient({
   const matterName = (id?: string) => (id ? matters.find((m) => m.id === id)?.name : undefined);
   const projectName = (id?: string) => (id ? projects.find((p) => p.id === id)?.name : undefined);
 
+  function dateChip(iso: string): string {
+    if (iso === today) return "TODAY";
+    if (iso === tomorrow) return "TMRW";
+    const MO = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+    const [, m, d] = iso.split("-").map(Number);
+    return `${MO[m - 1]} ${d}`;
+  }
+
   function Meta({ t }: { t: Task }) {
     const pm = PRIORITY_META[t.priority];
     const scope = (matterName(t.matterId) ?? t.domain).toUpperCase();
+    const kindCls =
+      t.type === "Event" ? "kind-event" : t.type === "Deadline" ? "kind-deadline" : "kind-task";
     return (
       <div className="meta">
         <span className={`pri ${pm.cls}`}>{pm.label}</span>
@@ -224,8 +445,15 @@ export default function WindDownClient({
         {projectName(t.projectId) && (
           <span className="meta-project">{projectName(t.projectId)!.toUpperCase()}</span>
         )}
-        {t.dueTag && <span className="time-tag">{t.dueTag}</span>}
-        {t.doDate && t.doDate < today && <span className="overdue-tag">OVERDUE</span>}
+        <span className={kindCls}>{t.type.toUpperCase()}</span>
+        {t.doDate && (
+          <span className={t.doDate < today ? "overdue-tag" : "time-tag"}>
+            {dateChip(t.doDate)}
+            {t.doDate < today ? " · OVERDUE" : ""}
+          </span>
+        )}
+        {t.doTime && <span className="time-tag">{t.dueTag}</span>}
+        {t.recur && <span className="kind-event" title="Repeats">↻</span>}
       </div>
     );
   }
@@ -239,7 +467,7 @@ export default function WindDownClient({
             <h1 className="display-h1">Close the day.</h1>
           </div>
           <div className="day-head-summary">
-            {doneToday.length} DONE · {capturedToday} CAPTURED
+            {doneList.length} DONE · {capturedToday} CAPTURED
             {tenthsToday > 0 ? (
               <>
                 <br />
@@ -249,17 +477,17 @@ export default function WindDownClient({
           </div>
         </div>
 
-        <div className="section-label tight">DONE TODAY · {doneToday.length}</div>
-        {doneToday.map((t) => (
+        <div className="section-label tight">DONE TODAY · {doneList.length}</div>
+        {doneList.map((t) => (
           <div key={t.id} className="task-row">
             <span className="check is-done wd-done-check">✓</span>
-            <div className="task-body">
+            <div className="task-body clickable" onClick={() => openExisting(t.id)}>
               <div className="task-title is-done">{t.title}</div>
               <Meta t={t} />
             </div>
           </div>
         ))}
-        {doneToday.length === 0 && (
+        {doneList.length === 0 && (
           <div className="empty-note">Nothing checked off today — it happens.</div>
         )}
 
@@ -268,7 +496,7 @@ export default function WindDownClient({
         </div>
         {unresolved.map((t) => (
           <div key={t.id} className="mit-row" style={{ borderLeftColor: PRI_COLOR[t.priority] }}>
-            <div className="mit-body">
+            <div className="mit-body clickable" onClick={() => openExisting(t.id)}>
               <div className="mit-title">{t.title}</div>
               <Meta t={t} />
             </div>
@@ -371,7 +599,7 @@ export default function WindDownClient({
         {mits.map((t) => (
           <div key={t.id} className="mit-row" style={{ borderLeftColor: PRI_COLOR[t.priority] }}>
             <div className="mit-num">{mits.indexOf(t) + 1}</div>
-            <div className="mit-body">
+            <div className="mit-body clickable" onClick={() => openExisting(t.id)}>
               <div className="mit-title">{t.title}</div>
               <Meta t={t} />
             </div>
@@ -398,7 +626,7 @@ export default function WindDownClient({
                 >
                   +
                 </button>
-                <div className="task-body">
+                <div className="task-body clickable" onClick={() => openExisting(t.id)}>
                   <div className="task-title">{t.title}</div>
                   <Meta t={t} />
                 </div>
@@ -555,6 +783,32 @@ export default function WindDownClient({
           )}
         </button>
       </section>
+
+      {openTask && (
+        <TaskDrawer
+          task={openTask}
+          matters={matters}
+          projects={projects}
+          mitCount={mits.length}
+          saving={saving}
+          saved={saved}
+          isNew={false}
+          onField={onField}
+          onDelete={onDeleteTask}
+          onClose={closeDrawer}
+          sessions={sessions}
+          sessionsLoading={sessionsLoading}
+          isRunning={running?.taskId === openTask.id}
+          liveElapsed={running?.taskId === openTask.id ? elapsedLabel(running.startedAt) : null}
+          onStartStop={() => toggleTimer(openTask.id)}
+          onAddEntry={onAddEntry}
+          onSessionPatch={onSessionPatch}
+          onSessionDelete={onSessionDelete}
+          onMarkComplete={onMarkComplete}
+          activity={activity}
+          activityLoading={activityLoading}
+        />
+      )}
 
       {error && <div className="toast">{error}</div>}
     </>
