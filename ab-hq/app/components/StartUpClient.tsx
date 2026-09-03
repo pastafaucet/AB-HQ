@@ -29,6 +29,8 @@ import {
 } from "@/app/(app)/time-actions";
 import { saveIntention } from "@/app/(app)/daily-actions";
 import TaskDrawer from "./TaskDrawer";
+import { HabitChecklist, BodyForm } from "./LifeBits";
+import type { LifeData } from "@/lib/queries";
 
 const PRI_COLOR: Record<number, string> = { 1: "#e0665a", 2: "#5fbf8f", 3: "#d8a657", 4: "#6f7787" };
 
@@ -66,6 +68,7 @@ export default function StartUpClient({
   initialIntention,
   onTapFromYesterday,
   initialRunning,
+  life,
 }: {
   initialTasks: Task[];
   matters: Matter[];
@@ -75,6 +78,7 @@ export default function StartUpClient({
   initialIntention: string | null;
   onTapFromYesterday: string | null;
   initialRunning: RunningTimer | null;
+  life: LifeData;
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
@@ -590,6 +594,19 @@ export default function StartUpClient({
           ))}
           {schedule.length === 0 && <div className="empty-note">No timed events yet.</div>}
         </div>
+
+        {life.lifeReady && (
+          <>
+            <div className="rail-block">
+              <div className="rail-label">MORNING ROUTINE</div>
+              <HabitChecklist habits={life.habits} today={today} onError={flash} />
+            </div>
+            <div className="rail-block">
+              <div className="rail-label">BODY — THIS MORNING</div>
+              <BodyForm body={life.body} today={today} mode="morning" onError={flash} />
+            </div>
+          </>
+        )}
 
         <div className="rail-block">
           <div className="rail-label">AT A GLANCE</div>

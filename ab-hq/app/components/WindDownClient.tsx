@@ -3,7 +3,9 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Task, Entry, EntryKind, Matter, Project } from "@/lib/data";
-import type { MatterOption } from "@/lib/queries";
+import type { MatterOption, LifeData } from "@/lib/queries";
+import { HabitChecklist, BodyForm } from "./LifeBits";
+import { saveJournal, logMedia, deleteMedia, type MediaItem } from "@/app/(app)/life-actions";
 import { PRIORITY_META, DOMAIN_DOT } from "@/lib/data";
 import { applyPatch } from "@/lib/task-patch";
 import { updateTask, type TaskPatch } from "@/app/(app)/task-actions";
@@ -35,6 +37,7 @@ export default function WindDownClient({
   onTapForTomorrow,
   reflection: initialReflection,
   entriesReady,
+  life,
 }: {
   today: string;
   tomorrow: string;
@@ -51,12 +54,18 @@ export default function WindDownClient({
   onTapForTomorrow: string | null;
   reflection: string | null;
   entriesReady: boolean;
+  life: LifeData;
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([...initialMits, ...initialCandidates]);
   const [entries, setEntries] = useState<Entry[]>(initialInbox);
   const [onTap, setOnTap] = useState(onTapForTomorrow ?? "");
   const [reflection, setReflection] = useState(initialReflection ?? "");
+  const [journal, setJournal] = useState(life.journal ?? "");
+  const [media, setMedia] = useState(life.mediaToday);
+  const [mediaKind, setMediaKind] = useState<MediaItem["kind"]>("show");
+  const [mediaTitle, setMediaTitle] = useState("");
+  const [mediaNote, setMediaNote] = useState("");
   const [drafts, setDrafts] = useState<NarrativeDraft[] | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -132,6 +141,35 @@ export default function WindDownClient({
     startTransition(async () => {
       const r = await deleteEntry(id);
       if (!r.ok) flash(r.error ?? "Couldn't delete.");
+    });
+  }
+
+  function submitMedia() {
+    const title = mediaTitle.trim();
+    if (!title) return;
+    const note = mediaNote.trim() || null;
+    const kind = mediaKind;
+    setMediaTitle("");
+    setMediaNote("");
+    startTransition(async () => {
+      const r = await logMedia(today, kind, title, note);
+      if (r.ok && r.item) setMedia((prev) => [...prev, { ...r.item!, note: r.item!.note }]);
+      else flash(r.error ?? "Couldn't log.");
+    });
+  }
+
+  function removeMedia(id: string) {
+    setMedia((prev) => prev.filter((m) => m.id !== id));
+    startTransition(async () => {
+      const r = await deleteMedia(id);
+      if (!r.ok) flash(r.error ?? "Couldn't delete.");
+    });
+  }
+
+  function persistJournal(text: string) {
+    startTransition(async () => {
+      const r = await saveJournal(today, text.trim() || null);
+      if (!r.ok) flash(r.error ?? "Couldn't save journal.");
     });
   }
 
@@ -383,6 +421,92 @@ export default function WindDownClient({
           value={reflection}
           onChange={(e) => setReflection(e.target.value)}
         />
+
+        {life.lifeReady ? (
+          <>
+            <div className="section-label">JOURNAL — TOP THINGS OF THE DAY</div>
+            {life.journalLastYear && (
+              <div className="ontap wd-yearago">
+                <div className="ontap-label">A YEAR AGO TODAY</div>
+                <div className="ontap-body">{life.journalLastYear}</div>
+              </div>
+            )}
+            <textarea
+              className="intent-input wd-journal"
+              placeholder="Open space. What mattered, what happened, what you want to remember…"
+              rows={4}
+              value={journal}
+              onChange={(e) => setJournal(e.target.value)}
+              onBlur={(e) => persistJournal(e.target.value)}
+            />
+
+            <div className="section-label">TONIGHT · {media.length}</div>
+            <div className="media-add">
+              <select
+                className="entry-select"
+                value={mediaKind}
+                onChange={(e) => setMediaKind(e.target.value as MediaItem["kind"])}
+              >
+                <option value="show">show</option>
+                <option value="movie">movie</option>
+                <option value="game">game</option>
+                <option value="book">book</option>
+              </select>
+              <input
+                className="intent-input media-title"
+                placeholder="What you watched / played / read…"
+                value={mediaTitle}
+                onChange={(e) => setMediaTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitMedia();
+                }}
+              />
+              <input
+                className="intent-input media-note"
+                placeholder="with / note…"
+                value={mediaNote}
+                onChange={(e) => setMediaNote(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitMedia();
+                }}
+              />
+              <button type="button" className="ov-chip" onClick={submitMedia}>
+                LOG
+              </button>
+            </div>
+            {media.map((m) => (
+              <div key={m.id} className="media-row">
+                <span className="media-kind">{m.kind.toUpperCase()}</span>
+                <span className="media-title-text">{m.title}</span>
+                {m.note && <span className="media-note-text">{m.note}</span>}
+                <button
+                  type="button"
+                  className="su-x"
+                  title="Remove"
+                  onClick={() => removeMedia(m.id)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+
+            <div className="section-label">HABITS</div>
+            <HabitChecklist habits={life.habits} today={today} onError={flash} />
+
+            <div className="section-label">BODY</div>
+            <BodyForm body={life.body} today={today} mode="evening" onError={flash} />
+          </>
+        ) : (
+          <div className="ontap">
+            <div className="ontap-label" style={{ color: "var(--orange)" }}>
+              ONE-TIME SETUP NEEDED
+            </div>
+            <div className="ontap-body">
+              Journal, habits, media log, and body metrics activate once you run{" "}
+              <code>supabase/migrations/0015_life.sql</code> in Supabase.
+            </div>
+          </div>
+        )}
 
         <div className="section-label">BILLING · {fmtTenthsTotal(tenthsToday)} ENTERED TODAY</div>
         {!drafts && (

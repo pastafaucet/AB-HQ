@@ -5,7 +5,7 @@ export const metadata = { title: "Start of Day · AB HQ" };
 export const dynamic = "force-dynamic";
 
 export default async function StartUpPage() {
-  const { tasks, matters, projects, today, intention, onTapFromYesterday, running } =
+  const { tasks, matters, projects, today, intention, onTapFromYesterday, running, life } =
     await getStartUpData();
   const dateLabel = new Date(`${today}T12:00:00`).toLocaleDateString("en-US", {
     weekday: "short",
@@ -23,6 +23,7 @@ export default async function StartUpPage() {
       initialIntention={intention}
       onTapFromYesterday={onTapFromYesterday}
       initialRunning={running}
+      life={life}
     />
   );
 }

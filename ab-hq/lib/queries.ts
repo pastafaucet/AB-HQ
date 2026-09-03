@@ -523,6 +523,7 @@ export interface StartUpData {
   intention: string | null; // today's, if already set
   onTapFromYesterday: string | null; // seeded by last Wind Down
   running: RunningTimer | null;
+  life: LifeData; // morning habits + body quick-entry
 }
 
 /** All data the Start of Day surface needs: open tasks + ritual state. */
@@ -559,7 +560,7 @@ export async function getStartUpData(): Promise<StartUpData> {
     if (next >= today) await sb.from("tasks").update({ do_date: next }).eq("id", r.id);
   }
 
-  const [taskRows, mattersRes, entriesRes, projects, runRes] = await Promise.all([
+  const [taskRows, mattersRes, entriesRes, projects, runRes, life] = await Promise.all([
     selectTaskRows((cols) =>
       sb
         .from("tasks")
@@ -581,6 +582,7 @@ export async function getStartUpData(): Promise<StartUpData> {
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    fetchLifeData(today),
   ]);
   if (mattersRes.error) throw mattersRes.error;
 
@@ -606,6 +608,7 @@ export async function getStartUpData(): Promise<StartUpData> {
           startedAt: runRes.data.started_at as string,
         }
       : null,
+    life,
   };
 }
 
@@ -1004,6 +1007,127 @@ export async function getDayLedgerData(date: string): Promise<DayLedgerData> {
   return { date, groups: list, needsMigration };
 }
 
+export interface HabitRow {
+  id: string;
+  name: string;
+  checkedToday: boolean;
+  streak: number; // consecutive days incl. today (or ending yesterday if unchecked)
+}
+
+export interface BodyRow {
+  weightLbs: number | null;
+  sleepHours: number | null;
+  calories: number | null;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
+  workout: string | null;
+}
+
+export interface MediaRow {
+  id: string;
+  kind: "show" | "movie" | "game" | "book";
+  title: string;
+  note: string | null;
+}
+
+export interface LifeData {
+  lifeReady: boolean; // false until migration 0015
+  habits: HabitRow[];
+  body: BodyRow | null;
+  journal: string | null;
+  journalLastYear: string | null;
+  mediaToday: MediaRow[];
+}
+
+/** Journal / habits / media / body for one day — shared by both rituals. */
+async function fetchLifeData(today: string): Promise<LifeData> {
+  const sb = getSupabase();
+  const d = new Date(`${today}T12:00:00`);
+  d.setFullYear(d.getFullYear() - 1);
+  const yearAgo = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+  const s = new Date(`${today}T12:00:00`);
+  s.setDate(s.getDate() - 90);
+  const since = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(
+    s.getDate()
+  ).padStart(2, "0")}`;
+
+  const [habitsRes, checksRes, bodyRes, mediaRes, jToday, jYear] = await Promise.all([
+    sb.from("habits").select("id,name,sort").eq("active", true).order("sort").order("created_at"),
+    sb.from("habit_checks").select("habit_id,date").gte("date", since),
+    sb
+      .from("body_metrics")
+      .select("weight_lbs,sleep_hours,calories,protein_g,carbs_g,fat_g,workout")
+      .eq("date", today)
+      .maybeSingle(),
+    sb.from("media_log").select("id,kind,title,note").eq("date", today).order("created_at"),
+    sb.from("daily_entries").select("journal").eq("date", today).maybeSingle(),
+    sb.from("daily_entries").select("journal").eq("date", yearAgo).maybeSingle(),
+  ]);
+
+  const lifeReady = !habitsRes.error && !mediaRes.error && !bodyRes.error && !jToday.error;
+  if (!lifeReady) {
+    return { lifeReady, habits: [], body: null, journal: null, journalLastYear: null, mediaToday: [] };
+  }
+
+  const checksByHabit = new Map<string, Set<string>>();
+  for (const c of (checksRes.data ?? []) as { habit_id: string; date: string }[]) {
+    if (!checksByHabit.has(c.habit_id)) checksByHabit.set(c.habit_id, new Set());
+    checksByHabit.get(c.habit_id)!.add(c.date);
+  }
+  const shiftDay = (iso: string, n: number) => {
+    const x = new Date(`${iso}T12:00:00`);
+    x.setDate(x.getDate() + n);
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(
+      x.getDate()
+    ).padStart(2, "0")}`;
+  };
+  const habits: HabitRow[] = ((habitsRes.data ?? []) as { id: string; name: string }[]).map(
+    (h) => {
+      const dates = checksByHabit.get(h.id) ?? new Set();
+      const checkedToday = dates.has(today);
+      let streak = 0;
+      let cursor = checkedToday ? today : shiftDay(today, -1);
+      while (dates.has(cursor)) {
+        streak += 1;
+        cursor = shiftDay(cursor, -1);
+      }
+      return { id: h.id, name: h.name, checkedToday, streak };
+    }
+  );
+
+  const b = bodyRes.data as {
+    weight_lbs: number | null;
+    sleep_hours: number | null;
+    calories: number | null;
+    protein_g: number | null;
+    carbs_g: number | null;
+    fat_g: number | null;
+    workout: string | null;
+  } | null;
+
+  return {
+    lifeReady,
+    habits,
+    body: b
+      ? {
+          weightLbs: b.weight_lbs,
+          sleepHours: b.sleep_hours,
+          calories: b.calories,
+          proteinG: b.protein_g,
+          carbsG: b.carbs_g,
+          fatG: b.fat_g,
+          workout: b.workout,
+        }
+      : null,
+    journal: (jToday.data as { journal: string | null } | null)?.journal ?? null,
+    journalLastYear: (jYear.data as { journal: string | null } | null)?.journal ?? null,
+    mediaToday: (mediaRes.data ?? []) as MediaRow[],
+  };
+}
+
 export interface WindDownData {
   today: string;
   tomorrow: string;
@@ -1019,6 +1143,7 @@ export interface WindDownData {
   onTapForTomorrow: string | null;
   reflection: string | null;
   entriesReady: boolean; // false until migration 0012
+  life: LifeData;
 }
 
 /** Everything the evening ritual needs: close loops, clear the inbox, set tomorrow. */
@@ -1032,7 +1157,7 @@ export async function getWindDownData(): Promise<WindDownData> {
     d.getDate()
   ).padStart(2, "0")}`;
 
-  const [taskRows, doneRows, mattersRes, projects, entriesRes, entryRes] = await Promise.all([
+  const [taskRows, doneRows, mattersRes, projects, entriesRes, entryRes, life] = await Promise.all([
     selectTaskRows((cols) =>
       sb
         .from("tasks")
@@ -1058,6 +1183,7 @@ export async function getWindDownData(): Promise<WindDownData> {
       .select("on_tap_for_tomorrow,reflection")
       .eq("date", today)
       .maybeSingle(),
+    fetchLifeData(today),
   ]);
   if (mattersRes.error) throw mattersRes.error;
 
@@ -1109,6 +1235,7 @@ export async function getWindDownData(): Promise<WindDownData> {
     onTapForTomorrow: entryRes.data?.on_tap_for_tomorrow ?? null,
     reflection: entryRes.data?.reflection ?? null,
     entriesReady,
+    life,
   };
 }
 

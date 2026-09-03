@@ -29,6 +29,7 @@ export default async function WindDownPage() {
       onTapForTomorrow={data.onTapForTomorrow}
       reflection={data.reflection}
       entriesReady={data.entriesReady}
+      life={data.life}
     />
   );
 }

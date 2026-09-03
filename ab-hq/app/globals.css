@@ -4053,3 +4053,169 @@ button.check {
 .mit-row .su-x {
   align-self: flex-start;
 }
+
+/* ============================================================
+   Life tracking — journal, habits, media log, body metrics
+   ============================================================ */
+.wd-yearago {
+  margin-bottom: 10px;
+  border-left: 3px solid var(--violet);
+}
+.wd-journal {
+  min-height: 88px;
+  resize: vertical;
+  margin-top: 0;
+}
+
+.media-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.media-add .intent-input {
+  margin-top: 0;
+}
+.media-add .media-title {
+  flex: 2;
+}
+.media-add .media-note {
+  flex: 1;
+}
+.media-row {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--line-row);
+}
+.media-kind {
+  flex: none;
+  width: 48px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--cyan);
+}
+.media-title-text {
+  color: var(--ink-body);
+  font-size: 13.5px;
+}
+.media-note-text {
+  flex: 1;
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.habit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.habit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 2px;
+}
+.habit-check {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+.habit-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink-body);
+}
+.habit-name.is-done {
+  color: var(--faint);
+}
+.habit-streak {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--teal);
+}
+.habit-x {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--disabled);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.habit-x:hover {
+  color: var(--orange);
+}
+.habit-add {
+  margin-top: 4px;
+  background: none;
+  border: none;
+  border-bottom: 1px dashed var(--line-field);
+  padding: 4px 2px;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  outline: none;
+}
+.habit-add::placeholder {
+  color: var(--disabled);
+  font-style: italic;
+}
+
+.body-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.body-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.body-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--inset);
+  border: 1px solid var(--line-field);
+  border-radius: 8px;
+  padding: 6px 9px;
+}
+.body-label {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  color: var(--faint);
+  flex: none;
+}
+.body-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  text-align: right;
+}
+.body-input::-webkit-outer-spin-button,
+.body-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.body-unit {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--disabled);
+}
+.body-workout {
+  margin-top: 0;
+  resize: vertical;
+}
