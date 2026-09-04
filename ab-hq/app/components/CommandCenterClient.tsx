@@ -53,29 +53,35 @@ export default function CommandCenterClient({
     },
   ];
 
-  const hubs: { title: string; line: string; href: string; hot?: boolean }[] = [
+  const hubs: { title: string; line: string; sub?: string; href: string; hot?: boolean }[] = [
     {
       title: "Tasks",
       line: `${data.openTasks} open${data.overdue ? ` · ${data.overdue} overdue` : ""}`,
+      sub: data.upNext[0] ? `next: ${data.upNext[0].title}` : undefined,
       href: "/hub/tasks",
       hot: data.overdue > 0,
     },
     {
       title: "Cases",
       line: `${data.activeMatters} active${data.silent ? ` · ${data.silent} silent` : ""}`,
+      sub: data.silentTop[0]
+        ? `quietest: ${data.silentTop[0].name} (${data.silentTop[0].daysSilent ?? "—"}d)`
+        : undefined,
       href: "/hub/cases",
       hot: data.silent > 0,
     },
     {
       title: "Projects",
-      line: `${data.activeProjects} active${
-        data.nextProjectDeadline ? ` · next ${fmtDate(data.nextProjectDeadline)}` : ""
-      }`,
+      line: `${data.activeProjects} active`,
+      sub: data.nextProjectName
+        ? `${data.nextProjectName} due ${fmtDate(data.nextProjectDeadline!)}`
+        : undefined,
       href: "/hub/projects",
     },
     {
       title: "Quick Drop",
       line: `${data.needsHome} need a home · ${data.ledgerCount} in the ledger`,
+      sub: data.unfiledLatest ? `“${data.unfiledLatest.slice(0, 60)}”` : undefined,
       href: "/hub/inbox",
     },
     {
@@ -86,6 +92,9 @@ export default function CommandCenterClient({
     {
       title: "Day ledger",
       line: `${(data.tenthsToday / 10).toFixed(1)}h entered today`,
+      sub: data.touchedToday
+        ? `${data.touchedToday} matter${data.touchedToday === 1 ? "" : "s"} touched`
+        : undefined,
       href: "/hub/time",
     },
     { title: "Notes", line: `${data.noteCount} notes`, href: "/hub/notes" },
@@ -130,6 +139,100 @@ export default function CommandCenterClient({
         ))}
       </div>
 
+      <div className="section-label">UP NEXT · {data.upNext.length}</div>
+      {data.upNext.map((item, i) => {
+        const days = Math.round(
+          (new Date(`${item.date}T12:00:00`).getTime() -
+            new Date(`${data.today}T12:00:00`).getTime()) /
+            86400000
+        );
+        return (
+          <div
+            key={`${item.date}-${i}`}
+            className="wk-due-row clickable"
+            onClick={() => router.push("/hub/tasks")}
+          >
+            <span className={`wk-due-date${days <= 3 ? " is-near" : ""}`}>
+              {fmtDate(item.date)}
+              <span className="wk-due-in">
+                {days === 0 ? "today" : days === 1 ? "tmrw" : `${days}d`}
+              </span>
+            </span>
+            <div className="task-body">
+              <div className="task-title">{item.title}</div>
+              <div className="meta">
+                <span
+                  className={
+                    item.kind === "task" ? "kind-task" : item.kind === "event" ? "kind-event" : "kind-deadline"
+                  }
+                >
+                  {item.kind.toUpperCase()}
+                </span>
+                {item.matterName && (
+                  <span className="meta-scope">{item.matterName.toUpperCase()}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {data.upNext.length === 0 && (
+        <div className="empty-note">Nothing dated in the next 30 days.</div>
+      )}
+
+      {(data.overdueTop.length > 0 || data.silentTop.length > 0) && (
+        <div className="cc-cols">
+          {data.overdueTop.length > 0 && (
+            <div>
+              <div className="section-label overdue">OVERDUE · {data.overdue}</div>
+              {data.overdueTop.map((t) => (
+                <div
+                  key={t.id}
+                  className="wk-silent-row clickable"
+                  onClick={() => router.push("/start-up")}
+                >
+                  <div className="task-body">
+                    <div className="task-title">{t.title}</div>
+                    <div className="meta">
+                      {t.matterName && (
+                        <span className="meta-scope">{t.matterName.toUpperCase()}</span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="wk-silent-age">{fmtDate(t.doDate)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {data.silentTop.length > 0 && (
+            <div>
+              <div className="section-label overdue">GONE SILENT · {data.silent}</div>
+              {data.silentTop.map((m) => (
+                <div
+                  key={m.name}
+                  className="wk-silent-row clickable"
+                  onClick={() => router.push("/hub/weekly")}
+                >
+                  <div className="task-body">
+                    <div className="task-title">{m.name}</div>
+                    <div className="meta">
+                      {m.openCount > 0 ? (
+                        <span className="kind-task">{m.openCount} OPEN, NONE DATED</span>
+                      ) : (
+                        <span className="case-noaction">NO NEXT ACTION</span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="wk-silent-age">
+                    {m.daysSilent === null ? "never" : `${m.daysSilent}d`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="section-label">HUBS</div>
       <div className="case-grid cc-hubs">
         {hubs.map((h) => (
@@ -141,6 +244,7 @@ export default function CommandCenterClient({
           >
             <div className="case-name">{h.title}</div>
             <div className={`cc-hub-line${h.hot ? " is-hot" : ""}`}>{h.line}</div>
+            {h.sub && <div className="cc-hub-sub">{h.sub}</div>}
           </button>
         ))}
       </div>

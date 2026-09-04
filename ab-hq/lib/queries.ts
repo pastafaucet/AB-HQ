@@ -733,6 +733,13 @@ export interface CommandCenterData {
   waiting: number;
   noteCount: number;
   peopleCount: number;
+  // the actual things, not just counts
+  upNext: DueItem[]; // next dated items across the book, chronological
+  overdueTop: { id: string; title: string; matterName: string | null; doDate: string }[];
+  silentTop: { name: string; daysSilent: number | null; openCount: number }[];
+  unfiledLatest: string | null; // newest entry still needing a home
+  touchedToday: number; // distinct matters with activity today
+  nextProjectName: string | null;
 }
 
 /** Where things stand at a glance — the home surface. */
@@ -753,10 +760,14 @@ export async function getCommandCenterData(): Promise<CommandCenterData> {
       selectTaskRows((cols) =>
         sb.from("tasks").select(cols).neq("status", "Cancelled").neq("status", "Done")
       ),
-      sb.from("entries").select("id,status", { count: "exact" }).limit(2000),
       sb
         .from("entries")
-        .select("billed_tenths")
+        .select("id,status,raw", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .limit(2000),
+      sb
+        .from("entries")
+        .select("billed_tenths,matter_id")
         .gte("created_at", startIso)
         .lt("created_at", endIso)
         .neq("status", "dismissed"),
@@ -768,6 +779,10 @@ export async function getCommandCenterData(): Promise<CommandCenterData> {
       sb.from("notes").select("id", { count: "exact", head: true }),
       sb.from("people").select("id", { count: "exact", head: true }),
     ]);
+  const { data: matterNamesData } = await sb.from("matters").select("id,name");
+  const matterNames = new Map(
+    ((matterNamesData ?? []) as { id: string; name: string }[]).map((m) => [m.id, m.name])
+  );
 
   const open = taskRows.map((r) => rowToTask(r, today)).filter((t) => t.status !== "Someday");
   const mits = open.filter((t) => t.mit);
@@ -778,16 +793,33 @@ export async function getCommandCenterData(): Promise<CommandCenterData> {
     .eq("mit", true)
     .eq("status", "Done");
 
-  const entryRows = (entriesCounts.error ? [] : entriesCounts.data) as { status: string }[];
-  const todaysTenths = (todayEntries.error ? [] : (todayEntries.data as { billed_tenths: number | null }[]))
-    .reduce((a, e) => a + (e.billed_tenths ?? 0), 0);
+  const entryRows = (entriesCounts.error ? [] : entriesCounts.data) as {
+    status: string;
+    raw: string;
+  }[];
+  const todayEntryRows = (todayEntries.error
+    ? []
+    : todayEntries.data) as { billed_tenths: number | null; matter_id: string | null }[];
+  const todaysTenths = todayEntryRows.reduce((a, e) => a + (e.billed_tenths ?? 0), 0);
+  const touchedToday = new Set(todayEntryRows.map((e) => e.matter_id).filter(Boolean)).size;
 
   const projects = await fetchProjects();
   const activeP = projects.filter((p) => p.status === "Active");
-  const nextDl = activeP
-    .map((p) => p.deadline)
-    .filter((d): d is string => !!d && d >= today)
-    .sort()[0] ?? null;
+  const nextProject =
+    activeP
+      .filter((p) => p.deadline && p.deadline >= today)
+      .sort((a, b) => (a.deadline! < b.deadline! ? -1 : 1))[0] ?? null;
+
+  const overdueTop = open
+    .filter((t) => t.doDate && t.doDate < today)
+    .sort((a, b) => (a.doDate! < b.doDate! ? -1 : 1))
+    .slice(0, 5)
+    .map((t) => ({
+      id: t.id,
+      title: t.title,
+      matterName: t.matterId ? matterNames.get(t.matterId) ?? null : null,
+      doDate: t.doDate!,
+    }));
 
   return {
     today,
@@ -806,7 +838,15 @@ export async function getCommandCenterData(): Promise<CommandCenterData> {
     activeMatters: weekly.activeMatters,
     quietMatters: weekly.quiet.length,
     activeProjects: activeP.length,
-    nextProjectDeadline: nextDl,
+    nextProjectDeadline: nextProject?.deadline ?? null,
+    nextProjectName: nextProject?.name ?? null,
+    upNext: weekly.due.slice(0, 7),
+    overdueTop,
+    silentTop: weekly.silent
+      .slice(0, 5)
+      .map((m) => ({ name: m.name, daysSilent: m.daysSilent, openCount: m.openCount })),
+    unfiledLatest: entryRows.find((e) => e.status === "inbox")?.raw ?? null,
+    touchedToday,
     ledgerCount: entriesCounts.count ?? entryRows.length,
     tenthsToday: todaysTenths,
     due30: weekly.due.length,

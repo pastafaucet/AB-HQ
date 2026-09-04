@@ -4289,3 +4289,26 @@ button.check {
 .cc-hub-line.is-hot {
   color: var(--orange);
 }
+
+/* command center detail lists + hub sublines */
+.cc-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 28px;
+}
+@media (max-width: 900px) {
+  .cc-cols { grid-template-columns: 1fr; }
+}
+.cc-hub-sub {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--faint);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.wk-due-row.clickable:hover,
+.wk-silent-row.clickable:hover {
+  background: var(--panel);
+}
