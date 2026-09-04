@@ -134,7 +134,7 @@ export default function InboxClient({
           </div>
         )}
 
-        <button className="btn-lock capture-cta" type="button" onClick={openCapture}>
+        <button className="btn-lock capture-cta" type="button" onClick={() => openCapture()}>
           + Capture <span className="lock-load">⌘K from anywhere</span>
         </button>
 

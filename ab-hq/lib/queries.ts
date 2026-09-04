@@ -669,23 +669,6 @@ export async function getInboxData(): Promise<InboxData> {
   };
 }
 
-export interface DueItem {
-  date: string; // YYYY-MM-DD
-  title: string;
-  kind: "deadline" | "task" | "event" | "project" | "matter";
-  matterName: string | null;
-  matterId: string | null;
-}
-
-export interface WaitingItem {
-  taskId: string;
-  title: string;
-  bucket: string; // Chris / Opposing Counsel / Court / Other
-  matterName: string | null;
-  doDate: string | null;
-  ageDays: number | null; // since created
-}
-
 export interface SilentMatter {
   id: string;
   name: string;
@@ -696,14 +679,40 @@ export interface SilentMatter {
   hasFuture: boolean; // any open task dated today or later
 }
 
+export interface DueMarker {
+  date: string;
+  title: string;
+  kind: "project" | "matter";
+  matterName: string | null;
+}
+
 export interface WeeklyReviewData {
   today: string;
   activeMatters: number;
-  due: DueItem[]; // next 30 days, chronological
-  waiting: WaitingItem[];
+  // the week that was (rolling 7 days incl. today)
+  lookback: {
+    done: number;
+    captured: number;
+    tenthsTotal: number;
+    byMatter: { name: string; tenths: number }[]; // top matters by billed tenths
+    touchedMatters: number;
+  };
+  // the road ahead
+  dueTasks: Task[]; // next 30 days, full task objects — drawer-editable
+  dueMarkers: DueMarker[]; // project/matter terminal deadlines in the window
+  waitingTasks: Task[]; // waiting_on set — bucketed client-side
   silent: SilentMatter[];
   quiet: SilentMatter[]; // touched recently but nothing scheduled
-  entriesThisWeek: number;
+  // the life week
+  lifeReady: boolean;
+  weekDates: string[]; // 7 dates, oldest → today
+  habitsWeek: { name: string; days: boolean[] }[];
+  bodyWeek: { weightStart: number | null; weightEnd: number | null; sleepAvg: number | null };
+  mediaWeek: { date: string; kind: string; title: string; note: string | null }[];
+  // for the drawer
+  matters: Matter[];
+  projects: Project[];
+  running: RunningTimer | null;
 }
 
 export interface CommandCenterData {
@@ -908,8 +917,8 @@ export async function getCommandCenterData(): Promise<CommandCenterData> {
       : null,
     ledgerCount: entriesCounts.count ?? entryRows.length,
     tenthsToday: todaysTenths,
-    due30: weekly.due.length,
-    waiting: weekly.waiting.length,
+    due30: weekly.dueTasks.length + weekly.dueMarkers.length,
+    waiting: weekly.waitingTasks.length,
     noteCount: notesRes.count ?? 0,
     peopleCount: peopleRes.count ?? 0,
   };
@@ -926,18 +935,48 @@ export async function getWeeklyReviewData(): Promise<WeeklyReviewData> {
   const horizon = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate()
   ).padStart(2, "0")}`;
-  const weekAgo = new Date(`${today}T12:00:00`);
-  weekAgo.setDate(weekAgo.getDate() - 7);
+  const shiftIso = (iso: string, n: number) => {
+    const x = new Date(`${iso}T12:00:00`);
+    x.setDate(x.getDate() + n);
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(
+      x.getDate()
+    ).padStart(2, "0")}`;
+  };
+  const weekDates = Array.from({ length: 7 }, (_, i) => shiftIso(today, i - 6));
+  const weekStartIso = dayBounds(weekDates[0]).startIso;
 
-  const [mattersRes, taskRows, projRes, entriesRes, touchRes] = await Promise.all([
-    sb.from("matters").select("id,name,client,status,disposition,next_deadline,created_at"),
-    selectTaskRows((cols) =>
-      sb.from("tasks").select(cols).neq("status", "Cancelled").order("created_at", { ascending: true })
-    ),
-    sb.from("projects").select(PROJECT_COLUMNS),
-    sb.from("entries").select("id,matter_id,created_at"),
-    sb.from("tasks").select("matter_id,created_at,completed_at").neq("status", "Cancelled"),
-  ]);
+  // eslint-disable-next-line prefer-const -- entriesRes is reassigned by the legacy retry below
+  let [mattersRes, taskRows, projRes, entriesRes, touchRes, habitsRes, checksRes, bodyRes, mediaRes, runRes] =
+    await Promise.all([
+      sb.from("matters").select("id,name,client,status,disposition,next_deadline,created_at"),
+      selectTaskRows((cols) =>
+        sb.from("tasks").select(cols).neq("status", "Cancelled").order("created_at", { ascending: true })
+      ),
+      sb.from("projects").select(PROJECT_COLUMNS),
+      sb.from("entries").select("id,matter_id,created_at,billed_tenths"),
+      sb.from("tasks").select("matter_id,created_at,completed_at").neq("status", "Cancelled"),
+      sb.from("habits").select("id,name,sort").eq("active", true).order("sort").order("created_at"),
+      sb.from("habit_checks").select("habit_id,date").gte("date", weekDates[0]),
+      sb
+        .from("body_metrics")
+        .select("date,weight_lbs,sleep_hours")
+        .gte("date", weekDates[0])
+        .order("date"),
+      sb.from("media_log").select("date,kind,title,note").gte("date", weekDates[0]).order("date"),
+      sb
+        .from("time_sessions")
+        .select("id,task_id,started_at")
+        .is("ended_at", null)
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+  if (entriesRes.error) {
+    // Pre-0013 — retry without billed_tenths.
+    entriesRes = (await sb
+      .from("entries")
+      .select("id,matter_id,created_at")) as typeof entriesRes;
+  }
   if (mattersRes.error) throw mattersRes.error;
 
   const matters = (mattersRes.data as {
@@ -958,56 +997,93 @@ export async function getWeeklyReviewData(): Promise<WeeklyReviewData> {
     id: string;
     matter_id: string | null;
     created_at: string;
+    billed_tenths?: number | null;
   }[];
 
-  // --- due in the next 30 days: tasks + project deadlines + matter next_deadline ---
-  const due: DueItem[] = [];
-  for (const t of open) {
-    if (t.doDate && t.doDate >= today && t.doDate <= horizon) {
-      due.push({
-        date: t.doDate,
-        title: t.title,
-        kind: t.type === "Deadline" ? "deadline" : t.type === "Event" ? "event" : "task",
-        matterName: t.matterId ? matterName.get(t.matterId) ?? null : null,
-        matterId: t.matterId ?? null,
-      });
-    }
-  }
-  for (const p of projects) {
-    if (p.status === "Active" && p.deadline && p.deadline >= today && p.deadline <= horizon) {
-      due.push({
-        date: p.deadline,
+  // --- due in the next 30 days: full tasks + project/matter deadline markers ---
+  const dueTasks = open
+    .filter((t) => t.doDate && t.doDate >= today && t.doDate <= horizon)
+    .sort((a, b) => {
+      if (a.doDate !== b.doDate) return a.doDate! < b.doDate! ? -1 : 1;
+      const at = a.doTime ?? "99:99";
+      const bt = b.doTime ?? "99:99";
+      if (at !== bt) return at < bt ? -1 : 1;
+      return a.priority - b.priority;
+    });
+  const dueMarkers: DueMarker[] = [
+    ...projects
+      .filter(
+        (p) => p.status === "Active" && p.deadline && p.deadline >= today && p.deadline <= horizon
+      )
+      .map((p) => ({
+        date: p.deadline!,
         title: p.name,
-        kind: "project",
+        kind: "project" as const,
         matterName: p.matterId ? matterName.get(p.matterId) ?? null : null,
-        matterId: p.matterId ?? null,
-      });
-    }
-  }
-  for (const m of matters) {
-    if (m.next_deadline && m.next_deadline >= today && m.next_deadline <= horizon) {
-      due.push({
-        date: m.next_deadline,
+      })),
+    ...matters
+      .filter((m) => m.next_deadline && m.next_deadline >= today && m.next_deadline <= horizon)
+      .map((m) => ({
+        date: m.next_deadline!,
         title: `${m.name} — matter deadline`,
-        kind: "matter",
+        kind: "matter" as const,
         matterName: m.name,
-        matterId: m.id,
-      });
-    }
-  }
-  due.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+      })),
+  ].sort((a, b) => (a.date < b.date ? -1 : 1));
 
   // --- waiting on ---
-  const waiting: WaitingItem[] = open
-    .filter((t) => t.waitingOn)
-    .map((t) => ({
-      taskId: t.id,
-      title: t.title,
-      bucket: t.waitingOn as string,
-      matterName: t.matterId ? matterName.get(t.matterId) ?? null : null,
-      doDate: t.doDate ?? null,
-      ageDays: null,
-    }));
+  const waitingTasks = open.filter((t) => t.waitingOn);
+
+  // --- the week that was ---
+  const weekEntries = entries.filter((e) => e.created_at >= weekStartIso);
+  const tenthsByMatter = new Map<string, number>();
+  for (const e of weekEntries) {
+    if (!e.matter_id || !e.billed_tenths) continue;
+    tenthsByMatter.set(e.matter_id, (tenthsByMatter.get(e.matter_id) ?? 0) + e.billed_tenths);
+  }
+  const lookback = {
+    done: ((touchRes.error ? [] : touchRes.data) as { completed_at: string | null }[]).filter(
+      (t) => t.completed_at && t.completed_at >= weekStartIso
+    ).length,
+    captured: weekEntries.length,
+    tenthsTotal: weekEntries.reduce((a, e) => a + (e.billed_tenths ?? 0), 0),
+    byMatter: [...tenthsByMatter.entries()]
+      .map(([id, tenths]) => ({ name: matterName.get(id) ?? "—", tenths }))
+      .sort((a, b) => b.tenths - a.tenths)
+      .slice(0, 5),
+    touchedMatters: new Set(weekEntries.map((e) => e.matter_id).filter(Boolean)).size,
+  };
+
+  // --- the life week ---
+  const lifeReady = !habitsRes.error && !bodyRes.error && !mediaRes.error;
+  const checksByHabit = new Map<string, Set<string>>();
+  for (const c of ((checksRes.error ? [] : checksRes.data) ?? []) as {
+    habit_id: string;
+    date: string;
+  }[]) {
+    if (!checksByHabit.has(c.habit_id)) checksByHabit.set(c.habit_id, new Set());
+    checksByHabit.get(c.habit_id)!.add(c.date);
+  }
+  const habitsWeek = (((habitsRes.error ? [] : habitsRes.data) ?? []) as {
+    id: string;
+    name: string;
+  }[]).map((h) => ({
+    name: h.name,
+    days: weekDates.map((d) => checksByHabit.get(h.id)?.has(d) ?? false),
+  }));
+  const bodyRows = ((bodyRes.error ? [] : bodyRes.data) ?? []) as {
+    date: string;
+    weight_lbs: number | null;
+    sleep_hours: number | null;
+  }[];
+  const weights = bodyRows.map((b) => b.weight_lbs).filter((w): w is number => w != null);
+  const sleeps = bodyRows.map((b) => b.sleep_hours).filter((s): s is number => s != null);
+  const bodyWeek = {
+    weightStart: weights[0] ?? null,
+    weightEnd: weights[weights.length - 1] ?? null,
+    sleepAvg: sleeps.length ? Math.round((sleeps.reduce((a, s) => a + s, 0) / sleeps.length) * 10) / 10 : null,
+  };
+  const mediaWeek = ((mediaRes.error ? [] : mediaRes.data) ?? []) as WeeklyReviewData["mediaWeek"];
 
   // --- last touch + scheduling per matter ---
   const lastTouch = new Map<string, string>(); // matterId → ISO timestamp
@@ -1064,18 +1140,29 @@ export async function getWeeklyReviewData(): Promise<WeeklyReviewData> {
   silent.sort((a, b) => (b.daysSilent ?? 9999) - (a.daysSilent ?? 9999));
   quiet.sort((a, b) => (b.daysSilent ?? 0) - (a.daysSilent ?? 0));
 
-  const entriesThisWeek = entries.filter(
-    (e) => new Date(e.created_at).getTime() >= weekAgo.getTime()
-  ).length;
-
   return {
     today,
     activeMatters: matters.length,
-    due,
-    waiting,
+    lookback,
+    dueTasks,
+    dueMarkers,
+    waitingTasks,
     silent,
     quiet,
-    entriesThisWeek,
+    lifeReady,
+    weekDates,
+    habitsWeek,
+    bodyWeek,
+    mediaWeek,
+    matters: matters.map((m) => rowToMatter(m, today)),
+    projects,
+    running: runRes.data
+      ? {
+          sessionId: runRes.data.id as string,
+          taskId: runRes.data.task_id as string,
+          startedAt: runRes.data.started_at as string,
+        }
+      : null,
   };
 }
 

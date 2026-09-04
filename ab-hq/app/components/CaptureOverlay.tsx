@@ -17,8 +17,8 @@ function localTodayISO(): string {
 // ledger and AI files it. Other components open it by dispatching the
 // "abhq:capture" window event (see openCapture below).
 
-export function openCapture() {
-  window.dispatchEvent(new CustomEvent("abhq:capture"));
+export function openCapture(prefill?: string) {
+  window.dispatchEvent(new CustomEvent("abhq:capture", { detail: prefill ?? "" }));
 }
 
 interface Sent {
@@ -53,7 +53,11 @@ export default function CaptureOverlay() {
       }
       if (e.key === "Escape" && isOpen) close();
     };
-    const onOpenEvent = () => open();
+    const onOpenEvent = (e: Event) => {
+      const prefill = (e as CustomEvent<string>).detail;
+      if (prefill) setText(prefill);
+      open();
+    };
     window.addEventListener("keydown", onKey);
     window.addEventListener("abhq:capture", onOpenEvent);
     return () => {

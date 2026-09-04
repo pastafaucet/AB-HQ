@@ -42,7 +42,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 className="capture-square"
                 title="Capture (⌘K)"
                 type="button"
-                onClick={openCapture}
+                onClick={() => openCapture()}
               >
                 +
               </button>
@@ -83,7 +83,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <div className="brand-kicker">PERSONAL OPERATING SYSTEM</div>
             </div>
             <div className="capture-wrap">
-              <button className="capture" type="button" onClick={openCapture}>
+              <button className="capture" type="button" onClick={() => openCapture()}>
                 <span className="plus">+</span>
                 <span className="grow">Capture</span>
                 <span className="keycap">⌘K</span>
@@ -152,7 +152,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               Personal
             </button>
           </div>
-          <button className="searchbar" type="button" onClick={openCapture}>
+          <button className="searchbar" type="button" onClick={() => openCapture()}>
             <span>⌕</span>
             <span className="grow">Capture a thought…</span>
             <span className="keycap">⌘K</span>

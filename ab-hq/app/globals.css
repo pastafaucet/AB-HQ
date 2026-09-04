@@ -4344,3 +4344,96 @@ button.check {
   font-size: 10px;
   color: var(--orange);
 }
+
+/* weekly review — billed-by-matter bars, habit week grid, life line */
+.wk-bymatter {
+  margin: 4px 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wk-bymatter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.wk-bymatter-name {
+  flex: none;
+  width: 200px;
+  font-size: 12px;
+  color: var(--ink-body);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wk-bymatter-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 3px;
+  background: var(--line-field);
+  overflow: hidden;
+}
+.wk-bymatter-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--teal);
+}
+.wk-bymatter-tenths {
+  flex: none;
+  width: 44px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--teal);
+}
+.wk-silent-row .ov-chip {
+  flex: none;
+  margin-left: 10px;
+}
+.wk-habit-grid {
+  margin-bottom: 10px;
+}
+.wk-habit-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 0;
+}
+.wk-habit-name {
+  flex: none;
+  width: 160px;
+  font-size: 12px;
+  color: var(--ink-body);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wk-habit-dow {
+  flex: none;
+  width: 14px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  color: var(--faint);
+}
+.wk-habit-dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--inset);
+  border: 1px solid var(--line-field);
+}
+.wk-habit-dot.is-on {
+  background: var(--teal);
+  border-color: var(--teal);
+}
+.wk-life-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-2);
+}
