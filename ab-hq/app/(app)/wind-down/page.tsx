@@ -31,6 +31,7 @@ export default async function WindDownPage() {
       entriesReady={data.entriesReady}
       life={data.life}
       initialRunning={data.running}
+      mediaTitles={data.mediaTitles}
     />
   );
 }

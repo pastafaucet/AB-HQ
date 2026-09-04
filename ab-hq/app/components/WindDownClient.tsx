@@ -63,6 +63,7 @@ export default function WindDownClient({
   entriesReady,
   life,
   initialRunning,
+  mediaTitles,
 }: {
   today: string;
   tomorrow: string;
@@ -81,6 +82,7 @@ export default function WindDownClient({
   entriesReady: boolean;
   life: LifeData;
   initialRunning: RunningTimer | null;
+  mediaTitles: { kind: string; title: string }[];
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([
@@ -684,11 +686,20 @@ export default function WindDownClient({
                 className="intent-input media-title"
                 placeholder="What you watched / played / read…"
                 value={mediaTitle}
+                list="media-title-suggestions"
                 onChange={(e) => setMediaTitle(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") submitMedia();
                 }}
               />
+              <datalist id="media-title-suggestions">
+                {mediaTitles
+                  .filter((t) => t.kind === mediaKind)
+                  .slice(0, 50)
+                  .map((t) => (
+                    <option key={`${t.kind}:${t.title}`} value={t.title} />
+                  ))}
+              </datalist>
               <input
                 className="intent-input media-note"
                 placeholder="with / note…"

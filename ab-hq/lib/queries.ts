@@ -1442,6 +1442,7 @@ export interface WindDownData {
   entriesReady: boolean; // false until migration 0012
   life: LifeData;
   running: RunningTimer | null;
+  mediaTitles: { kind: string; title: string }[]; // distinct prior titles, most recent first — autocomplete
 }
 
 /** Everything the evening ritual needs: close loops, clear the inbox, set tomorrow. */
@@ -1455,7 +1456,7 @@ export async function getWindDownData(): Promise<WindDownData> {
     d.getDate()
   ).padStart(2, "0")}`;
 
-  const [taskRows, doneRows, mattersRes, projects, entriesRes, entryRes, life, runRes] =
+  const [taskRows, doneRows, mattersRes, projects, entriesRes, entryRes, life, runRes, titlesRes] =
     await Promise.all([
     selectTaskRows((cols) =>
       sb
@@ -1490,6 +1491,7 @@ export async function getWindDownData(): Promise<WindDownData> {
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    sb.from("media_log").select("kind,title").order("created_at", { ascending: false }).limit(500),
   ]);
   if (mattersRes.error) throw mattersRes.error;
 
@@ -1553,6 +1555,20 @@ export async function getWindDownData(): Promise<WindDownData> {
           startedAt: runRes.data.started_at as string,
         }
       : null,
+    mediaTitles: (() => {
+      const seen = new Set<string>();
+      const out: { kind: string; title: string }[] = [];
+      for (const r of ((titlesRes.error ? [] : titlesRes.data) ?? []) as {
+        kind: string;
+        title: string;
+      }[]) {
+        const key = `${r.kind}:${r.title.trim().toLowerCase()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ kind: r.kind, title: r.title.trim() });
+      }
+      return out;
+    })(),
   };
 }
 
