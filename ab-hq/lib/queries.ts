@@ -734,12 +734,16 @@ export interface CommandCenterData {
   noteCount: number;
   peopleCount: number;
   // the actual things, not just counts
-  upNext: DueItem[]; // next dated items across the book, chronological
+  upNextTasks: Task[]; // next dated open tasks, richest form — drawer-editable
+  upNextMarkers: { date: string; title: string; kind: "project" | "matter"; matterName: string | null }[];
   overdueTop: { id: string; title: string; matterName: string | null; doDate: string }[];
   silentTop: { name: string; daysSilent: number | null; openCount: number }[];
   unfiledLatest: string | null; // newest entry still needing a home
   touchedToday: number; // distinct matters with activity today
   nextProjectName: string | null;
+  matters: Matter[]; // for the drawer + name lookups
+  projects: Project[];
+  running: RunningTimer | null;
 }
 
 /** Where things stand at a glance — the home surface. */
@@ -779,10 +783,18 @@ export async function getCommandCenterData(): Promise<CommandCenterData> {
       sb.from("notes").select("id", { count: "exact", head: true }),
       sb.from("people").select("id", { count: "exact", head: true }),
     ]);
-  const { data: matterNamesData } = await sb.from("matters").select("id,name");
-  const matterNames = new Map(
-    ((matterNamesData ?? []) as { id: string; name: string }[]).map((m) => [m.id, m.name])
-  );
+  const [{ data: matterNamesData }, runRes] = await Promise.all([
+    sb.from("matters").select("id,name,client,status,next_deadline"),
+    sb
+      .from("time_sessions")
+      .select("id,task_id,started_at")
+      .is("ended_at", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  const matterRows = (matterNamesData ?? []) as MatterRowDB[];
+  const matterNames = new Map(matterRows.map((m) => [m.id, m.name]));
 
   const open = taskRows.map((r) => rowToTask(r, today)).filter((t) => t.status !== "Someday");
   const mits = open.filter((t) => t.mit);
@@ -813,13 +825,50 @@ export async function getCommandCenterData(): Promise<CommandCenterData> {
   const overdueTop = open
     .filter((t) => t.doDate && t.doDate < today)
     .sort((a, b) => (a.doDate! < b.doDate! ? -1 : 1))
-    .slice(0, 5)
+    .slice(0, 4)
     .map((t) => ({
       id: t.id,
       title: t.title,
       matterName: t.matterId ? matterNames.get(t.matterId) ?? null : null,
       doDate: t.doDate!,
     }));
+
+  // Up next: real tasks (drawer-editable), dated today through +30, sorted
+  // date → timed-first/time → priority. Project/matter terminal deadlines
+  // ride along as thin markers.
+  const h = new Date(`${today}T12:00:00`);
+  h.setDate(h.getDate() + 30);
+  const horizon30 = `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, "0")}-${String(
+    h.getDate()
+  ).padStart(2, "0")}`;
+  const upNextTasks = open
+    .filter((t) => t.doDate && t.doDate >= today && t.doDate <= horizon30)
+    .sort((a, b) => {
+      if (a.doDate !== b.doDate) return a.doDate! < b.doDate! ? -1 : 1;
+      const at = a.doTime ?? "99:99";
+      const bt = b.doTime ?? "99:99";
+      if (at !== bt) return at < bt ? -1 : 1;
+      return a.priority - b.priority;
+    })
+    .slice(0, 8);
+  const upNextMarkers = [
+    ...activeP
+      .filter((p) => p.deadline && p.deadline >= today && p.deadline <= horizon30)
+      .map((p) => ({
+        date: p.deadline!,
+        title: p.name,
+        kind: "project" as const,
+        matterName: p.matterId ? matterNames.get(p.matterId) ?? null : null,
+      })),
+    ...matterRows
+      .filter((m) => m.next_deadline && m.next_deadline >= today && m.next_deadline <= horizon30)
+      .map((m) => ({
+        date: m.next_deadline!,
+        title: `${m.name} — matter deadline`,
+        kind: "matter" as const,
+        matterName: m.name,
+      })),
+  ].sort((a, b) => (a.date < b.date ? -1 : 1));
 
   return {
     today,
@@ -840,13 +889,23 @@ export async function getCommandCenterData(): Promise<CommandCenterData> {
     activeProjects: activeP.length,
     nextProjectDeadline: nextProject?.deadline ?? null,
     nextProjectName: nextProject?.name ?? null,
-    upNext: weekly.due.slice(0, 7),
+    upNextTasks,
+    upNextMarkers,
     overdueTop,
     silentTop: weekly.silent
       .slice(0, 5)
       .map((m) => ({ name: m.name, daysSilent: m.daysSilent, openCount: m.openCount })),
     unfiledLatest: entryRows.find((e) => e.status === "inbox")?.raw ?? null,
     touchedToday,
+    matters: matterRows.map((r) => rowToMatter(r, today)),
+    projects,
+    running: runRes.data
+      ? {
+          sessionId: runRes.data.id as string,
+          taskId: runRes.data.task_id as string,
+          startedAt: runRes.data.started_at as string,
+        }
+      : null,
     ledgerCount: entriesCounts.count ?? entryRows.length,
     tenthsToday: todaysTenths,
     due30: weekly.due.length,

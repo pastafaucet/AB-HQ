@@ -4312,3 +4312,35 @@ button.check {
 .wk-silent-row.clickable:hover {
   background: var(--panel);
 }
+
+/* command center compact mini-rows (overdue / silent) */
+.cc-mini {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 2px;
+  border-bottom: 1px solid var(--line-row);
+  font-size: 12.5px;
+}
+.cc-mini:hover {
+  background: var(--panel);
+}
+.cc-mini-title {
+  color: var(--ink-body);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cc-mini-scope {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--muted);
+}
+.cc-mini-date {
+  flex: none;
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--orange);
+}
