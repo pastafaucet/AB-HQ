@@ -307,6 +307,20 @@ export default function WindDownClient({
     (t) => !t.mit && (t.doDate ? t.doDate <= tomorrow : t.priority <= 2)
   );
 
+  function toggleDone(t: Task) {
+    const done = t.status !== "Done";
+    setTasks((prev) =>
+      prev.map((x) => (x.id === t.id ? { ...x, status: done ? "Done" : "To Do" } : x))
+    );
+    startTransition(async () => {
+      const r = await setTaskDone(t.id, done);
+      if (!r.ok) {
+        setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, status: t.status } : x)));
+        flash(r.error ?? "Couldn't save.");
+      }
+    });
+  }
+
   function roll(t: Task) {
     savePatch(t.id, { doDate: tomorrow });
   }
@@ -482,7 +496,14 @@ export default function WindDownClient({
         <div className="section-label tight">DONE TODAY · {doneList.length}</div>
         {doneList.map((t) => (
           <div key={t.id} className="task-row">
-            <span className="check is-done wd-done-check">✓</span>
+            <button
+              type="button"
+              className="check is-done wd-done-check"
+              title="Reopen"
+              onClick={() => toggleDone(t)}
+            >
+              ✓
+            </button>
             <div className="task-body clickable" onClick={() => openExisting(t.id)}>
               <div className="task-title is-done">{t.title}</div>
               <Meta t={t} />
@@ -498,6 +519,12 @@ export default function WindDownClient({
         </div>
         {unresolved.map((t) => (
           <div key={t.id} className="mit-row" style={{ borderLeftColor: PRI_COLOR[t.priority] }}>
+            <button
+              type="button"
+              className="check mit-check-left"
+              title="Actually finished it — mark done"
+              onClick={() => toggleDone(t)}
+            />
             <div className="mit-body clickable" onClick={() => openExisting(t.id)}>
               <div className="mit-title">{t.title}</div>
               <Meta t={t} />
@@ -600,6 +627,12 @@ export default function WindDownClient({
         </div>
         {mits.map((t) => (
           <div key={t.id} className="mit-row" style={{ borderLeftColor: PRI_COLOR[t.priority] }}>
+            <button
+              type="button"
+              className="check mit-check-left"
+              title="Mark done"
+              onClick={() => toggleDone(t)}
+            />
             <div className="mit-num">{mits.indexOf(t) + 1}</div>
             <div className="mit-body clickable" onClick={() => openExisting(t.id)}>
               <div className="mit-title">{t.title}</div>
@@ -620,6 +653,12 @@ export default function WindDownClient({
             <div className="wd-pick-label">PICK FROM:</div>
             {candidates.slice(0, 12).map((t) => (
               <div key={t.id} className="task-row">
+                <button
+                  type="button"
+                  className="check task-check"
+                  title="Mark done"
+                  onClick={() => toggleDone(t)}
+                />
                 <button
                   type="button"
                   className="row-promote"

@@ -4027,7 +4027,7 @@ button.check {
 .wd-done-check {
   flex: none;
   margin-top: 1px;
-  cursor: default;
+  cursor: pointer;
 }
 .wd-pick-label {
   font-family: var(--font-mono);
