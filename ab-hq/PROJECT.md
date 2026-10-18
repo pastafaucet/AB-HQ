@@ -18,7 +18,7 @@ AB HQ ("Andy's HQ") is a personal operating system for one user: Andy Baum, an e
 
 **The tweak list.** While using the app, Andy captures ideas with ⌘K into a project named **AB HQ** in the app itself. To read it, query open tasks whose `project_id` matches the project named `AB HQ` (Supabase project `eyqfdjmkkrfxfiahoozs`). If database access isn't connected, ask Andy to paste the list. *(The project needs to be created once in the Projects hub.)*
 
-**Ending a session.** Update **Where we left off**, then commit and push it with the code.
+**Ending a session.** Update **Where we left off**, then commit and push it with the code. If the session shipped a feature or settled a decision, update `BRIEF.md` too. It's the project overview Andy's web Claude project reads (the vision, what's built, the roadmap, the settled decisions, the design reference).
 
 ---
 
