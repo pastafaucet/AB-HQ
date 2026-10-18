@@ -1726,6 +1726,45 @@ button.check {
   padding: 2px 0 2px 14px;
   color: var(--muted);
 }
+.note-body .ProseMirror [data-resize-container] {
+  margin: 10px 0;
+}
+.note-body .ProseMirror img.note-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.note-body .ProseMirror .ProseMirror-selectednode img.note-img,
+.note-body .ProseMirror img.note-img.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.note-body .ProseMirror [data-resize-handle] {
+  width: 12px;
+  height: 12px;
+  margin: -4px;
+  border-radius: 3px;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.note-body .ProseMirror [data-resize-wrapper]:hover [data-resize-handle],
+.note-body .ProseMirror [data-resize-state="true"] [data-resize-handle] {
+  opacity: 1;
+}
+.note-body .ProseMirror [data-resize-handle="bottom-right"] { cursor: nwse-resize; }
+.note-body .ProseMirror [data-resize-handle="bottom-left"] { cursor: nesw-resize; }
+.ed-status {
+  margin-left: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.ed-status.is-err {
+  color: var(--p1);
+}
 .note-body .ProseMirror hr {
   border: none;
   border-top: 1px solid var(--line);

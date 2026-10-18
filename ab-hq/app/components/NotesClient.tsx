@@ -66,6 +66,8 @@ export default function NotesClient({
   const notesRef = useRef(notes);
   notesRef.current = notes;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingId = useRef<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   function flash(msg: string) {
     setError(msg);
@@ -94,29 +96,48 @@ export default function NotesClient({
     );
     setSaving(true);
     setSaved(false);
+    // A pending save for a different note must not be dropped by this one.
+    if (pendingId.current && pendingId.current !== id) flushSave();
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      const n = notesRef.current.find((x) => x.id === id);
-      if (!n) return;
-      startTransition(async () => {
-        const r = await updateNote(id, {
-          title: n.title,
-          bodyJson: n.bodyJson,
-          bodyText: n.bodyText,
-          pinned: n.pinned,
-        });
-        setSaving(false);
-        if (r.ok) {
-          setSaved(true);
-          setTimeout(() => setSaved(false), 1500);
-        } else flash(r.error ?? "Couldn't save.");
+    pendingId.current = id;
+    saveTimer.current = setTimeout(flushSave, 600);
+  }
+
+  /** Write the pending note now (debounce fired, or another note needs the slot). */
+  function flushSave() {
+    const id = pendingId.current;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    pendingId.current = null;
+    if (!id) return;
+    const n = notesRef.current.find((x) => x.id === id);
+    if (!n) return;
+    startTransition(async () => {
+      const r = await updateNote(id, {
+        title: n.title,
+        bodyJson: n.bodyJson,
+        bodyText: n.bodyText,
+        pinned: n.pinned,
       });
-    }, 600);
+      setSaving(false);
+      if (r.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1500);
+      } else flash(r.error ?? "Couldn't save.");
+    });
   }
 
   function onNew() {
+    // Close the current note while the new one is created, so nothing typed
+    // in the meantime lands on the old note.
+    flushSave();
+    const previous = selectedId;
+    setSelectedId(null);
+    setCreating(true);
     startTransition(async () => {
       const r = await createNote();
+      setCreating(false);
+      if (!r.ok || !r.id) setSelectedId(previous);
       if (r.ok && r.id) {
         const fresh: NoteDoc = {
           id: r.id,
@@ -507,7 +528,9 @@ export default function NotesClient({
           ) : (
             <div className="notes-empty-state">
               <div className="placeholder-glyph">NT</div>
-              <p className="placeholder-note">Select a note or create one.</p>
+              <p className="placeholder-note">
+                {creating ? "Creating note…" : "Select a note or create one."}
+              </p>
             </div>
           )}
         </div>

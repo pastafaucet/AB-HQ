@@ -6,10 +6,15 @@ import StarterKit from "@tiptap/starter-kit";
 import { Details, DetailsContent, DetailsSummary } from "@tiptap/extension-details";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Mention from "@tiptap/extension-mention";
+import Image from "@tiptap/extension-image";
 import { Placeholder } from "@tiptap/extensions";
 import { PluginKey } from "@tiptap/pm/state";
 import type { NoteDoc, NotesPageData } from "@/lib/queries";
-import type { NotePatch, NoteTargetType } from "@/app/(app)/note-actions";
+import {
+  startNoteImageUpload,
+  type NotePatch,
+  type NoteTargetType,
+} from "@/app/(app)/note-actions";
 import ConfirmButton from "./ConfirmButton";
 
 interface MentionItem {
@@ -96,6 +101,48 @@ export default function NoteEditor({
   const onAddTagRef = useRef(onAddTag);
   onAddTagRef.current = onAddTag;
 
+  // Images: upload each file straight to storage, then insert it. With a drop
+  // position the first image lands there; the rest follow the selection.
+  const editorRef = useRef<Editor | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(0);
+  const [imgError, setImgError] = useState<string | null>(null);
+
+  async function insertImages(files: File[], pos?: number) {
+    const images = files.filter((f) => f.type.startsWith("image/"));
+    if (!images.length) return;
+    setImgError(null);
+    setUploading((n) => n + images.length);
+    for (const file of images) {
+      try {
+        const r = await startNoteImageUpload(file.type);
+        if (!r.ok || !r.uploadUrl || !r.src) throw new Error(r.error);
+        const put = await fetch(r.uploadUrl, {
+          method: "PUT",
+          headers: { "content-type": file.type },
+          body: file,
+        });
+        if (!put.ok) {
+          throw new Error(put.status === 413 ? "That image is over 25 MB." : "Image upload failed. Try again.");
+        }
+        // A trailing paragraph puts the cursor below the image; otherwise the
+        // image stays selected and the next keystroke replaces it.
+        const node = [{ type: "image", attrs: { src: r.src } }, { type: "paragraph" }];
+        const chain = editorRef.current?.chain().focus();
+        if (pos != null) {
+          chain?.insertContentAt(pos, node).run();
+          pos = undefined;
+        } else {
+          chain?.insertContent(node).run();
+        }
+      } catch (e) {
+        setImgError(e instanceof Error && e.message ? e.message : "Image upload failed. Try again.");
+      } finally {
+        setUploading((n) => n - 1);
+      }
+    }
+  }
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -106,6 +153,15 @@ export default function NoteEditor({
       TaskList,
       TaskItem.configure({ nested: true }),
       Placeholder.configure({ placeholder: "Write… (@ to link a case or person)" }),
+      Image.configure({
+        HTMLAttributes: { class: "note-img" },
+        resize: {
+          enabled: true,
+          directions: ["bottom-right", "bottom-left"],
+          minWidth: 80,
+          alwaysPreserveAspectRatio: true,
+        },
+      }),
       Mention.configure({
         HTMLAttributes: { class: "mention" },
         suggestion: {
@@ -167,9 +223,42 @@ export default function NoteEditor({
     ],
     content: (note.bodyJson as object | null) ?? "",
     onUpdate: ({ editor }) => {
-      onPatch({ bodyJson: editor.getJSON(), bodyText: editor.getText() });
+      // ProseMirror builds node attrs as null-prototype objects, which the
+      // server-action encoder drops: images lost their src, mentions their
+      // ids, task items their checked state. A JSON round-trip makes them
+      // plain objects.
+      onPatch({
+        bodyJson: JSON.parse(JSON.stringify(editor.getJSON())),
+        bodyText: editor.getText(),
+      });
+    },
+    editorProps: {
+      handlePaste: (_view, event) => {
+        const dt = event.clipboardData;
+        const files = Array.from(dt?.files ?? []).filter((f) => f.type.startsWith("image/"));
+        // Text riding along (Word, a web page selection) means a rich paste;
+        // leave that to the default handler so the words aren't lost.
+        if (!files.length || dt?.getData("text/plain")) return false;
+        event.preventDefault();
+        void insertImages(files);
+        return true;
+      },
+      handleDrop: (view, event, _slice, moved) => {
+        if (moved) return false;
+        const files = Array.from(event.dataTransfer?.files ?? []).filter((f) =>
+          f.type.startsWith("image/")
+        );
+        if (!files.length) return false;
+        event.preventDefault();
+        const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+        void insertImages(files, pos);
+        return true;
+      },
     },
   });
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
 
   function btn(
     label: string,
@@ -344,6 +433,32 @@ export default function NoteEditor({
           {btn("❝ Quote", (e) => e.chain().focus().toggleBlockquote().run(), (e) => e.isActive("blockquote"))}
           {btn("▸ Toggle", (e) => e.chain().focus().setDetails().run(), (e) => e.isActive("details"), "Collapsible section")}
           {btn("―", (e) => e.chain().focus().setHorizontalRule().run(), undefined, "Divider")}
+          <span className="ed-sep" />
+          <button
+            type="button"
+            className="ed-btn"
+            title="Insert an image (or just paste or drop one)"
+            onMouseDown={(ev) => {
+              ev.preventDefault();
+              fileInput.current?.click();
+            }}
+          >
+            ▣ Image
+          </button>
+          <input
+            ref={fileInput}
+            id="note-image-file"
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            multiple
+            hidden
+            onChange={(e) => {
+              void insertImages(Array.from(e.target.files ?? []));
+              e.target.value = "";
+            }}
+          />
+          {uploading > 0 && <span className="ed-status">Uploading image…</span>}
+          {imgError && <span className="ed-status is-err">{imgError}</span>}
         </div>
       )}
 

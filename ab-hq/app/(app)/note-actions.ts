@@ -114,6 +114,44 @@ export async function listNotesForTarget(
   return { ok: true, notes };
 }
 
+// ---------- images ----------
+// Pasted/dropped images live in a PRIVATE storage bucket. The browser uploads
+// straight to storage with a one-time signed URL (no Vercel body-size cap),
+// and notes reference /api/note-images/<id>, which only serves behind the
+// passcode. The id deliberately has no file extension: the middleware skips
+// auth for paths ending in .png/.jpg.
+
+const IMAGE_BUCKET = "note-images";
+const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+async function ensureImageBucket() {
+  const sb = getSupabase();
+  const { data } = await sb.storage.getBucket(IMAGE_BUCKET);
+  if (data) return;
+  await sb.storage.createBucket(IMAGE_BUCKET, {
+    public: false,
+    fileSizeLimit: "25MB",
+    allowedMimeTypes: IMAGE_TYPES,
+  });
+}
+
+export async function startNoteImageUpload(
+  contentType: string
+): Promise<{ ok: boolean; error?: string; uploadUrl?: string; src?: string }> {
+  if (!IMAGE_TYPES.includes(contentType)) {
+    return { ok: false, error: "Only PNG, JPEG, GIF, and WebP images can go in a note." };
+  }
+  const sb = getSupabase();
+  const id = crypto.randomUUID();
+  let res = await sb.storage.from(IMAGE_BUCKET).createSignedUploadUrl(id);
+  if (res.error) {
+    await ensureImageBucket();
+    res = await sb.storage.from(IMAGE_BUCKET).createSignedUploadUrl(id);
+  }
+  if (res.error || !res.data) return { ok: false, error: res.error?.message ?? "Upload couldn't start." };
+  return { ok: true, uploadUrl: res.data.signedUrl, src: `/api/note-images/${id}` };
+}
+
 // ---------- tags ----------
 
 export interface NoteTagRow {

@@ -76,7 +76,7 @@ The sidebar (`lib/nav.ts`) shows the full hub layout from the original prototype
 - **Time** (`/hub/time`): the day ledger per matter and first-draft billing narratives in Andy's format.
 
 **Knowledge**
-- **Notes** (`/hub/notes`): rich text (Tiptap) with links, @mentions, pins, tags, Inbox/Active/Archived status, and search (AND terms, quoted phrases).
+- **Notes** (`/hub/notes`): rich text (Tiptap) with links, @mentions, pins, tags, Inbox/Active/Archived status, search (AND terms, quoted phrases), and images (paste, drop, or the ▣ Image button; drag a bottom corner to resize).
 - **People** (`/hub/people`): contacts linked to matters.
 
 **Placeholders (not built):** Goals, Calendar, Monthly, Knowledge hub, Tag list, Habits, Journal, Health, Scuba, 3D Printing, Games. Habits, journal, and body metrics are captured inside the rituals today. Their hubs don't exist yet.
@@ -93,6 +93,8 @@ The sidebar (`lib/nav.ts`) shows the full hub layout from the original prototype
 - **Activity log:** `task_activity` auto-records creation, priority and status changes, moves to today, MIT changes, and completion.
 - **Recurrence:** completing a recurring task spawns the next one. Rules are JSON on `tasks.recur` (`lib/recur.ts`): daily, weekly, monthly, yearly, the nth weekday, the last workday.
 - **The capture ledger** (`entries`): ⌘K is the single capture box. The raw text is kept forever. AI routing (`lib/route-entry.ts`) classifies the entry as a log, task, note, or event, matches a matter or project, pulls out dates and delegation, and drafts a one-line summary. A task created from an entry links back to it. Billed time rides along as `billed_tenths`.
+- **Note images:** stored in the **private** Supabase Storage bucket `note-images` (25 MB cap; PNG/JPEG/GIF/WebP). The browser uploads straight to storage through a one-time signed URL from `startNoteImageUpload`, which avoids Vercel's ~4.5 MB request limit. Notes reference `/api/note-images/<uuid>`, which serves only behind the passcode by redirecting to a short-lived signed URL. **That address must never end in a file extension**: the middleware skips auth for paths ending in `.png`/`.jpg` and similar. A paste that also carries text (from Word or a web page) uses the editor's normal rich paste, so the words aren't lost.
+- **Editor JSON must be plain objects before it's saved.** ProseMirror builds node attributes as null-prototype objects, and the server-action encoder silently drops them. `NoteEditor` round-trips `getJSON()` through `JSON.stringify` for this reason. Before 2026-10-18 every saved note lost its node attributes (mention ids, task checkmarks, list start numbers).
 - **Billing:** captures and tracked timer time roll up into one line per matter in Andy's house format, `activity (.4); activity (.2)`. Minutes round up to tenths. Unknown time renders as `(.__)` to fill in. AI drafts are a starting point, always reviewed by Andy.
 
 ## Quick-add syntax (`lib/quick-parse.ts`)
@@ -143,7 +145,16 @@ Server actions live in `app/(app)/*-actions.ts`. Reads are in `lib/queries.ts`. 
 
 *Updated 2026-10-18.*
 
-**Recently shipped:** Wind Down one-click completion on every open task row, and media title autocomplete from earlier logs. The Friday review rebuilt (look back, act, the life week). The Command Center (attention band, day flow, UP NEXT as real task rows, live hub grid). The life module: journal, habits, media log, and body metrics inside the rituals.
+**This session (2026-10-18):** Added this guide. Notes accept pasted, dropped, and picked images, resizable and private. Fixed three notes bugs found while testing: (1) clicking "+ Note" left the old note editable until the new one arrived, so a fast title went onto the old note; (2) editing one note and switching to another within 600 ms dropped the first note's last edit; (3) the save step stripped every node attribute (see Core behaviors).
+
+**Loose ends from this session:**
+- A test run overwrote the title of Andy's Sept 2 note (the petitions / COLA - AB 218 note, id `52775adb…`). It now reads "ZZ paste test (safe to delete)". The body is intact. Waiting on Andy for the original title.
+- Four test notes ("QA image paste test" 1–3 plus an untitled "After the screenshot.") are still in the database. Andy declined my delete; he may remove them himself.
+- Images aren't deleted from storage when a note or image is deleted. Fine at this volume; worth a cleanup job later.
+- Pre-existing lint errors in `NoteEditor.tsx` (refs written during render, lines ~96–190). The build passes; clean them up next time that file is touched.
+- **Test safety rule:** an end-to-end test must confirm it's on its own new record before it types anything, and must never touch existing rows.
+
+**Previously shipped:** Wind Down one-click completion on every open task row, and media title autocomplete from earlier logs. The Friday review rebuilt (look back, act, the life week). The Command Center (attention band, day flow, UP NEXT as real task rows, live hub grid). The life module: journal, habits, media log, and body metrics inside the rituals.
 
 **Open questions and ideas, not built yet:**
 - **Untethered time.** Time spent on something that isn't a task, like a phone call. Today it can be captured as an entry with billed tenths, but a running clock needs a task. Option: make `time_sessions.task_id` nullable and add `matter_id` plus a label.
