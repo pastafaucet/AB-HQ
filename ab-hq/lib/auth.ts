@@ -31,6 +31,51 @@ async function hmacKey(secret: string): Promise<CryptoKey> {
   );
 }
 
+async function signB64(secret: string, payloadB: string): Promise<string> {
+  const sig = new Uint8Array(
+    await crypto.subtle.sign("HMAC", await hmacKey(secret), enc.encode(payloadB))
+  );
+  return toB64url(sig);
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+/** Sign an arbitrary JSON payload (it must carry its own `exp` if it expires). */
+export async function signPayload(secret: string, payload: object): Promise<string> {
+  const payloadB = toB64url(enc.encode(JSON.stringify(payload)));
+  return `${payloadB}.${await signB64(secret, payloadB)}`;
+}
+
+/** Verify a signPayload token; returns the payload, or null if forged or expired. */
+export async function verifyPayload<T extends { exp?: number }>(
+  secret: string,
+  token: string | undefined | null
+): Promise<T | null> {
+  if (!token) return null;
+  const dot = token.lastIndexOf(".");
+  if (dot < 1) return null;
+  const payloadB = token.slice(0, dot);
+  try {
+    const expected = fromB64url(await signB64(secret, payloadB));
+    if (!sameBytes(expected, fromB64url(token.slice(dot + 1)))) return null;
+    const payload = JSON.parse(dec.decode(fromB64url(payloadB))) as T;
+    if (typeof payload.exp === "number" && payload.exp <= Date.now()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+/** SHA-256 → base64url, for PKCE S256. */
+export async function sha256B64url(input: string): Promise<string> {
+  return toB64url(new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(input))));
+}
+
 /** Create a signed session token valid for `days`. */
 export async function createSession(secret: string, days = 30): Promise<string> {
   const payload = JSON.stringify({ exp: Date.now() + days * 86_400_000 });

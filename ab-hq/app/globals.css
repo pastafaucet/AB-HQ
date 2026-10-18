@@ -959,6 +959,37 @@ input {
 .auth-submit:hover {
   filter: brightness(1.08);
 }
+.auth-consent {
+  margin: 18px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-body);
+}
+.auth-consent strong {
+  color: var(--ink);
+}
+.auth-consent-meta {
+  margin: 8px 0 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.auth-cancel {
+  margin-top: 8px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--line-field);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+.auth-cancel:hover {
+  background: var(--inset);
+  color: var(--ink);
+}
 .auth-note {
   margin-top: 18px;
   font-family: var(--font-mono);

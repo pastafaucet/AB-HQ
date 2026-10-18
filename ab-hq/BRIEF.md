@@ -63,6 +63,7 @@ AB HQ succeeds only if the daily loop is frictionless: **pick → do → review 
 - **Weekly (the Friday review):** the week that was, tasks done, captures, matters touched, matters with no next action, billed time entered, and the life week.
 - **Notes:** a rich-text editor with @mentions of cases and people, #tags, pins, an Inbox/Active/Archived lifecycle, search, and pasted or dropped images that can be resized.
 - **Recurring tasks:** daily, weekly, monthly, the nth weekday of the month, the last workday.
+- **AB HQ inside Claude (trial):** a read-only connector, so Claude on Andy's own subscription can answer from his real data on his phone, desktop, and the web. It covers today's plan, open tasks, cases, a case's full picture, and note search. Adding and changing things comes next. A chat panel inside AB HQ's own screens is planned too; it has to run on a separate pay-per-use account, because a subscription can't power an app.
 
 ## Where it's going
 

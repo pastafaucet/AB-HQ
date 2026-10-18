@@ -5,9 +5,9 @@ export const metadata = { title: "Sign in · AB HQ" };
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, next } = await searchParams;
   const message =
     error === "config"
       ? "Sign-in isn't configured yet (missing APP_PASSWORD / SESSION_SECRET)."
@@ -30,6 +30,8 @@ export default async function LoginPage({
           autoComplete="current-password"
           aria-label="Passcode"
         />
+
+        {next && <input type="hidden" name="next" value={next} />}
 
         {message && <div className="auth-error">{message}</div>}
 
