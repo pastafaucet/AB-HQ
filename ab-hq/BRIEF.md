@@ -11,7 +11,7 @@ Andy works with two Claudes on this project, and they have different jobs.
 - **You (Claude on the web) are for thinking and designing.** Explore layouts, make mockups, talk through how a feature should behave, react to screenshots. Your output is a **mockup Andy likes plus a short spec**: what changes, on which screen, and why. You don't write production code and you don't decide that something is shipped.
 - **Claude Code (in VS Code on Andy's Mac) builds and ships.** It works in the real codebase, tests against the live database, and deploys. Andy carries your mockup and spec over to it.
 - **The source of truth is the GitHub repo**, specifically this brief and `ab-hq/PROJECT.md` (the technical guide). If this brief and the live app disagree, the app wins. Ask Andy or check the code.
-- **Ideas and tweaks go on one list, in the app itself:** the project named **"AB HQ"** inside AB HQ. Don't keep a second running to-do list in this chat. When a conversation here produces something to build, Andy captures it there.
+- **Ideas and tweaks go on one list, in the app itself:** a pinned note called **"AB HQ — Wants & Ideas"**, with sections for Want, Thinking about, and Shipped. Don't keep a second running to-do list in this chat. When a conversation here produces something to build, Andy adds it to that note. If you need its current contents, ask Andy to paste them; it lives in the app, not in GitHub.
 
 **When you make a mockup:**
 - Use the real design system (the Design reference section below, and `ab-hq/app/globals.css`). A pretty design in a different palette has to be translated back, which wastes the work.
@@ -75,6 +75,8 @@ None of this is committed or scheduled. It's the known horizon, roughly in the o
 - *Track:* **Habits**, **Journal** (both are captured inside the rituals today; their dedicated hubs don't exist)
 - *Health:* **Health**, a future home for training, sleep, nutrition, appointments, and body metrics
 - *Fun:* **Scuba**, **3D Printing**, **Games**
+
+**First on the wants list:** make the header's **All / Work / Personal** toggle actually filter. It's display-only today. Anything about AB HQ itself counts as Personal.
 
 **Open ideas:**
 - **Focus Items:** a *weekly* intent layer across 3–5 active projects, shown on the Weekly review and as a small read-only strip on Today. It is deliberately separate from the daily Top 3: week versus day.

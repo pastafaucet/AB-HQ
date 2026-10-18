@@ -13,10 +13,12 @@ AB HQ ("Andy's HQ") is a personal operating system for one user: Andy Baum, an e
 **Restarting a session.** When Andy says "let's pick up AB HQ":
 1. Read this guide.
 2. Run `git log --oneline -30` to see what actually shipped.
-3. Pull the tweak list (below).
+3. Read the wants list (below).
 4. Tell Andy where things stand and what's queued *before* touching code.
 
-**The tweak list.** While using the app, Andy captures ideas with ⌘K into a project named **AB HQ** in the app itself. To read it, query open tasks whose `project_id` matches the project named `AB HQ` (Supabase project `eyqfdjmkkrfxfiahoozs`). If database access isn't connected, ask Andy to paste the list. *(The project needs to be created once in the Projects hub.)*
+**The wants list.** Andy keeps one pinned note in the app, **"AB HQ — Wants & Ideas"** (tagged `#ab-hq`, domain Personal, id `4e167129-eea2-49f6-b25e-f1d441fd63c6`), with three sections: **Want** (a checklist of decided items), **Thinking about** (ideas with context, maybe screenshots), and **Shipped** (dated, checked). Read it from `notes.body` in Supabase project `eyqfdjmkkrfxfiahoozs`. Other notes tagged `#ab-hq` are longer thinking on a single idea. If database access isn't connected, ask Andy to paste it.
+- **Don't edit the note while Andy might have it open.** The editor saves the whole note at once, so his next keystroke would overwrite a change made from outside. At the end of a session, tell him what to move to Shipped, or update it only after he confirms the note is closed.
+- Housekeeping and developer chores belong in **Where we left off** below, not in his note.
 
 **Ending a session.** Update **Where we left off**, then commit and push it with the code. If the session shipped a feature or settled a decision, update `BRIEF.md` too. It's the project overview Andy's web Claude project reads (the vision, what's built, the roadmap, the settled decisions, the design reference).
 
@@ -61,6 +63,8 @@ The sidebar (`lib/nav.ts`) shows the full hub layout from the original prototype
 - **Start of Day** (`/start-up`, `StartUpClient`): the morning ritual. "On tap from yesterday," overdue and due-today triage, project obligations this week, the morning-body check-in, the morning routine, and the **MIT picker** that chooses today's three.
 - **Today** (`/my-day`, `MyDayClient`): quick-add, the protected Top 3 (MITs), Also Today, In Progress. The right rail has the capacity bar and the schedule grid.
 - **Wind Down** (`/wind-down`, `WindDownClient`): the evening ritual. Close out open tasks with one click, "On tap for tomorrow" (tomorrow's picks), the journal ("top things of the day"), habits, body metrics, the media log, and "A year ago today."
+
+**Shell:** the header's **All / Work / Personal** toggle (`AppShell.tsx`) is display-only and filters nothing yet. It's the first item on Andy's wants list.
 
 **Home**
 - **Andy's HQ** (`/`, `CommandCenterClient`): the Command Center. An attention band, "The day" flow, UP NEXT (real task rows that open the drawer), and a live hub grid.
@@ -162,4 +166,4 @@ Server actions live in `app/(app)/*-actions.ts`. Reads are in `lib/queries.ts`. 
 - **MITs carry no date.** The flag persists until cleared. Check whether Start of Day resets it before deciding whether a date-scoped field is needed.
 - **Dedicated habit and workout databases** are planned. Today's `habit_checks` and `body_metrics` are the interim capture layer, so future schemas should import from them.
 - **Unbuilt hubs** (see Placeholders above).
-- **The tweak list** project ("AB HQ") still needs to be created in the app.
+- The ideas above are also in Andy's wants note under "Thinking about"; treat the note as the current version.
