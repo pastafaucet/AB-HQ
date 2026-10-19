@@ -227,4 +227,24 @@ const authed = withMcpAuth(handler, verify, {
   resourceMetadataPath: "/.well-known/oauth-protected-resource/api/mcp",
 });
 
-export { authed as GET, authed as POST, authed as DELETE };
+// No legitimate request runs long; cap a stuck stream well below Vercel's 300 s.
+export const maxDuration = 60;
+
+/** Log which MCP methods arrive (never arguments or tokens), to diagnose clients. */
+async function logged(req: Request): Promise<Response> {
+  if (req.method === "POST") {
+    try {
+      const body = (await req.clone().json()) as { method?: string; params?: { name?: string } } | { method?: string }[];
+      const msgs = Array.isArray(body) ? body : [body];
+      const names = msgs.map((m) => (m.method === "tools/call" ? `tools/call:${(m as { params?: { name?: string } }).params?.name}` : m.method));
+      console.log(`mcp ${names.join(",")} pv=${req.headers.get("mcp-protocol-version") ?? "-"} accept=${req.headers.get("accept") ?? "-"}`);
+    } catch {
+      console.log("mcp (unparseable body)");
+    }
+  } else {
+    console.log(`mcp ${req.method} accept=${req.headers.get("accept") ?? "-"}`);
+  }
+  return authed(req);
+}
+
+export { logged as GET, logged as POST, logged as DELETE };
