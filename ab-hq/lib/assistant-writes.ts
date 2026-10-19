@@ -213,18 +213,43 @@ const checklist = (items: string[]): PMNode => ({
   content: items.map((i) => ({ type: "taskItem", attrs: { checked: false }, content: [para(txt(i))] })),
 });
 
-/** Notion markdown → plain paragraphs (headings in bold), inside a collapsed toggle. */
-function recordToggle(label: string, markdown: string): PMNode {
-  const lines = markdown
-    .replace(/<\/?(page|content|properties|ancestor-path)[^>]*>/g, "")
-    .replace(/<empty-block\/>/g, "")
+/** Notion's enhanced markdown → readable plain lines (no tags, no footnote links). */
+function cleanLines(md: string): string[] {
+  return md
+    .replace(/<mention-date start="([^"]+)"[^>]*\/>/g, "$1")
+    .replace(/\[\^[^\]]*\]/g, "")
+    .replace(/<[^>]+>/g, "")
     .split("\n")
-    .map((l) => l.trim())
+    .map((l) => l.trim().replace(/^- \[ \] /, "☐ ").replace(/^- \[x\] /i, "☑ ").replace(/^[-*] /, "• "))
     .filter(Boolean);
-  const content = lines.map((l) => {
-    const heading = l.match(/^#{1,6}\s+(.*)/);
-    return heading ? para(txt(heading[1], [{ type: "bold" }])) : para(txt(l));
-  });
+}
+
+function section(md: string, tag: string): string | null {
+  const m = md.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`));
+  return m ? m[1] : null;
+}
+
+/**
+ * The meeting's full record inside a collapsed toggle: Notion's summary,
+ * Andy's own notes, then the conversation. Headings become bold lines.
+ */
+function recordToggle(label: string, markdown: string): PMNode {
+  const parts: [string, string | null][] = [
+    ["Notion's summary", section(markdown, "summary")],
+    ["Your notes", section(markdown, "notes")],
+    ["Conversation", section(markdown, "transcript")],
+  ];
+  const known = parts.some(([, body]) => body !== null);
+  const content: PMNode[] = [];
+  for (const [title, body] of known ? parts : [["Record", markdown] as [string, string]]) {
+    const lines = body ? cleanLines(body) : [];
+    if (!lines.length) continue;
+    content.push(para(txt(title.toUpperCase(), [{ type: "bold" }])));
+    for (const l of lines) {
+      const heading = l.match(/^#{1,6}\s+(.*)/);
+      content.push(heading ? para(txt(heading[1], [{ type: "bold" }])) : para(txt(l)));
+    }
+  }
   return {
     type: "details",
     attrs: { open: false },
@@ -264,7 +289,7 @@ export async function saveMeeting(m: MeetingInput) {
   if (m.actionItems?.length) content.push(h2("Action items"), checklist(m.actionItems));
   if (m.keyPoints?.length) content.push(h2("Key points"), bullets(m.keyPoints));
   if (m.attendees?.length) content.push(h2("Attendees"), para(txt(m.attendees.join(", "))));
-  if ("text" in record) content.push(recordToggle("The full meeting record from Notion (notes and conversation)", record.text));
+  if ("text" in record) content.push(recordToggle("The full meeting record from Notion (summary, notes, and conversation)", record.text));
   else content.push(para(txt(`Conversation not attached: ${record.error}`, [{ type: "italic" }])));
 
   const doc = { type: "doc", content };
