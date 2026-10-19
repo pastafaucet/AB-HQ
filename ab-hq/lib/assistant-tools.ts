@@ -11,6 +11,7 @@ import { TASK_COLUMNS, todayISO, formatTime, type TaskRowDB } from "@/lib/task-m
 // ============================================================
 
 export interface TaskOut {
+  id: string;
   title: string;
   type: string;
   priority: string;
@@ -32,7 +33,7 @@ function addDays(iso: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-async function nameMaps() {
+export async function nameMaps() {
   const sb = getSupabase();
   const [m, p] = await Promise.all([
     sb.from("matters").select("id,name"),
@@ -43,8 +44,9 @@ async function nameMaps() {
   return { matters, projects };
 }
 
-function taskOut(t: TaskRowDB, maps: Awaited<ReturnType<typeof nameMaps>>): TaskOut {
+export function taskOut(t: TaskRowDB, maps: Awaited<ReturnType<typeof nameMaps>>): TaskOut {
   return {
+    id: t.id,
     title: t.title,
     type: t.type,
     priority: `P${t.priority}`,
@@ -68,7 +70,7 @@ function byDateThenPriority(a: TaskRowDB, b: TaskRowDB): number {
 }
 
 /** Find matters by name, client, or case number. Exact name match wins. */
-async function resolveMatters(query: string): Promise<{ id: string; name: string; client: string | null }[]> {
+export async function resolveMatters(query: string): Promise<{ id: string; name: string; client: string | null }[]> {
   const q = query.trim().replace(/[%,()]/g, " ");
   const { data } = await getSupabase()
     .from("matters")

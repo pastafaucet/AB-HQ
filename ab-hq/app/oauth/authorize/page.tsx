@@ -61,8 +61,8 @@ export default async function AuthorizePage({
         <div className="auth-brand">Andy&rsquo;s HQ</div>
         <div className="auth-kicker">CONNECT AN APP</div>
         <p className="auth-consent">
-          <strong>{clientName}</strong>{" "}wants to read your AB HQ: today&rsquo;s plan, tasks, cases, and notes. It
-          can&rsquo;t change anything.
+          <strong>{clientName}</strong>{" "}wants to use your AB HQ: read today&rsquo;s plan, tasks, cases, and notes,
+          and add or update tasks, captures, and meeting notes. Claude asks you before each change.
         </p>
         <p className="auth-consent-meta">Signs in through {destination}</p>
         {FORWARDED.map((k) =>

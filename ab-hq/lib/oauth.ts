@@ -13,7 +13,7 @@ import { signPayload, verifyPayload, sha256B64url } from "@/lib/auth";
 // ============================================================
 
 export const MCP_PATH = "/api/mcp";
-export const SCOPES = ["abhq.read", "offline_access"];
+export const SCOPES = ["abhq.read", "abhq.write", "offline_access"];
 export const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
 
 const ACCESS_TTL_S = 60 * 60; // 1 hour
@@ -116,9 +116,9 @@ export async function validateAuthorize(
   }
   const resource = params.get("resource") ?? resourceFor(origin);
   if (resource !== resourceFor(origin)) return { ok: false, error: "invalid_target", redirectable: true };
-  const requested = (params.get("scope") ?? "abhq.read").split(/\s+/).filter(Boolean);
-  const scope = requested.filter((s) => SCOPES.includes(s));
-  if (!scope.includes("abhq.read")) scope.unshift("abhq.read");
+  // Approval grants read and write; Claude still asks Andy before each change.
+  const requested = (params.get("scope") ?? "").split(/\s+/).filter(Boolean);
+  const scope = ["abhq.read", "abhq.write", ...(requested.includes("offline_access") ? ["offline_access"] : [])];
   return {
     ok: true,
     clientName: client.name,
