@@ -210,6 +210,10 @@ const handler = createMcpHandler(
   },
   {
     serverInfo: { name: "AB HQ", version: "0.2.0" },
+    // Claude (MCP 2026-07-28) opens `subscriptions/listen` to hear about
+    // tool-list changes. AB HQ's tools never change at runtime, and on Vercel
+    // the open stream just runs to the time cap and reopens. Refuse it up front.
+    maxSubscriptions: 0,
     instructions:
       "AB HQ is Andy Baum's personal operating system and the source of truth for his tasks, litigation cases, notes, and daily plan. Notion holds his recorded meeting notes; tasks or projects found in Notion are old and never current. Dates are Pacific time. Priorities run P1 (urgent) to P4 (someday). MITs are the day's three protected tasks. Answer from these tools rather than guessing, and name the case when you cite a task. Before changing anything, say exactly what you'll add or change. Never invent dates, estimates, or owners.",
   }
