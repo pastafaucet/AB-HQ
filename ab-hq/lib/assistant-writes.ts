@@ -180,6 +180,44 @@ function notionId(url: string): string | null {
   return m ? m[1].toLowerCase() : null;
 }
 
+async function notionGet(path: string): Promise<Record<string, unknown> | null> {
+  const token = process.env.NOTION_TOKEN;
+  if (!token) return null;
+  try {
+    const res = await fetch(`https://api.notion.com/v1/${path}`, {
+      headers: { Authorization: `Bearer ${token}`, "Notion-Version": "2026-03-11" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    return res.ok ? ((await res.json()) as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+const bareId = (s: string) => s.replace(/-/g, "").toLowerCase();
+
+/**
+ * A meeting can be linked two ways: the meeting-notes block, or the page that
+ * holds it. Return every id that names this meeting (for de-duplication) and
+ * the block id to read the record from (the block returns it untruncated).
+ */
+async function meetingIds(id: string): Promise<{ ids: string[]; recordId: string }> {
+  const ids = [id];
+  let recordId = id;
+  const block = await notionGet(`blocks/${id}`);
+  const parent = block?.parent as { page_id?: string } | undefined;
+  if (block?.type === "meeting_notes" && parent?.page_id) ids.push(bareId(parent.page_id));
+  if (block?.type === "child_page") {
+    const kids = await notionGet(`blocks/${id}/children?page_size=100`);
+    const mn = ((kids?.results as { id: string; type: string }[]) ?? []).find((k) => k.type === "meeting_notes");
+    if (mn) {
+      ids.push(bareId(mn.id));
+      recordId = bareId(mn.id);
+    }
+  }
+  return { ids, recordId };
+}
+
 /** The meeting's full record (Notion's notes and the transcript), straight from Notion. */
 async function fetchNotionRecord(id: string): Promise<{ text: string } | { error: string }> {
   const token = process.env.NOTION_TOKEN;
@@ -279,7 +317,8 @@ export async function saveMeeting(m: MeetingInput) {
     matter = r;
   }
 
-  const record = await fetchNotionRecord(id);
+  const { ids, recordId } = await meetingIds(id);
+  const record = await fetchNotionRecord(recordId);
   const content: PMNode[] = [
     para(txt("Imported from Notion, which keeps the original. Source: ", [{ type: "italic" }]), txt(source, [{ type: "link", attrs: { href: source } }])),
     h2("Summary"),
@@ -302,8 +341,13 @@ export async function saveMeeting(m: MeetingInput) {
   };
 
   const sb = getSupabase();
-  // One note per Notion meeting: re-importing refreshes it.
-  const { data: existing } = await sb.from("notes").select("id").ilike("body", `%${id}%`).limit(1).maybeSingle();
+  // One note per Notion meeting, whichever of its links was used: re-importing refreshes it.
+  const { data: existing } = await sb
+    .from("notes")
+    .select("id")
+    .or(ids.map((i) => `body.ilike.%${i}%`).join(","))
+    .limit(1)
+    .maybeSingle();
   let noteId: string;
   if (existing) {
     noteId = (existing as { id: string }).id;
