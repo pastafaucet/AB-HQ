@@ -90,7 +90,7 @@ None of this is committed or scheduled. It's the known horizon, roughly in the o
 
 ## Settled decisions (don't reopen unless Andy does)
 
-- **AB HQ is the system of record.** A move to Notion as the store, with Claude as a front end, was explored in September 2026 and dropped.
+- **AB HQ is the system of record.** A move to Notion as the store, with Claude as a front end, was explored in September 2026 and dropped. Decided again 2026-10-18: Andy stays on AB HQ (Vercel + Supabase). **Notion's only remaining job is recording and summarizing calls.** Meeting notes are pulled into AB HQ: summary, decisions, action items, attendees, the case, and a link back to the Notion transcript. They're stored as Notes tagged #meeting and linked to the case. Action items become tasks, and decisions become case-log entries, with Andy's approval. Claude does the pulling, not a direct AB HQ–Notion integration. Old Notion pages are an archive; old Notion tasks are never current.
 - **Priority is P1–P4.** No Eisenhower important/urgent.
 - **Domains are Work and Personal only.** No Health domain; health is a hub, not a domain.
 - **One date per task** (the do date) plus an optional time. Deadlines are a task *type*, not a second date field.
