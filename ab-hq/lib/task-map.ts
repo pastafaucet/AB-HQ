@@ -14,15 +14,20 @@ import type {
 export const TASK_COLUMNS =
   "id,title,status,domain,type,priority,mit,do_date,do_time,duration_min,matter_id,project_id,waiting_on,recur,notes,completed_at";
 
+// With migration 0016: multi-day items carry an end date and time.
+export const TASK_COLUMNS_WITH_END = TASK_COLUMNS + ",end_date,end_time";
+
 // Pre-migration-0011/0012/0014 column set (free-text project, no project_id/waiting_on/recur).
 export const TASK_COLUMNS_LEGACY = TASK_COLUMNS.replace("project_id", "project")
   .replace(",waiting_on", "")
   .replace(",recur", "");
 
-/** Select task rows, falling back to the legacy columns if 0011 isn't applied. */
+/** Select task rows, falling back when 0016 (end date) or 0011 isn't applied. */
 export async function selectTaskRows(
   build: (cols: string) => PromiseLike<{ data: unknown; error: { message: string } | null }>
 ): Promise<TaskRowDB[]> {
+  const withEnd = await build(TASK_COLUMNS_WITH_END);
+  if (!withEnd.error) return withEnd.data as TaskRowDB[];
   const first = await build(TASK_COLUMNS);
   if (!first.error) return first.data as TaskRowDB[];
   const retry = await build(TASK_COLUMNS_LEGACY);
@@ -47,6 +52,8 @@ export interface TaskRowDB {
   recur?: string | null;
   notes: string | null;
   completed_at: string | null;
+  end_date?: string | null;
+  end_time?: string | null;
 }
 
 export const PROJECT_COLUMNS = "id,name,matter_id,deadline,status,notes";
@@ -115,12 +122,18 @@ export function formatTime(hhmm: string | null | undefined): string | undefined 
   return `${h}:${m}${ap}`;
 }
 
-/** Display tag for a task row: the time if set, else a future date. */
+/** Display tag for a task row: a date range if multi-day, the time if set, else a future date. */
 export function dueTagFor(
   doDate: string | null,
   doTime: string | null,
-  today: string
+  today: string,
+  endDate: string | null = null
 ): string | undefined {
+  const md = (iso: string) => {
+    const parts = iso.split("-");
+    return `${MONTHS[Number(parts[1]) - 1]} ${Number(parts[2])}`;
+  };
+  if (doDate && endDate && endDate > doDate) return `${md(doDate)} – ${md(endDate)}`;
   if (doTime) return formatTime(doTime);
   if (doDate && doDate !== today) {
     const parts = doDate.split("-");
@@ -148,7 +161,14 @@ export function rowToTask(row: TaskRowDB, today: string): Task {
     waitingOn: (row.waiting_on as Task["waitingOn"]) ?? undefined,
     recur: row.recur ?? undefined,
     notes: row.notes ?? undefined,
-    dueTag: dueTagFor(row.do_date, row.do_time ? row.do_time.slice(0, 5) : null, today),
+    endDate: row.end_date ?? undefined,
+    endTime: row.end_time ? row.end_time.slice(0, 5) : undefined,
+    dueTag: dueTagFor(
+      row.do_date,
+      row.do_time ? row.do_time.slice(0, 5) : null,
+      today,
+      row.end_date ?? null
+    ),
     completedAt: row.completed_at ?? undefined,
   };
 }

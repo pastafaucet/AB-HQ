@@ -12,6 +12,7 @@ import type {
   ActivityItem,
 } from "@/lib/data";
 import { PRIORITY_META, DOMAIN_DOT, PRI_COLOR } from "@/lib/data";
+import { coversDay, isPastDue } from "@/lib/task-dates";
 import { applyPatch, fullPatch } from "@/lib/task-patch";
 import {
   updateTask,
@@ -283,9 +284,9 @@ export default function StartUpClient({
   const mits = tasks.filter((t) => t.mit);
   const mitSlots = [0, 1, 2].map((i) => mits[i] ?? null);
 
-  const dueToday = open.filter((t) => !t.mit && t.doDate === today);
+  const dueToday = open.filter((t) => !t.mit && coversDay(t, today));
   const overdue = open
-    .filter((t) => !t.mit && t.doDate && t.doDate < today)
+    .filter((t) => !t.mit && isPastDue(t, today))
     .sort((a, b) => (a.doDate! < b.doDate! ? -1 : 1));
   const horizon = isoShift(today, 7);
   const projectName = new Map(projects.map((p) => [p.id, p.name]));

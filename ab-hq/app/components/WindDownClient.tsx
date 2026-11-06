@@ -16,6 +16,7 @@ import type { MatterOption, LifeData } from "@/lib/queries";
 import { HabitChecklist, BodyForm } from "./LifeBits";
 import { saveJournal, logMedia, deleteMedia, type MediaItem } from "@/app/(app)/life-actions";
 import { PRIORITY_META, DOMAIN_DOT, PRI_COLOR } from "@/lib/data";
+import { isPastDue } from "@/lib/task-dates";
 import { applyPatch, fullPatch } from "@/lib/task-patch";
 import {
   updateTask,
@@ -462,9 +463,9 @@ export default function WindDownClient({
         )}
         <span className={kindCls}>{t.type.toUpperCase()}</span>
         {t.doDate && (
-          <span className={t.doDate < today ? "overdue-tag" : "time-tag"}>
+          <span className={isPastDue(t, today) ? "overdue-tag" : "time-tag"}>
             {dateChip(t.doDate)}
-            {t.doDate < today ? " · OVERDUE" : ""}
+            {isPastDue(t, today) ? " · OVERDUE" : ""}
           </span>
         )}
         {t.doTime && <span className="time-tag">{t.dueTag}</span>}

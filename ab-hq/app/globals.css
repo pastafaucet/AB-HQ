@@ -4705,3 +4705,6 @@ button.check {
     max-width: 100%;
   }
 }
+.cal-chip.is-cont {
+  opacity: 0.7;
+}

@@ -74,7 +74,7 @@ None of this is committed or scheduled. It's the known horizon, roughly in the o
 **The planning layer (in scope as of Nov 2026).** Year, month, and week views; goals; habits; progress rings. One engine, many lenses:
 - `lib/progress.ts`: one function takes a date range (day, week, month, quarter, year) and returns task completion, habit completion, and goal progress. Every ring and bar uses it.
 - Shared components in the existing tokens: Ring, ProgressBar, MonthGrid, YearStrip, PriorityGroup (P1–P4 colored stacks).
-- One migration: a `goals` table (title, area, period, period_start, status; progress computed from linked projects and tasks); projects gain start_date, kind, horizon, goal_id; habits gain a weekly target and goal_id; a `reviews` table (period, period_start, reflection); tasks gain an optional `end_date` so multi-day events (trips, trial weeks) span the calendar (Andy approved 2026-11-06).
+- One migration: a `goals` table (title, area, period, period_start, status; progress computed from linked projects and tasks); projects gain start_date, kind, horizon, goal_id; habits gain a weekly target and goal_id; a `reviews` table (period, period_start, reflection). (Tasks' optional end date and time for multi-day items shipped early, 2026-11-06, as migration 0016.)
 
 **Build order:** (1) nav restructure, ⌘J jump-to-anything, standard drawers; (2) period engine, primitives, rings on HQ from existing data; (3) the migration; (4) Goals tab; (5) Year and Month tabs; (6) Habits tab; (7) monthly review. Step 1 is partly shipped (nav, tabs, Today modes, scope toggle, mobile bar); ⌘J and drawers are next.
 

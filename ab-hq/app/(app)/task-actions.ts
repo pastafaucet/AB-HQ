@@ -6,11 +6,13 @@ import {
   rowToTask,
   selectTaskRows,
   TASK_COLUMNS,
+  TASK_COLUMNS_WITH_END,
   TASK_COLUMNS_LEGACY,
   todayISO,
   type TaskRowDB,
 } from "@/lib/task-map";
 import { parseRule, nextOccurrence } from "@/lib/recur";
+import { addDays, daysBetween } from "@/lib/task-dates";
 import type { Task, ActivityItem } from "@/lib/data";
 
 async function logActivity(taskId: string, detail: string) {
@@ -48,6 +50,8 @@ export interface TaskPatch {
   doDate?: string | null;
   doTime?: string | null;
   durationMin?: number | null;
+  endDate?: string | null; // multi-day items only (migration 0016)
+  endTime?: string | null;
   notes?: string | null;
 }
 
@@ -82,6 +86,8 @@ function toDbPatch(patch: TaskPatch): Record<string, unknown> {
   if (patch.doDate !== undefined) db.do_date = patch.doDate;
   if (patch.doTime !== undefined) db.do_time = patch.doTime;
   if (patch.durationMin !== undefined) db.duration_min = patch.durationMin;
+  if (patch.endDate !== undefined) db.end_date = patch.endDate;
+  if (patch.endTime !== undefined) db.end_time = patch.endTime;
   if (patch.notes !== undefined) db.notes = patch.notes;
   if (patch.status === "Done") db.completed_at = new Date().toISOString();
   if (patch.status && patch.status !== "Done") db.completed_at = null;
@@ -113,7 +119,10 @@ export async function setTaskDone(id: string, done: boolean): Promise<ActionResu
  */
 async function spawnNextIfRecurring(id: string): Promise<void> {
   const sb = getSupabase();
-  const { data: t } = await sb.from("tasks").select(TASK_COLUMNS).eq("id", id).maybeSingle();
+  const withEnd = await sb.from("tasks").select(TASK_COLUMNS_WITH_END).eq("id", id).maybeSingle();
+  const t = withEnd.error
+    ? (await sb.from("tasks").select(TASK_COLUMNS).eq("id", id).maybeSingle()).data
+    : withEnd.data;
   const row = t as TaskRowDB | null;
   if (!row?.recur) return;
   const rule = parseRule(row.recur);
@@ -139,6 +148,11 @@ async function spawnNextIfRecurring(id: string): Promise<void> {
     waiting_on: row.waiting_on,
     recur: row.recur,
   };
+  // A multi-day item keeps its length: a 3-day trip recurs as a 3-day trip.
+  if (row.do_date && row.end_date && row.end_date > row.do_date) {
+    clone.end_date = addDays(next, daysBetween(row.do_date, row.end_date));
+    clone.end_time = row.end_time ?? null;
+  }
   const { data: created, error } = await sb.from("tasks").insert(clone).select("id").single();
   if (!error && created) {
     await sb.from("tasks").update({ recur: null }).eq("id", id);
@@ -157,7 +171,20 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<ActionRe
     .select("priority,status,do_date,mit")
     .eq("id", id)
     .single();
-  const { error } = await sb.from("tasks").update(toDbPatch(patch)).eq("id", id);
+  const db = toDbPatch(patch);
+  let { error } = await sb.from("tasks").update(db).eq("id", id);
+  if (error && ("end_date" in db || "end_time" in db)) {
+    // Before migration 0016 the end columns don't exist. Save everything
+    // else; only complain if an end date was actually being set.
+    const wanted = !!(patch.endDate || patch.endTime);
+    delete db.end_date;
+    delete db.end_time;
+    ({ error } = await sb.from("tasks").update(db).eq("id", id));
+    if (!error && wanted) {
+      revalidatePath("/plan/today");
+      return { ok: false, error: "Saved, except the end date: run migration 0016 in Supabase first." };
+    }
+  }
   if (!error && cur) {
     const today = todayISO();
     if (patch.priority !== undefined && patch.priority !== cur.priority)
@@ -180,7 +207,7 @@ export async function createTask(input: TaskPatch & { title: string }): Promise<
   let mit = input.mit === true;
   if (mit && (await protectedCount()) >= MIT_CAP) mit = false;
 
-  const row = {
+  const row: Record<string, unknown> = {
     title: input.title,
     status: input.status ?? "To Do",
     domain: input.domain ?? "Work",
@@ -195,10 +222,18 @@ export async function createTask(input: TaskPatch & { title: string }): Promise<
     ...(input.projectId ? { project_id: input.projectId } : {}),
     ...(input.waitingOn ? { waiting_on: input.waitingOn } : {}),
     ...(input.recur ? { recur: input.recur } : {}),
+    ...(input.endDate ? { end_date: input.endDate } : {}),
+    ...(input.endTime ? { end_time: input.endTime } : {}),
     notes: input.notes ?? null,
   };
 
   let { data, error } = await sb.from("tasks").insert(row).select(TASK_COLUMNS).single();
+  if (error && ("end_date" in row || "end_time" in row)) {
+    // Pre-0016: create it without the end date rather than not at all.
+    delete row.end_date;
+    delete row.end_time;
+    ({ data, error } = await sb.from("tasks").insert(row).select(TASK_COLUMNS).single());
+  }
   if (error && !input.projectId) {
     // Pre-0011 the returning column set errors; the failed insert rolls back.
     ({ data, error } = await sb.from("tasks").insert(row).select(TASK_COLUMNS_LEGACY).single());

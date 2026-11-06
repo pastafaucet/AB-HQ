@@ -10,6 +10,7 @@ import type {
   ActivityItem,
 } from "@/lib/data";
 import { PRIORITY_META, DOMAIN_DOT, PRI_COLOR } from "@/lib/data";
+import { coversDay } from "@/lib/task-dates";
 import { parseQuickAdd } from "@/lib/quick-parse";
 import { applyPatch, fullPatch } from "@/lib/task-patch";
 import {
@@ -222,7 +223,7 @@ export default function MyDayClient({
     (t) => !t.mit && t.status === "In Progress" && !onSched(t)
   );
   const alsoToday = tasks.filter(
-    (t) => !t.mit && t.status !== "In Progress" && t.doDate === today && !onSched(t)
+    (t) => !t.mit && t.status !== "In Progress" && coversDay(t, today) && !onSched(t)
   );
   const mitSlots = [0, 1, 2].map((i) => mits[i] ?? null);
   const mitsDone = mits.filter((t) => t.status === "Done").length;

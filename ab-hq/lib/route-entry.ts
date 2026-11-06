@@ -16,6 +16,8 @@ export interface RouteResult {
   doDate: string | null; // YYYY-MM-DD
   doTime: string | null; // HH:MM
   durationMin: number | null;
+  endDate: string | null; // YYYY-MM-DD, multi-day items only
+  endTime: string | null; // HH:MM on endDate
   taskType: "Task" | "Event" | "Deadline" | null;
   priority: number | null;
   waitingOn: "Chris" | "Opposing Counsel" | "Court" | "Other" | null;
@@ -62,6 +64,16 @@ const SCHEMA = {
       description:
         "HH:MM 24-hour, for events with a stated time. For a range ('2-3:30pm') this is the START time. null otherwise.",
     },
+    end_date: {
+      type: ["string", "null"],
+      description:
+        "YYYY-MM-DD, only for something spanning several days: a trip, a trial, a conference ('Mammoth 11/6 - 11/9', 'trial Mon through Fri'). The last day it covers. null for single-day items.",
+    },
+    end_time: {
+      type: ["string", "null"],
+      description:
+        "HH:MM 24-hour, the end time on end_date for a multi-day item when stated ('back Monday 6pm'). null otherwise; same-day ranges use duration_min.",
+    },
     duration_min: {
       anyOf: [{ type: "integer" }, { type: "null" }],
       description:
@@ -105,6 +117,8 @@ const SCHEMA = {
     "do_date",
     "do_time",
     "duration_min",
+    "end_date",
+    "end_time",
     "task_type",
     "priority",
     "waiting_on",
@@ -186,6 +200,14 @@ ${raw}`,
       title: typeof j.title === "string" && j.title.trim() ? j.title.trim() : null,
       doDate: typeof j.do_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(j.do_date) ? j.do_date : null,
       doTime: typeof j.do_time === "string" && /^\d{2}:\d{2}$/.test(j.do_time) ? j.do_time : null,
+      endDate:
+        typeof j.end_date === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(j.end_date) &&
+        typeof j.do_date === "string" &&
+        j.end_date > j.do_date
+          ? j.end_date
+          : null,
+      endTime: typeof j.end_time === "string" && /^\d{2}:\d{2}$/.test(j.end_time) ? j.end_time : null,
       durationMin:
         typeof j.duration_min === "number" && j.duration_min >= 5 && j.duration_min <= 720
           ? Math.round(j.duration_min)

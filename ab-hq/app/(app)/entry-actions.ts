@@ -121,7 +121,17 @@ async function captureOne(
     };
     if (route.waitingOn) taskRow.waiting_on = route.waitingOn;
     if (route.recur) taskRow.recur = route.recur;
+    if (route.endDate) {
+      taskRow.end_date = route.endDate;
+      if (route.endTime) taskRow.end_time = route.endTime;
+    }
     let { data: t, error: tErr } = await sb.from("tasks").insert(taskRow).select("id").single();
+    if (tErr && route.endDate) {
+      // Pre-0016: keep the item, lose only the end date.
+      delete taskRow.end_date;
+      delete taskRow.end_time;
+      ({ data: t, error: tErr } = await sb.from("tasks").insert(taskRow).select("id").single());
+    }
     if (tErr && (route.waitingOn || route.recur)) {
       // Pre-0012/0014 tasks table — retry without the newer columns.
       delete taskRow.waiting_on;
@@ -141,6 +151,10 @@ async function captureOne(
           const ap = h >= 12 ? "p" : "a";
           const h12 = h % 12 === 0 ? 12 : h % 12;
           when += ` ${h12}${min ? `:${String(min).padStart(2, "0")}` : ""}${ap}`;
+        }
+        if (route.endDate) {
+          const [, em, ed] = route.endDate.split("-").map(Number);
+          when += ` – ${MO[em - 1]} ${ed}`;
         }
         bits.push(when);
       }

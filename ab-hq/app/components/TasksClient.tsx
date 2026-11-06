@@ -10,6 +10,7 @@ import type {
   ActivityItem,
 } from "@/lib/data";
 import { PRIORITY_META, DOMAIN_DOT, PRI_COLOR } from "@/lib/data";
+import { coversDay, isPastDue, isMultiDay, addDays, daysBetween } from "@/lib/task-dates";
 import { parseQuickAdd } from "@/lib/quick-parse";
 import { applyPatch, fullPatch } from "@/lib/task-patch";
 import {
@@ -572,9 +573,9 @@ export default function TasksClient({
       }
       case "triage": {
         const overdue = filtered
-          .filter((t) => active(t) && t.doDate && daysFromToday(t.doDate, today) < 0)
+          .filter((t) => active(t) && isPastDue(t, today))
           .sort(taskSort);
-        const todayList = filtered.filter((t) => active(t) && t.doDate === today).sort(taskSort);
+        const todayList = filtered.filter((t) => active(t) && coversDay(t, today)).sort(taskSort);
         return [
           { label: "OVERDUE", cls: "overdue", items: overdue },
           { label: "TODAY", items: todayList },
@@ -584,19 +585,19 @@ export default function TasksClient({
         const out: Group[] = [];
         for (let i = 0; i <= 6; i++) {
           const iso = toISO(new Date(fromISO(today).getTime() + i * 86400000));
-          const items = filtered.filter((t) => active(t) && t.doDate === iso).sort(taskSort);
+          const items = filtered.filter((t) => active(t) && coversDay(t, iso)).sort(taskSort);
           if (items.length || i === 0)
             out.push({ label: dayHeading(iso), items });
         }
         const overdue = filtered
-          .filter((t) => active(t) && t.doDate && daysFromToday(t.doDate, today) < 0)
+          .filter((t) => active(t) && isPastDue(t, today))
           .sort(taskSort);
         if (overdue.length) out.unshift({ label: "OVERDUE", cls: "overdue", items: overdue });
         return out;
       }
       case "deadlines": {
         const dls = filtered.filter((t) => t.type === "Deadline").sort(taskSort);
-        const overdue = dls.filter((t) => t.doDate && daysFromToday(t.doDate, today) < 0);
+        const overdue = dls.filter((t) => isPastDue(t, today));
         const upcoming = dls.filter((t) => !t.doDate || daysFromToday(t.doDate, today) >= 0);
         const byMonth = new Map<string, Task[]>();
         for (const t of upcoming) {
@@ -630,9 +631,9 @@ export default function TasksClient({
           {
             label: "OVERDUE",
             cls: "overdue",
-            test: (t) => active(t) && !!t.doDate && daysFromToday(t.doDate, today) < 0,
+            test: (t) => active(t) && isPastDue(t, today),
           },
-          { label: "TODAY", test: (t) => active(t) && t.doDate === today },
+          { label: "TODAY", test: (t) => active(t) && coversDay(t, today) },
           {
             label: "TOMORROW",
             test: (t) => active(t) && !!t.doDate && daysFromToday(t.doDate, today) === 1,
@@ -742,22 +743,28 @@ export default function TasksClient({
     return t.type === "Deadline" ? "k-deadline" : t.type === "Event" ? "k-event" : "k-task";
   }
 
-  function Chip({ t }: { t: Task }) {
+  // On the calendar a multi-day item appears in every day it covers; `iso`
+  // is the cell it's drawn in, so later days read as a continuation.
+  function Chip({ t, iso }: { t: Task; iso?: string }) {
+    const multi = isMultiDay(t);
+    const cont = multi && !!iso && iso !== t.doDate;
     return (
       <div
-        className={`cal-chip ${chipKind(t)}`}
+        className={`cal-chip ${chipKind(t)}${cont ? " is-cont" : ""}`}
         style={{ borderLeftColor: PRI_COLOR[t.priority] }}
         draggable
         onDragStart={(e) => {
           e.dataTransfer.setData("text/plain", t.id);
+          if (iso) e.dataTransfer.setData("application/x-abhq-grab-day", iso);
           e.dataTransfer.effectAllowed = "move";
         }}
         onClick={() => openExisting(t.id)}
-        title={t.title}
+        title={multi ? `${t.title} · ${t.dueTag}` : t.title}
       >
-        {t.type === "Deadline" && <span className="cal-chip-kind k-deadline" title="Deadline">◆</span>}
-        {t.type === "Event" && <span className="cal-chip-kind k-event" title="Event">●</span>}
-        {t.doTime && <span className="cal-chip-time">{t.dueTag ?? t.doTime}</span>}
+        {cont && <span className="cal-chip-kind" title="Continues">↳</span>}
+        {!cont && t.type === "Deadline" && <span className="cal-chip-kind k-deadline" title="Deadline">◆</span>}
+        {!cont && t.type === "Event" && <span className="cal-chip-kind k-event" title="Event">●</span>}
+        {!cont && t.doTime && <span className="cal-chip-time">{multi ? t.doTime : t.dueTag ?? t.doTime}</span>}
         {t.title}
       </div>
     );
@@ -808,7 +815,7 @@ export default function TasksClient({
             </div>
           ))}
           {cells.map((c) => {
-            const items = calTasks.filter((t) => t.doDate === c.iso).sort(taskSort);
+            const items = calTasks.filter((t) => coversDay(t, c.iso)).sort(taskSort);
             const expanded = expandedDay === c.iso;
             const shown = expanded ? items : items.slice(0, 4);
             return (
@@ -823,12 +830,22 @@ export default function TasksClient({
                   e.preventDefault();
                   const id = e.dataTransfer.getData("text/plain");
                   const t = tasksRef.current.find((x) => x.id === id);
-                  if (t && t.doDate !== c.iso) savePatch(id, { doDate: c.iso });
+                  if (!t) return;
+                  if (isMultiDay(t) && t.doDate) {
+                    // Move the whole span by the distance dragged.
+                    const grab = e.dataTransfer.getData("application/x-abhq-grab-day") || t.doDate;
+                    const shift = daysBetween(grab, c.iso);
+                    if (shift)
+                      savePatch(id, {
+                        doDate: addDays(t.doDate, shift),
+                        endDate: addDays(t.endDate!, shift),
+                      });
+                  } else if (t.doDate !== c.iso) savePatch(id, { doDate: c.iso });
                 }}
               >
                 <div className="cal-day">{c.day}</div>
                 {shown.map((t) => (
-                  <Chip key={t.id} t={t} />
+                  <Chip key={t.id} t={t} iso={c.iso} />
                 ))}
                 {!expanded && items.length > 4 && (
                   <button type="button" className="cal-more" onClick={() => setExpandedDay(c.iso)}>
@@ -919,8 +936,7 @@ export default function TasksClient({
     (t) =>
       t.status !== "Done" &&
       t.status !== "Someday" &&
-      t.doDate &&
-      daysFromToday(t.doDate, today) < 0
+      isPastDue(t, today)
   ).length;
 
   return (

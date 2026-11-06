@@ -31,6 +31,8 @@ export interface Task {
   waitingOn?: WaitingOn; // who the ball is with, when it's not Andy
   recur?: string; // JSON recurrence rule (lib/recur.ts) — completing spawns the next instance
   notes?: string;
+  endDate?: string; // YYYY-MM-DD, set only for multi-day items (trips, trial weeks)
+  endTime?: string; // HH:MM, the end time on endDate
   dueTag?: string; // display-only (time / date)
   completedAt?: string; // ISO timestamp, set while status is Done
 }

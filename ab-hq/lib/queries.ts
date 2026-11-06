@@ -21,6 +21,7 @@ import {
   type ProjectRowDB,
 } from "@/lib/task-map";
 import { inScope, type Scope } from "@/lib/scope";
+import { coversDay, isPastDue } from "@/lib/task-dates";
 
 export interface MyDayData {
   tasks: Task[]; // all tasks relevant to today (mits ∪ also-today ∪ in-progress)
@@ -836,7 +837,7 @@ export async function getCommandCenterData(scope: Scope = "all"): Promise<Comman
       .sort((a, b) => (a.deadline! < b.deadline! ? -1 : 1))[0] ?? null;
 
   const overdueTop = open
-    .filter((t) => t.doDate && t.doDate < today)
+    .filter((t) => isPastDue(t, today))
     .sort((a, b) => (a.doDate! < b.doDate! ? -1 : 1))
     .slice(0, 4)
     .map((t) => ({
@@ -886,8 +887,8 @@ export async function getCommandCenterData(scope: Scope = "all"): Promise<Comman
   return {
     today,
     hour,
-    dueToday: open.filter((t) => t.doDate === today).length,
-    overdue: open.filter((t) => t.doDate && t.doDate < today).length,
+    dueToday: open.filter((t) => coversDay(t, today)).length,
+    overdue: open.filter((t) => isPastDue(t, today)).length,
     needsHome: entryRows.filter((e) => e.status === "inbox").length,
     silent: weekly.silent.length,
     intentionSet: !!daily.data?.intention,
@@ -1619,7 +1620,7 @@ export async function getMyDayData(scope: Scope = "all"): Promise<MyDayData> {
   // Only the tasks that belong on My Day: protected MITs, anything in
   // progress, and anything scheduled for today.
   const tasks = all.filter(
-    (t) => t.mit || t.status === "In Progress" || t.doDate === today
+    (t) => t.mit || t.status === "In Progress" || coversDay(t, today)
   );
 
   // Completed time tracked per task (running session excluded — the client adds it live).

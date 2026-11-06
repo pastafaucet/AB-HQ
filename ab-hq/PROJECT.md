@@ -32,7 +32,7 @@ AB HQ ("Andy's HQ") is a personal operating system for one user: Andy Baum, an e
   - write migrations idempotent (safe to re-run);
   - make code tolerate the pre-migration schema (pattern: `selectTaskRows()` in `lib/task-map.ts`, the `needsMigration` flag in `getProjectsPageData`). A deploy that queries a missing column takes down every page that shares the query, not just the new one;
   - tell Andy up front that a migration is a blocking step, and paste the SQL into the chat.
-  - **Applied:** 0001–0015 (all tables present as of 2026-10-18).
+  - **Applied:** 0001–0015 (all tables present as of 2026-10-18). **0016** (`tasks.end_date`, `end_time`) written 2026-11-06; check whether Andy has run it.
 - **Next.js 16 is not the Next.js in training data.** Read `node_modules/next/dist/docs/` before using an unfamiliar API. `params` and `searchParams` are Promises.
 - **Secrets** live in `ab-hq/.env.local` (gitignored) and in Vercel env vars. Never commit them. Vars: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (a new-style `sb_secret_…` key), `APP_PASSWORD`, `SESSION_SECRET`, `ANTHROPIC_API_KEY`. Sensitive vars target production + preview only (Vercel won't allow `development`).
 - **Code hygiene Andy cares about:** reuse shared primitives, keep separation of concerns, aim for components under ~300 lines. Several screens are over that now; split them when you're already working in them, not as a drive-by.
@@ -93,7 +93,7 @@ Five destinations, each one page with tabs (`lib/nav.ts`; Nov 2026). The sidebar
 
 ## Core behaviors worth knowing
 
-- **Tasks:** type is Task / Event / Deadline. Priority is P1–P4 (red / green / yellow / gray). Domain is Work / Personal. One `do_date` plus an optional `do_time`, `duration_min` as the estimate, matter and project as **separate** fields, `waiting_on`, notes, and recurrence.
+- **Tasks:** type is Task / Event / Deadline. Priority is P1–P4 (red / green / yellow / gray). Domain is Work / Personal. One `do_date` plus an optional `do_time`; multi-day items (trips, trial weeks) add `end_date` and optional `end_time` (0016). `lib/task-dates.ts` holds the span rules: an item counts on every day it covers (`coversDay`) and is overdue only after its last day (`isPastDue`). On a single day, the drawer's end time just sets `duration_min`. Then `duration_min` as the estimate, matter and project as **separate** fields, `waiting_on`, notes, and recurrence.
 - **MITs:** a plain `tasks.mit` flag, capped at **3** server-side (`MIT_CAP` in `task-actions.ts`). Start of Day is where they get picked.
 - **The schedule shows Events only.** An item appears on the grid only if it is an Event with a time on today's date. Timed *tasks* stay in the lists. Drag to reschedule, drag from a list onto the grid, resize from the bottom edge. Everything snaps to 15 minutes. With no estimate, a block is 15 minutes.
 - **Capacity** counts only explicit estimates (`duration_min` set). Events with no estimate add nothing. It's computed from the whole Today set, not just items dated today.
@@ -183,7 +183,7 @@ Server actions live in `app/(app)/*-actions.ts`. Reads are in `lib/queries.ts`. 
 - Tasks calendar chips now take their left edge from priority (`PRI_COLOR`, now shared from `lib/data.ts` instead of four copies); type shows as a small ◆ (deadline) or ● (event) marker.
 - The capture toast says when the All/Work/Personal toggle hides what was just created ("Personal, hidden while Work is on").
 - HQ cards renamed to Start of Day and Inbox.
-- **Approved for the step 3 migration:** `tasks.end_date` for multi-day events (the Mammoth trip 11/6–11/9 shows only on 11/6 today).
+- **End date and time, built early** (Andy asked): migration 0016, the drawer's ENDS row (`EndsField.tsx`), calendar chips on every covered day (later days show ↳, dragging moves the whole span), Today/Start of Day/HQ/Tasks views treat a span as current until its last day, ⌘K extracts ranges, recurring spans keep their length. Not yet: the quick-add parser (Today/Tasks boxes) doesn't read ranges like "11/6 - 11/9" (⌘K does), the Claude connector's `add_tasks`/`update_task` have no end fields, and the schedule grid ignores spans. After 0016 runs, set the Mammoth trip's end date to 11/9.
 - **Asked, not answered:** whether the per-plaintiff COLA AB 218 matters should roll up under one coordinated matter. 70 of 73 cases show as "gone silent" because individual plaintiffs are never touched one by one.
 
 **Still to ask before steps 3–5:** goal areas; numeric targets vs. "done when its projects are done"; rolling 12 months vs. calendar year; quarterly goals.

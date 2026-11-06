@@ -16,6 +16,7 @@ import type { TaskPatch } from "@/app/(app)/task-actions";
 import { createProject } from "@/app/(app)/project-actions";
 import { parseRule, describeRule, ruleToJson, type RecurRule } from "@/lib/recur";
 import ConfirmButton from "./ConfirmButton";
+import EndsField from "./EndsField";
 
 const DOW_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -377,6 +378,8 @@ export default function TaskDrawer({
             />
           </div>
         </div>
+
+        <EndsField task={task} onField={onField} />
 
         <label className="drawer-field">
           <div className="drawer-label">REPEATS</div>

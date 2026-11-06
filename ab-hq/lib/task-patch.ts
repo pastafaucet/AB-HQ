@@ -20,9 +20,11 @@ export function applyPatch(t: Task, p: TaskPatch, today: string): Task {
   if (p.doDate !== undefined) next.doDate = p.doDate ?? undefined;
   if (p.doTime !== undefined) next.doTime = p.doTime ?? undefined;
   if (p.durationMin !== undefined) next.durationMin = p.durationMin ?? undefined;
+  if (p.endDate !== undefined) next.endDate = p.endDate ?? undefined;
+  if (p.endTime !== undefined) next.endTime = p.endTime ?? undefined;
   if (p.notes !== undefined) next.notes = p.notes ?? undefined;
-  if (p.doDate !== undefined || p.doTime !== undefined) {
-    next.dueTag = dueTagFor(next.doDate ?? null, next.doTime ?? null, today);
+  if (p.doDate !== undefined || p.doTime !== undefined || p.endDate !== undefined) {
+    next.dueTag = dueTagFor(next.doDate ?? null, next.doTime ?? null, today, next.endDate ?? null);
   }
   return next;
 }
@@ -42,6 +44,8 @@ export function fullPatch(t: Task): TaskPatch {
     doDate: t.doDate ?? null,
     doTime: t.doTime ?? null,
     durationMin: t.durationMin ?? null,
+    endDate: t.endDate ?? null,
+    endTime: t.endTime ?? null,
     notes: t.notes ?? null,
   };
 }
