@@ -37,7 +37,7 @@ export async function startTimer(taskId: string) {
     .insert({ task_id: taskId, started_at: nowIso })
     .select(COLS)
     .single();
-  revalidatePath("/my-day");
+  revalidatePath("/plan/today");
   if (error || !data) return { ok: false, error: error?.message ?? "Start failed" };
   return { ok: true, session: map(data as Row) };
 }
@@ -47,7 +47,7 @@ export async function stopTimer() {
   const sb = getSupabase();
   const nowIso = new Date().toISOString();
   const { error } = await sb.from("time_sessions").update({ ended_at: nowIso }).is("ended_at", null);
-  revalidatePath("/my-day");
+  revalidatePath("/plan/today");
   return { ok: !error, error: error?.message, endedAt: nowIso };
 }
 
@@ -59,7 +59,7 @@ export async function addSession(taskId: string, startedAt: string, endedAt: str
     .insert({ task_id: taskId, started_at: startedAt, ended_at: endedAt })
     .select(COLS)
     .single();
-  revalidatePath("/my-day");
+  revalidatePath("/plan/today");
   if (error || !data) return { ok: false, error: error?.message ?? "Add failed" };
   return { ok: true, session: map(data as Row) };
 }
@@ -74,13 +74,13 @@ export async function updateSession(
   if (patch.endedAt !== undefined) db.ended_at = patch.endedAt;
   if (patch.note !== undefined) db.note = patch.note;
   const { error } = await sb.from("time_sessions").update(db).eq("id", id);
-  revalidatePath("/my-day");
+  revalidatePath("/plan/today");
   return { ok: !error, error: error?.message };
 }
 
 export async function deleteSession(id: string) {
   const sb = getSupabase();
   const { error } = await sb.from("time_sessions").delete().eq("id", id);
-  revalidatePath("/my-day");
+  revalidatePath("/plan/today");
   return { ok: !error, error: error?.message };
 }

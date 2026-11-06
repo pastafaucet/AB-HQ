@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { rememberTodayMode } from "@/lib/today-mode";
 import type {
   Task,
   Matter,
@@ -337,7 +338,8 @@ export default function StartUpClient({
         flash(r.error ?? "Couldn't save the intention.");
         return;
       }
-      router.push("/my-day");
+      rememberTodayMode("today");
+      router.push("/plan/today?mode=today");
     });
   }
 

@@ -1,9 +1,10 @@
 import AppShell from "@/app/components/AppShell";
+import { getScope } from "@/lib/scope-server";
 
 // Everything under this route group renders inside the app chrome and is
 // protected by the auth middleware. /login lives outside it.
-export default function AppLayout({
+export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return <AppShell>{children}</AppShell>;
+  return <AppShell initialScope={await getScope()}>{children}</AppShell>;
 }

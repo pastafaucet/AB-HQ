@@ -26,7 +26,7 @@ export async function createNote(): Promise<{ ok: boolean; error?: string; id?: 
     .insert({ title: null, body: "" })
     .select("id,created_at")
     .single();
-  revalidatePath("/hub/notes");
+  revalidatePath("/notes");
   if (error || !data) return { ok: false, error: error?.message ?? "Insert failed" };
   const row = data as { id: string; created_at: string };
   return { ok: true, id: row.id, createdAt: row.created_at };
@@ -41,7 +41,7 @@ export async function createNoteForTarget(
   if (!r.ok || !r.id) return r;
   const sb = getSupabase();
   await sb.from("note_links").insert({ note_id: r.id, target_type: targetType, target_id: targetId });
-  revalidatePath("/hub/notes");
+  revalidatePath("/notes");
   return { ok: true, id: r.id };
 }
 
@@ -54,14 +54,14 @@ export async function updateNote(id: string, patch: NotePatch): Promise<{ ok: bo
   if (patch.pinned !== undefined) db.pinned = patch.pinned;
   if (patch.status !== undefined) db.status = patch.status;
   const { error } = await sb.from("notes").update(db).eq("id", id);
-  revalidatePath("/hub/notes");
+  revalidatePath("/notes");
   return { ok: !error, error: error?.message };
 }
 
 export async function deleteNote(id: string): Promise<{ ok: boolean; error?: string }> {
   const sb = getSupabase();
   const { error } = await sb.from("notes").delete().eq("id", id);
-  revalidatePath("/hub/notes");
+  revalidatePath("/notes");
   return { ok: !error, error: error?.message };
 }
 
@@ -76,7 +76,7 @@ export async function addNoteLink(
     .insert({ note_id: noteId, target_type: targetType, target_id: targetId })
     .select("id")
     .single();
-  revalidatePath("/hub/notes");
+  revalidatePath("/notes");
   if (error || !data) return { ok: false, error: error?.message ?? "Already linked?" };
   return { ok: true, linkId: (data as { id: string }).id };
 }
@@ -84,7 +84,7 @@ export async function addNoteLink(
 export async function removeNoteLink(linkId: string): Promise<{ ok: boolean; error?: string }> {
   const sb = getSupabase();
   const { error } = await sb.from("note_links").delete().eq("id", linkId);
-  revalidatePath("/hub/notes");
+  revalidatePath("/notes");
   return { ok: !error, error: error?.message };
 }
 
@@ -187,7 +187,7 @@ export async function addTagToNote(
     .select("id")
     .single();
   if (lErr || !link) return { ok: false, error: lErr?.message ?? "Already tagged?" };
-  revalidatePath("/hub/notes");
+  revalidatePath("/notes");
   return { ok: true, tag: { noteTagId: (link as { id: string }).id, tagId: tag.id, name: tag.name } };
 }
 
@@ -196,6 +196,6 @@ export async function removeTagFromNote(
 ): Promise<{ ok: boolean; error?: string }> {
   const sb = getSupabase();
   const { error } = await sb.from("note_tags").delete().eq("id", noteTagId);
-  revalidatePath("/hub/notes");
+  revalidatePath("/notes");
   return { ok: !error, error: error?.message };
 }

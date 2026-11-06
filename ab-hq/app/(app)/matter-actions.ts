@@ -50,7 +50,7 @@ export async function updateMatter(
 ): Promise<{ ok: boolean; error?: string }> {
   const sb = getSupabase();
   const { error } = await sb.from("matters").update(toDb(patch)).eq("id", id);
-  revalidatePath("/hub/cases");
+  revalidatePath("/work/cases");
   return { ok: !error, error: error?.message };
 }
 
@@ -63,7 +63,7 @@ export async function createMatter(
     .insert({ name, status: "Active" })
     .select("id")
     .single();
-  revalidatePath("/hub/cases");
+  revalidatePath("/work/cases");
   if (error || !data) return { ok: false, error: error?.message ?? "Insert failed" };
   return { ok: true, id: (data as { id: string }).id };
 }
@@ -141,7 +141,7 @@ export async function addPersonToMatter(
     .single();
   if (lErr || !link)
     return { ok: false, error: lErr?.message ?? "Couldn't link person (already added?)" };
-  revalidatePath("/hub/cases");
+  revalidatePath("/work/cases");
   return {
     ok: true,
     person: {
@@ -159,6 +159,6 @@ export async function removePersonFromMatter(
 ): Promise<{ ok: boolean; error?: string }> {
   const sb = getSupabase();
   const { error } = await sb.from("matter_people").delete().eq("id", linkId);
-  revalidatePath("/hub/cases");
+  revalidatePath("/work/cases");
   return { ok: !error, error: error?.message };
 }

@@ -250,10 +250,10 @@ export default function CommandCenterClient({
     data.hour < 12 ? "Good morning." : data.hour < 17 ? "Good afternoon." : "Good evening.";
 
   const attention: { label: string; n: number; hot: boolean; href: string }[] = [
-    { label: "DUE TODAY", n: data.dueToday, hot: false, href: "/my-day" },
-    { label: "OVERDUE", n: data.overdue, hot: data.overdue > 0, href: "/start-up" },
-    { label: "NEEDS A HOME", n: data.needsHome, hot: false, href: "/hub/inbox" },
-    { label: "GONE SILENT", n: data.silent, hot: data.silent > 0, href: "/hub/weekly" },
+    { label: "DUE TODAY", n: data.dueToday, hot: false, href: "/plan/today?mode=today" },
+    { label: "OVERDUE", n: data.overdue, hot: data.overdue > 0, href: "/plan/today?mode=start" },
+    { label: "NEEDS A HOME", n: data.needsHome, hot: false, href: "/work/inbox" },
+    { label: "GONE SILENT", n: data.silent, hot: data.silent > 0, href: "/plan/week" },
   ];
 
   const flow: { title: string; status: string; done: boolean; href: string }[] = [
@@ -261,13 +261,13 @@ export default function CommandCenterClient({
       title: "Start Up",
       status: data.intentionSet ? "intention set ✓" : "not started",
       done: data.intentionSet,
-      href: "/start-up",
+      href: "/plan/today?mode=start",
     },
     {
       title: "Today",
       status: `${data.mitDone}/${data.mitCount || 3} MITs done`,
       done: data.mitCount > 0 && data.mitDone === data.mitCount,
-      href: "/my-day",
+      href: "/plan/today?mode=today",
     },
     {
       title: "Wind Down",
@@ -277,7 +277,7 @@ export default function CommandCenterClient({
           ? `habits ${data.habitsDone}/${data.habitsTotal}`
           : "not closed",
       done: data.dayClosed,
-      href: "/wind-down",
+      href: "/plan/today?mode=wind",
     },
   ];
 
@@ -286,7 +286,7 @@ export default function CommandCenterClient({
       title: "Tasks",
       line: `${data.openTasks} open${data.overdue ? ` · ${data.overdue} overdue` : ""}`,
       sub: tasks[0] ? `next: ${tasks[0].title}` : undefined,
-      href: "/hub/tasks",
+      href: "/work/tasks",
       hot: data.overdue > 0,
     },
     {
@@ -295,7 +295,7 @@ export default function CommandCenterClient({
       sub: data.silentTop[0]
         ? `quietest: ${data.silentTop[0].name} (${data.silentTop[0].daysSilent ?? "—"}d)`
         : undefined,
-      href: "/hub/cases",
+      href: "/work/cases",
       hot: data.silent > 0,
     },
     {
@@ -304,18 +304,18 @@ export default function CommandCenterClient({
       sub: data.nextProjectName
         ? `${data.nextProjectName} due ${fmtDate(data.nextProjectDeadline!)}`
         : undefined,
-      href: "/hub/projects",
+      href: "/work/projects",
     },
     {
       title: "Quick Drop",
       line: `${data.needsHome} need a home · ${data.ledgerCount} in the ledger`,
       sub: data.unfiledLatest ? `“${data.unfiledLatest.slice(0, 60)}”` : undefined,
-      href: "/hub/inbox",
+      href: "/work/inbox",
     },
     {
       title: "Weekly review",
       line: `${data.due30} due in 30d · ${data.waiting} sitting with others`,
-      href: "/hub/weekly",
+      href: "/plan/week",
     },
     {
       title: "Day ledger",
@@ -323,10 +323,10 @@ export default function CommandCenterClient({
       sub: data.touchedToday
         ? `${data.touchedToday} matter${data.touchedToday === 1 ? "" : "s"} touched`
         : undefined,
-      href: "/hub/time",
+      href: "/work/time",
     },
-    { title: "Notes", line: `${data.noteCount} notes`, href: "/hub/notes" },
-    { title: "People", line: `${data.peopleCount} people`, href: "/hub/people" },
+    { title: "Notes", line: `${data.noteCount} notes`, href: "/notes" },
+    { title: "People", line: `${data.peopleCount} people`, href: "/notes/people" },
   ];
 
   function daysOut(iso: string): string {
@@ -383,7 +383,7 @@ export default function CommandCenterClient({
                 key={r.key}
                 className="wk-due-row clickable"
                 onClick={() =>
-                  router.push(r.marker.kind === "project" ? "/hub/projects" : "/hub/cases")
+                  router.push(r.marker.kind === "project" ? "/work/projects" : "/work/cases")
                 }
               >
                 <span className="wk-due-date is-near">
@@ -445,7 +445,7 @@ export default function CommandCenterClient({
                   <div
                     key={t.id}
                     className="cc-mini clickable"
-                    onClick={() => router.push("/start-up")}
+                    onClick={() => router.push("/plan/today?mode=start")}
                   >
                     <span className="cc-mini-title">{t.title}</span>
                     {t.matterName && (
@@ -463,7 +463,7 @@ export default function CommandCenterClient({
                   <div
                     key={m.name}
                     className="cc-mini clickable"
-                    onClick={() => router.push("/hub/weekly")}
+                    onClick={() => router.push("/plan/week")}
                   >
                     <span className="cc-mini-title">{m.name}</span>
                     <span className="cc-mini-date">

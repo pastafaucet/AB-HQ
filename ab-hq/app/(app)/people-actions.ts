@@ -17,7 +17,7 @@ export async function updatePerson(
 ): Promise<{ ok: boolean; error?: string }> {
   const sb = getSupabase();
   const { error } = await sb.from("people").update(patch).eq("id", id);
-  revalidatePath("/hub/people");
+  revalidatePath("/notes/people");
   return { ok: !error, error: error?.message };
 }
 
@@ -26,7 +26,7 @@ export async function createPerson(
 ): Promise<{ ok: boolean; error?: string; id?: string }> {
   const sb = getSupabase();
   const { data, error } = await sb.from("people").insert({ name }).select("id").single();
-  revalidatePath("/hub/people");
+  revalidatePath("/notes/people");
   if (error || !data) return { ok: false, error: error?.message ?? "Insert failed" };
   return { ok: true, id: (data as { id: string }).id };
 }
@@ -34,7 +34,7 @@ export async function createPerson(
 export async function deletePerson(id: string): Promise<{ ok: boolean; error?: string }> {
   const sb = getSupabase();
   const { error } = await sb.from("people").delete().eq("id", id);
-  revalidatePath("/hub/people");
+  revalidatePath("/notes/people");
   return { ok: !error, error: error?.message };
 }
 
@@ -49,7 +49,7 @@ export async function linkPersonToMatter(
     .insert({ matter_id: matterId, person_id: personId, role })
     .select("id")
     .single();
-  revalidatePath("/hub/people");
+  revalidatePath("/notes/people");
   if (error || !data)
     return { ok: false, error: error?.message ?? "Couldn't link (already added?)" };
   return { ok: true, linkId: (data as { id: string }).id };

@@ -35,8 +35,8 @@ function toDb(patch: ProjectPatch): Record<string, unknown> {
 }
 
 function revalidate() {
-  revalidatePath("/hub/projects");
-  revalidatePath("/start-up");
+  revalidatePath("/work/projects");
+  revalidatePath("/plan/today");
 }
 
 export async function createProject(

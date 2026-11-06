@@ -330,7 +330,7 @@ export default function WeeklyClient({ data }: { data: WeeklyReviewData }) {
                 key={r.key}
                 className="wk-due-row clickable"
                 onClick={() =>
-                  router.push(r.marker.kind === "project" ? "/hub/projects" : "/hub/cases")
+                  router.push(r.marker.kind === "project" ? "/work/projects" : "/work/cases")
                 }
               >
                 <span className="wk-due-date is-near">

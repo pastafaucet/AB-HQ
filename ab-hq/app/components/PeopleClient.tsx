@@ -78,7 +78,7 @@ export default function PeopleClient({
     const id = openId;
     startTransition(async () => {
       const r = await createNoteForTarget("person", id);
-      if (r.ok && r.id) router.push(`/hub/notes?note=${r.id}`);
+      if (r.ok && r.id) router.push(`/notes?note=${r.id}`);
       else flash(r.error ?? "Couldn't create note.");
     });
   }
@@ -323,7 +323,7 @@ export default function PeopleClient({
           onRemoveCase={onRemoveCase}
           notes={notes}
           notesLoading={notesLoading}
-          onOpenNote={(id) => router.push(`/hub/notes?note=${id}`)}
+          onOpenNote={(id) => router.push(`/notes?note=${id}`)}
           onNewNote={onNewNote}
         />
       )}

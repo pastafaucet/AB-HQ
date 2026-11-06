@@ -101,7 +101,7 @@ export async function setTaskDone(id: string, done: boolean): Promise<ActionResu
     await logActivity(id, done ? "Completed" : "Reopened");
     if (done) await spawnNextIfRecurring(id);
   }
-  revalidatePath("/my-day");
+  revalidatePath("/plan/today");
   return { ok: !error, error: error?.message };
 }
 
@@ -171,7 +171,7 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<ActionRe
     if (patch.mit !== undefined && patch.mit !== cur.mit)
       await logActivity(id, patch.mit ? "Added to Top-3" : "Removed from Top-3");
   }
-  revalidatePath("/my-day");
+  revalidatePath("/plan/today");
   return { ok: !error, error: error?.message };
 }
 
@@ -204,11 +204,11 @@ export async function createTask(input: TaskPatch & { title: string }): Promise<
     ({ data, error } = await sb.from("tasks").insert(row).select(TASK_COLUMNS_LEGACY).single());
   }
   if (error || !data) {
-    revalidatePath("/my-day");
+    revalidatePath("/plan/today");
     return { ok: false, error: error?.message ?? "Insert failed" };
   }
   await logActivity((data as { id: string }).id, "Created");
-  revalidatePath("/my-day");
+  revalidatePath("/plan/today");
   return { ok: true, task: rowToTask(data as never, todayISO()) };
 }
 
@@ -238,6 +238,6 @@ export async function listDoneTasks(
 export async function deleteTask(id: string): Promise<ActionResult> {
   const sb = getSupabase();
   const { error } = await sb.from("tasks").delete().eq("id", id);
-  revalidatePath("/my-day");
+  revalidatePath("/plan/today");
   return { ok: !error, error: error?.message };
 }

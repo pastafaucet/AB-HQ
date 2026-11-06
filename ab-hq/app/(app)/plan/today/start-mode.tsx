@@ -1,12 +1,10 @@
 import StartUpClient from "@/app/components/StartUpClient";
 import { getStartUpData } from "@/lib/queries";
+import type { Scope } from "@/lib/scope";
 
-export const metadata = { title: "Start of Day · AB HQ" };
-export const dynamic = "force-dynamic";
-
-export default async function StartUpPage() {
+export default async function StartMode({ scope }: { scope: Scope }) {
   const { tasks, matters, projects, today, intention, onTapFromYesterday, running, life } =
-    await getStartUpData();
+    await getStartUpData(scope);
   const dateLabel = new Date(`${today}T12:00:00`).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
@@ -15,6 +13,7 @@ export default async function StartUpPage() {
 
   return (
     <StartUpClient
+      key={scope}
       initialTasks={tasks}
       matters={matters}
       projects={projects}

@@ -6,8 +6,7 @@ import { getSupabase } from "@/lib/supabase";
 // Journal, media/games log, habits, body metrics — the life half of the loop.
 
 function revalidate() {
-  revalidatePath("/wind-down");
-  revalidatePath("/start-up");
+  revalidatePath("/plan/today");
 }
 
 const MIGRATION_HINT = "Run migration 0015 in Supabase first.";

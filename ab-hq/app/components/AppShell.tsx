@@ -2,14 +2,32 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { NAV, isActive } from "@/lib/nav";
+import { usePathname, useRouter } from "next/navigation";
+import { DESTINATIONS, activeTab, destHref } from "@/lib/nav";
+import { rememberScope, type Scope } from "@/lib/scope";
 import { logout } from "@/app/auth-actions";
 import CaptureOverlay, { openCapture } from "./CaptureOverlay";
+import TabBar from "./TabBar";
+import MobileBar from "./MobileBar";
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+const SCOPES: { key: Scope; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "work", label: "Work" },
+  { key: "personal", label: "Personal" },
+];
+
+export default function AppShell({
+  children,
+  initialScope,
+}: {
+  children: React.ReactNode;
+  initialScope: Scope;
+}) {
   const [collapsed, setCollapsed] = useState(false);
+  const [scope, setScope] = useState<Scope>(initialScope);
   const pathname = usePathname() ?? "/";
+  const router = useRouter();
+  const current = activeTab(pathname);
 
   // Live header clock (empty on first render to avoid hydration mismatch).
   const [clock, setClock] = useState("");
@@ -28,6 +46,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const t = setInterval(upd, 30000);
     return () => clearInterval(t);
   }, []);
+
+  // The toggle lives in a cookie so server queries filter before render;
+  // pages key their screens by scope, so a refresh remounts them fresh.
+  function pickScope(s: Scope) {
+    if (s === scope) return;
+    setScope(s);
+    rememberScope(s);
+    router.refresh();
+  }
 
   return (
     <div className="shell">
@@ -48,28 +75,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </button>
             </div>
             <nav className="nav is-collapsed">
-              {NAV.map((group, gi) => (
-                <div className="nav-group" key={group.label}>
-                  {gi > 0 && <div className="nav-divider" />}
-                  {group.items.map((item) => {
-                    const active = isActive(pathname, item.href);
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className="nav-tile"
-                        data-active={active}
-                        title={item.label}
-                        style={{ color: item.dot }}
-                      >
-                        {item.code}
-                        {item.badge && (
-                          <span className="nav-badge">{item.badge}</span>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
+              {DESTINATIONS.map((d) => (
+                <Link
+                  key={d.key}
+                  href={destHref(d)}
+                  className="nav-tile"
+                  data-active={current?.dest.key === d.key}
+                  title={d.label}
+                  style={{ color: d.dot }}
+                >
+                  {d.code}
+                </Link>
               ))}
             </nav>
             <div className="side-footer is-collapsed">
@@ -90,30 +106,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </button>
             </div>
             <nav className="nav">
-              {NAV.map((group) => (
-                <div className="nav-group" key={group.label}>
-                  <div className="nav-group-label">{group.label}</div>
-                  {group.items.map((item) => {
-                    const active = isActive(pathname, item.href);
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className="nav-item"
-                        data-active={active}
-                      >
-                        <span
-                          className="nav-dot"
-                          style={{ background: item.dot }}
-                        />
-                        <span className="label">{item.label}</span>
-                        {item.badge && (
-                          <span className="nav-badge">{item.badge}</span>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
+              {DESTINATIONS.map((d) => (
+                <Link
+                  key={d.key}
+                  href={destHref(d)}
+                  className="nav-item nav-dest"
+                  data-active={current?.dest.key === d.key}
+                >
+                  <span className="nav-dot" style={{ background: d.dot }} />
+                  <span className="label">{d.label}</span>
+                </Link>
               ))}
             </nav>
             <div className="side-footer">
@@ -141,16 +143,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           >
             {collapsed ? "»" : "«"}
           </button>
-          <div className="segmented">
-            <button className="seg" data-active={true} type="button">
-              All
-            </button>
-            <button className="seg" type="button">
-              Work
-            </button>
-            <button className="seg" type="button">
-              Personal
-            </button>
+          <div className="segmented scope-toggle">
+            {SCOPES.map((s) => (
+              <button
+                key={s.key}
+                className="seg"
+                data-active={scope === s.key}
+                type="button"
+                onClick={() => pickScope(s.key)}
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
           <button className="searchbar" type="button" onClick={() => openCapture()}>
             <span>⌕</span>
@@ -159,18 +163,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </button>
           <div className="header-spacer" />
           <div className="header-datetime">{clock}</div>
-          <div className="header-divider" />
-          <div className="status-chip">
-            <span className="dot" />
-            On track
-          </div>
         </header>
+
+        {current && current.dest.tabs.length > 1 && (
+          <TabBar tabs={current.dest.tabs} activeHref={current.tab.href} />
+        )}
 
         <div className="screen-outer">
           <div className="screen-inner">{children}</div>
         </div>
       </main>
 
+      <MobileBar pathname={pathname} />
       <CaptureOverlay />
     </div>
   );

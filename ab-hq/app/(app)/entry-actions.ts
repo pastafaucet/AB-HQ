@@ -14,9 +14,8 @@ import {
 } from "@/lib/entry-map";
 
 function revalidate() {
-  revalidatePath("/hub/inbox");
-  revalidatePath("/start-up");
-  revalidatePath("/my-day");
+  revalidatePath("/work/inbox");
+  revalidatePath("/plan/today");
 }
 
 export interface CaptureResult {

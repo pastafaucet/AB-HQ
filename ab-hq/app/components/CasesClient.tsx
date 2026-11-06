@@ -126,7 +126,7 @@ export default function CasesClient({
     const id = openId;
     startTransition(async () => {
       const r = await createNoteForTarget("matter", id);
-      if (r.ok && r.id) router.push(`/hub/notes?note=${r.id}`);
+      if (r.ok && r.id) router.push(`/notes?note=${r.id}`);
       else flash(r.error ?? "Couldn't create note.");
     });
   }
@@ -355,7 +355,7 @@ export default function CasesClient({
                     className="case-tasks-link"
                     onClick={(e) => {
                       e.stopPropagation();
-                      router.push(`/hub/tasks?matter=${c.id}`);
+                      router.push(`/work/tasks?matter=${c.id}`);
                     }}
                   >
                     TASKS →
@@ -379,7 +379,7 @@ export default function CasesClient({
           saved={saved}
           onField={onField}
           onClose={closeDrawer}
-          onViewTasks={() => router.push(`/hub/tasks?matter=${openCase.id}`)}
+          onViewTasks={() => router.push(`/work/tasks?matter=${openCase.id}`)}
           people={people}
           peopleLoading={peopleLoading}
           allPeople={allPeople}
@@ -387,7 +387,7 @@ export default function CasesClient({
           onRemovePerson={onRemovePerson}
           notes={notes}
           notesLoading={notesLoading}
-          onOpenNote={(id) => router.push(`/hub/notes?note=${id}`)}
+          onOpenNote={(id) => router.push(`/notes?note=${id}`)}
           onNewNote={onNewNote}
         />
       )}

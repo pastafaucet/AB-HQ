@@ -65,7 +65,7 @@ export default function TimeClient({ data }: { data: DayLedgerData }) {
     const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
       d.getDate()
     ).padStart(2, "0")}`;
-    router.push(`/hub/time?date=${iso}`);
+    router.push(`/work/time?date=${iso}`);
   }
 
   function onDraft() {
@@ -237,7 +237,7 @@ export default function TimeClient({ data }: { data: DayLedgerData }) {
               <button
                 type="button"
                 className="ov-chip"
-                onClick={() => router.push("/hub/inbox")}
+                onClick={() => router.push("/work/inbox")}
                 title="Assign cases in Quick Drop"
               >
                 FIX IN QUICK DROP →

@@ -20,6 +20,7 @@ import {
   type MatterRowDB,
   type ProjectRowDB,
 } from "@/lib/task-map";
+import { inScope, type Scope } from "@/lib/scope";
 
 export interface MyDayData {
   tasks: Task[]; // all tasks relevant to today (mits ∪ also-today ∪ in-progress)
@@ -364,11 +365,11 @@ export interface TasksPageData {
 }
 
 /** All open tasks for the Tasks hub — the full audit view. */
-export async function getTasksPageData(): Promise<TasksPageData> {
+export async function getTasksPageData(scope: Scope = "all"): Promise<TasksPageData> {
   const sb = getSupabase();
   const today = todayISO();
 
-  const [taskRows, mattersRes, runRes, projects] = await Promise.all([
+  const [allTaskRows, mattersRes, runRes, projects] = await Promise.all([
     selectTaskRows((cols) =>
       sb
         .from("tasks")
@@ -387,6 +388,7 @@ export async function getTasksPageData(): Promise<TasksPageData> {
       .maybeSingle(),
     fetchProjects(),
   ]);
+  const taskRows = inScope(allTaskRows, scope);
 
   if (mattersRes.error) throw mattersRes.error;
 
@@ -528,7 +530,7 @@ export interface StartUpData {
 }
 
 /** All data the Start of Day surface needs: open tasks + ritual state. */
-export async function getStartUpData(): Promise<StartUpData> {
+export async function getStartUpData(scope: Scope = "all"): Promise<StartUpData> {
   const sb = getSupabase();
   const today = todayISO();
   const d = new Date(`${today}T12:00:00`);
@@ -561,7 +563,7 @@ export async function getStartUpData(): Promise<StartUpData> {
     if (next >= today) await sb.from("tasks").update({ do_date: next }).eq("id", r.id);
   }
 
-  const [taskRows, mattersRes, entriesRes, projects, runRes, life] = await Promise.all([
+  const [allTaskRows, mattersRes, entriesRes, projects, runRes, life] = await Promise.all([
     selectTaskRows((cols) =>
       sb
         .from("tasks")
@@ -585,6 +587,7 @@ export async function getStartUpData(): Promise<StartUpData> {
       .maybeSingle(),
     fetchLifeData(today),
   ]);
+  const taskRows = inScope(allTaskRows, scope);
   if (mattersRes.error) throw mattersRes.error;
 
   const entries = (entriesRes.error ? [] : entriesRes.data) as {
@@ -756,7 +759,7 @@ export interface CommandCenterData {
 }
 
 /** Where things stand at a glance — the home surface. */
-export async function getCommandCenterData(): Promise<CommandCenterData> {
+export async function getCommandCenterData(scope: Scope = "all"): Promise<CommandCenterData> {
   const sb = getSupabase();
   const today = todayISO();
   const { startIso, endIso } = dayBounds(today);
@@ -766,7 +769,7 @@ export async function getCommandCenterData(): Promise<CommandCenterData> {
     )
   );
 
-  const [weekly, life, taskRows, entriesCounts, todayEntries, daily, notesRes, peopleRes] =
+  const [weekly, life, allTaskRows, entriesCounts, todayEntries, daily, notesRes, peopleRes] =
     await Promise.all([
       getWeeklyReviewData(),
       fetchLifeData(today),
@@ -792,6 +795,7 @@ export async function getCommandCenterData(): Promise<CommandCenterData> {
       sb.from("notes").select("id", { count: "exact", head: true }),
       sb.from("people").select("id", { count: "exact", head: true }),
     ]);
+  const taskRows = inScope(allTaskRows, scope);
   const [{ data: matterNamesData }, runRes] = await Promise.all([
     sb.from("matters").select("id,name,client,status,next_deadline"),
     sb
@@ -1446,7 +1450,7 @@ export interface WindDownData {
 }
 
 /** Everything the evening ritual needs: close loops, clear the inbox, set tomorrow. */
-export async function getWindDownData(): Promise<WindDownData> {
+export async function getWindDownData(scope: Scope = "all"): Promise<WindDownData> {
   const sb = getSupabase();
   const today = todayISO();
   const { startIso, endIso } = dayBounds(today);
@@ -1456,7 +1460,7 @@ export async function getWindDownData(): Promise<WindDownData> {
     d.getDate()
   ).padStart(2, "0")}`;
 
-  const [taskRows, doneRows, mattersRes, projects, entriesRes, entryRes, life, runRes, titlesRes] =
+  const [allTaskRows, allDoneRows, mattersRes, projects, entriesRes, entryRes, life, runRes, titlesRes] =
     await Promise.all([
     selectTaskRows((cols) =>
       sb
@@ -1493,6 +1497,8 @@ export async function getWindDownData(): Promise<WindDownData> {
       .maybeSingle(),
     sb.from("media_log").select("kind,title").order("created_at", { ascending: false }).limit(500),
   ]);
+  const taskRows = inScope(allTaskRows, scope);
+  const doneRows = inScope(allDoneRows, scope);
   if (mattersRes.error) throw mattersRes.error;
 
   const matterRows = mattersRes.data as (MatterRowDB & { disposition: string | null })[];
@@ -1573,11 +1579,11 @@ export async function getWindDownData(): Promise<WindDownData> {
 }
 
 /** All data the My Day (Today) surface needs, for the current calendar day. */
-export async function getMyDayData(): Promise<MyDayData> {
+export async function getMyDayData(scope: Scope = "all"): Promise<MyDayData> {
   const sb = getSupabase();
   const today = todayISO();
 
-  const [taskRows, mattersRes, runRes, projects] = await Promise.all([
+  const [allTaskRows, mattersRes, runRes, projects] = await Promise.all([
     selectTaskRows((cols) =>
       sb
         .from("tasks")
@@ -1595,6 +1601,7 @@ export async function getMyDayData(): Promise<MyDayData> {
       .maybeSingle(),
     fetchProjects(),
   ]);
+  const taskRows = inScope(allTaskRows, scope);
 
   if (mattersRes.error) throw mattersRes.error;
 
