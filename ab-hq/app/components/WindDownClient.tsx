@@ -15,7 +15,7 @@ import type {
 import type { MatterOption, LifeData } from "@/lib/queries";
 import { HabitChecklist, BodyForm } from "./LifeBits";
 import { saveJournal, logMedia, deleteMedia, type MediaItem } from "@/app/(app)/life-actions";
-import { PRIORITY_META, DOMAIN_DOT } from "@/lib/data";
+import { PRIORITY_META, DOMAIN_DOT, PRI_COLOR } from "@/lib/data";
 import { applyPatch, fullPatch } from "@/lib/task-patch";
 import {
   updateTask,
@@ -38,7 +38,6 @@ import { saveWindDown } from "@/app/(app)/daily-actions";
 import { draftNarratives, type NarrativeDraft } from "@/app/(app)/billing-actions";
 import ConfirmButton from "./ConfirmButton";
 
-const PRI_COLOR: Record<number, string> = { 1: "#e0665a", 2: "#5fbf8f", 3: "#d8a657", 4: "#6f7787" };
 const KINDS: EntryKind[] = ["log", "task", "note", "event"];
 
 function fmtTenthsTotal(t: number): string {

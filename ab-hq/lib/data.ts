@@ -110,6 +110,9 @@ export const PRIORITY_META: Record<Priority, { label: string; cls: string }> = {
   4: { label: "P4", cls: "pri-p4" },
 };
 
+/** Priority colors: P1 red, P2 green, P3 yellow, P4 gray. */
+export const PRI_COLOR: Record<number, string> = { 1: "#e0665a", 2: "#5fbf8f", 3: "#d8a657", 4: "#6f7787" };
+
 export const DOMAIN_DOT: Record<Domain, string> = {
   Work: "#5b8cff",
   Personal: "#8b7cf0",

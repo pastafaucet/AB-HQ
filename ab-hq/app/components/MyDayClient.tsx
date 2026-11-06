@@ -9,7 +9,7 @@ import type {
   TimeSession,
   ActivityItem,
 } from "@/lib/data";
-import { PRIORITY_META, DOMAIN_DOT } from "@/lib/data";
+import { PRIORITY_META, DOMAIN_DOT, PRI_COLOR } from "@/lib/data";
 import { parseQuickAdd } from "@/lib/quick-parse";
 import { applyPatch, fullPatch } from "@/lib/task-patch";
 import {
@@ -33,7 +33,6 @@ import CapacityBar from "./CapacityBar";
 import ScheduleGrid, { type SchedItem } from "./ScheduleGrid";
 
 const DRAFT = "draft";
-const PRI_COLOR: Record<number, string> = { 1: "#e0665a", 2: "#5fbf8f", 3: "#d8a657", 4: "#6f7787" };
 
 function toMin(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);

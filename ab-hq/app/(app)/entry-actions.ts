@@ -26,6 +26,7 @@ export interface CaptureResult {
   // Human-readable routing outcome for the capture toast.
   routedTo?: string | null; // matter/project label, null = unfiled
   madeTask?: string | null; // created task title, if any
+  madeDomain?: "Work" | "Personal" | null; // the created task's domain
   label?: string; // precomputed outcome line (used for multi-segment captures)
 }
 
@@ -175,6 +176,7 @@ async function captureOne(
     entry: updated ? toEntry(updated as EntryRowDB) : entry,
     routedTo: matterName,
     madeTask,
+    madeDomain: taskId ? route.domain : null,
   };
 }
 

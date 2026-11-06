@@ -9,7 +9,7 @@ import type {
   TimeSession,
   ActivityItem,
 } from "@/lib/data";
-import { PRIORITY_META, DOMAIN_DOT } from "@/lib/data";
+import { PRIORITY_META, DOMAIN_DOT, PRI_COLOR } from "@/lib/data";
 import { parseQuickAdd } from "@/lib/quick-parse";
 import { applyPatch, fullPatch } from "@/lib/task-patch";
 import {
@@ -32,7 +32,6 @@ import {
 import TaskDrawer from "./TaskDrawer";
 
 const DRAFT = "draft";
-const PRI_COLOR: Record<number, string> = { 1: "#e0665a", 2: "#5fbf8f", 3: "#d8a657", 4: "#6f7787" };
 const VIEW_STORE = "abhq.tasksView";
 
 const MONTHS_FULL = [
@@ -747,6 +746,7 @@ export default function TasksClient({
     return (
       <div
         className={`cal-chip ${chipKind(t)}`}
+        style={{ borderLeftColor: PRI_COLOR[t.priority] }}
         draggable
         onDragStart={(e) => {
           e.dataTransfer.setData("text/plain", t.id);
@@ -755,6 +755,8 @@ export default function TasksClient({
         onClick={() => openExisting(t.id)}
         title={t.title}
       >
+        {t.type === "Deadline" && <span className="cal-chip-kind k-deadline" title="Deadline">◆</span>}
+        {t.type === "Event" && <span className="cal-chip-kind k-event" title="Event">●</span>}
         {t.doTime && <span className="cal-chip-time">{t.dueTag ?? t.doTime}</span>}
         {t.title}
       </div>

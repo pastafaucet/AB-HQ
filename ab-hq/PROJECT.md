@@ -178,6 +178,14 @@ Server actions live in `app/(app)/*-actions.ts`. Reads are in `lib/queries.ts`. 
 
 **Answers from Andy this session:** rituals switch automatically by time of day, but he wants to pick any mode at any time (done: the switch is always visible). The toggle should really filter (done for tasks). Deploy from `main`. Scuba, 3D Printing, and Games are life areas with dashboards and databases, not projects; they wait.
 
+**Later the same day (2026-11-06):**
+- Capture bug: "Tuesday AB 218 work on Brown Greer Slater Fact Sheets p1" was routed as a log, so no task was made. Fixed (`98d35a6`): an explicit p1–p4 forces a task, the deterministic parser fills a dropped date/time/priority, and the routing prompt describes Andy's fragment style. Andy re-entered the task himself.
+- Tasks calendar chips now take their left edge from priority (`PRI_COLOR`, now shared from `lib/data.ts` instead of four copies); type shows as a small ◆ (deadline) or ● (event) marker.
+- The capture toast says when the All/Work/Personal toggle hides what was just created ("Personal, hidden while Work is on").
+- HQ cards renamed to Start of Day and Inbox.
+- **Approved for the step 3 migration:** `tasks.end_date` for multi-day events (the Mammoth trip 11/6–11/9 shows only on 11/6 today).
+- **Asked, not answered:** whether the per-plaintiff COLA AB 218 matters should roll up under one coordinated matter. 70 of 73 cases show as "gone silent" because individual plaintiffs are never touched one by one.
+
 **Still to ask before steps 3–5:** goal areas; numeric targets vs. "done when its projects are done"; rolling 12 months vs. calendar year; quarterly goals.
 
 **Flagged to Andy:** his claude.ai skill `ab-hq-notion` calls itself the "Gateway to Andy's AB HQ system in Notion." That conflicts with AB HQ as the one system, and it could steer Claude to write tasks into Notion. It lives in his claude.ai account, not this repo.

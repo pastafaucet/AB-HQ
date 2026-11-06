@@ -21,6 +21,19 @@ export function inScope<T extends { domain?: string | null }>(rows: T[], s: Scop
   return d ? rows.filter((r) => (r.domain ?? "Work") === d) : rows;
 }
 
+/** The scope saved in the browser's cookie (browser only). */
+export function currentScope(): Scope {
+  const m = document.cookie.match(new RegExp(`(?:^|; )${SCOPE_COOKIE}=([^;]*)`));
+  return parseScope(m?.[1]);
+}
+
+/** A note for the capture toast when the toggle hides what was just made. */
+export function hiddenByScope(domain: Domain | null | undefined, s: Scope): string | null {
+  const d = scopeDomain(s);
+  if (!domain || !d || domain === d) return null;
+  return `${domain}, hidden while ${d} is on`;
+}
+
 /** Save the scope for the server to read (browser only). */
 export function rememberScope(s: Scope) {
   document.cookie = `${SCOPE_COOKIE}=${s}; path=/; max-age=31536000; samesite=lax`;

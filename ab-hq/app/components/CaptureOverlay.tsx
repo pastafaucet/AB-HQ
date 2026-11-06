@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { captureEntry, type CaptureResult } from "@/app/(app)/entry-actions";
 import { parseQuickAdd } from "@/lib/quick-parse";
 import { splitBillingLine } from "@/lib/entry-map";
+import { currentScope, hiddenByScope } from "@/lib/scope";
 
 function localTodayISO(): string {
   const d = new Date();
@@ -73,6 +74,8 @@ export default function CaptureOverlay() {
     if (r.routedTo) bits.push(`filed to ${r.routedTo}`);
     if (r.madeTask) bits.push(`task: “${r.madeTask}”`);
     if (bits.length === 0) bits.push(r.error ?? "saved to Inbox — unfiled");
+    const hidden = hiddenByScope(r.madeDomain, currentScope());
+    if (hidden) bits.push(hidden);
     return bits.join(" · ");
   }
 

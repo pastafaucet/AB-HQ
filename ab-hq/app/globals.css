@@ -2184,11 +2184,16 @@ button.check {
 .cal-chip:hover {
   background: #1e2733;
 }
-.cal-chip.k-deadline {
-  border-left-color: var(--orange);
+.cal-chip-kind {
+  font-size: 8px;
+  margin-right: 4px;
+  vertical-align: 1px;
 }
-.cal-chip.k-event {
-  border-left-color: var(--accent);
+.cal-chip-kind.k-deadline {
+  color: var(--orange);
+}
+.cal-chip-kind.k-event {
+  color: var(--accent);
 }
 .cal-chip-time {
   font-family: var(--font-mono);

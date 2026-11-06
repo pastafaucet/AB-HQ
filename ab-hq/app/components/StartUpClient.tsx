@@ -11,7 +11,7 @@ import type {
   TimeSession,
   ActivityItem,
 } from "@/lib/data";
-import { PRIORITY_META, DOMAIN_DOT } from "@/lib/data";
+import { PRIORITY_META, DOMAIN_DOT, PRI_COLOR } from "@/lib/data";
 import { applyPatch, fullPatch } from "@/lib/task-patch";
 import {
   updateTask,
@@ -33,7 +33,6 @@ import TaskDrawer from "./TaskDrawer";
 import { HabitChecklist, BodyForm } from "./LifeBits";
 import type { LifeData } from "@/lib/queries";
 
-const PRI_COLOR: Record<number, string> = { 1: "#e0665a", 2: "#5fbf8f", 3: "#d8a657", 4: "#6f7787" };
 
 function isoShift(today: string, days: number): string {
   const d = new Date(`${today}T12:00:00`);
