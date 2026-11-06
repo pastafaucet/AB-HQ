@@ -381,53 +381,55 @@ export default function TaskDrawer({
 
         <EndsField task={task} onField={onField} />
 
-        <label className="drawer-field">
-          <div className="drawer-label">REPEATS</div>
-          <select
-            className="drawer-select"
-            value={task.recur ?? ""}
-            onChange={(e) => onField({ recur: e.target.value || null })}
-          >
-            <option value="">— doesn&rsquo;t repeat —</option>
-            {(() => {
-              const opts = recurOptions(task.doDate);
-              const cur = task.recur ? parseRule(task.recur) : null;
-              if (task.recur && cur && !opts.some((o) => o.value === task.recur)) {
-                opts.unshift({ value: task.recur, label: describeRule(cur) });
-              }
-              return opts.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ));
-            })()}
-          </select>
-          <div className="drawer-hint-quiet">
-            Completing a repeating task creates the next one automatically.
-          </div>
-        </label>
+        <div className="drawer-grid">
+          <label className="drawer-field">
+            <div className="drawer-label">REPEATS</div>
+            <select
+              className="drawer-select"
+              value={task.recur ?? ""}
+              onChange={(e) => onField({ recur: e.target.value || null })}
+            >
+              <option value="">— doesn&rsquo;t repeat —</option>
+              {(() => {
+                const opts = recurOptions(task.doDate);
+                const cur = task.recur ? parseRule(task.recur) : null;
+                if (task.recur && cur && !opts.some((o) => o.value === task.recur)) {
+                  opts.unshift({ value: task.recur, label: describeRule(cur) });
+                }
+                return opts.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ));
+              })()}
+            </select>
+          </label>
 
-        <label className="drawer-field">
-          <div className="drawer-label">ESTIMATE</div>
-          <select
-            className="drawer-select"
-            value={task.durationMin ?? ""}
-            onChange={(e) =>
-              onField({ durationMin: e.target.value ? Number(e.target.value) : null })
-            }
-          >
-            <option value="">— none —</option>
-            <option value="15">15m</option>
-            <option value="30">30m</option>
-            <option value="45">45m</option>
-            <option value="60">1h</option>
-            <option value="90">1.5h</option>
-            <option value="120">2h</option>
-            <option value="180">3h</option>
-            <option value="240">4h</option>
-          </select>
-          <div className="drawer-hint-quiet">Drives today&rsquo;s capacity (and, for events, the calendar block size).</div>
-        </label>
+          <label className="drawer-field">
+            <div className="drawer-label">ESTIMATE</div>
+            <select
+              className="drawer-select"
+              value={task.durationMin ?? ""}
+              onChange={(e) =>
+                onField({ durationMin: e.target.value ? Number(e.target.value) : null })
+              }
+            >
+              <option value="">— none —</option>
+              <option value="15">15m</option>
+              <option value="30">30m</option>
+              <option value="45">45m</option>
+              <option value="60">1h</option>
+              <option value="90">1.5h</option>
+              <option value="120">2h</option>
+              <option value="180">3h</option>
+              <option value="240">4h</option>
+            </select>
+          </label>
+        </div>
+        <div className="drawer-hint-quiet drawer-hint-row">
+          A repeating task creates the next one when completed. The estimate drives today&rsquo;s
+          capacity and, for events, the calendar block size.
+        </div>
 
         <div className="drawer-field">
           <div className="drawer-label">NOTES</div>

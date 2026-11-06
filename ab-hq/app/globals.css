@@ -4716,3 +4716,6 @@ button.check {
 .cal-chip.is-cont {
   opacity: 0.7;
 }
+.drawer-hint-row {
+  margin-top: 6px;
+}
