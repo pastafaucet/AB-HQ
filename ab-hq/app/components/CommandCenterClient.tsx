@@ -258,7 +258,7 @@ export default function CommandCenterClient({
 
   const flow: { title: string; status: string; done: boolean; href: string }[] = [
     {
-      title: "Start Up",
+      title: "Start of Day",
       status: data.intentionSet ? "intention set ✓" : "not started",
       done: data.intentionSet,
       href: "/plan/today?mode=start",
@@ -307,7 +307,7 @@ export default function CommandCenterClient({
       href: "/work/projects",
     },
     {
-      title: "Quick Drop",
+      title: "Inbox",
       line: `${data.needsHome} need a home · ${data.ledgerCount} in the ledger`,
       sub: data.unfiledLatest ? `“${data.unfiledLatest.slice(0, 60)}”` : undefined,
       href: "/work/inbox",
