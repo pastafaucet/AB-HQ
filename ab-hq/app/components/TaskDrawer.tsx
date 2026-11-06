@@ -415,6 +415,16 @@ export default function TaskDrawer({
               }
             >
               <option value="">— none —</option>
+              {/* A length set some other way (e.g. a same-day end time) shows
+                  as its own choice, so it can be seen and cleared. */}
+              {task.durationMin != null &&
+                ![15, 30, 45, 60, 90, 120, 180, 240].includes(task.durationMin) && (
+                  <option value={task.durationMin}>
+                    {task.durationMin >= 60
+                      ? `${Math.floor(task.durationMin / 60)}h${task.durationMin % 60 ? ` ${task.durationMin % 60}m` : ""}`
+                      : `${task.durationMin}m`}
+                  </option>
+                )}
               <option value="15">15m</option>
               <option value="30">30m</option>
               <option value="45">45m</option>

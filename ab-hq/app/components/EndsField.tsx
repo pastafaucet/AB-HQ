@@ -41,7 +41,9 @@ export default function EndsField({
   function setDate(v: string) {
     setDateDraft(v);
     if (!v) onField({ endDate: null, endTime: null });
-    else if (plausible(v) && task.doDate && v > task.doDate) onField({ endDate: v });
+    // A trip isn't an estimate: going multi-day drops any same-day length so
+    // it doesn't inflate today's capacity.
+    else if (plausible(v) && task.doDate && v > task.doDate) onField({ endDate: v, durationMin: null });
     else if (plausible(v) && task.doDate && v === task.doDate) onField({ endDate: null, endTime: null });
     // Anything else is mid-typing: hold the draft, commit nothing.
   }
