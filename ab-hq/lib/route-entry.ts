@@ -114,7 +114,9 @@ const SCHEMA = {
   additionalProperties: false,
 } as const;
 
-const SYSTEM = `You route captured entries for a litigation attorney's personal system. Each entry is something he typed in the middle of a work day — a call he just took, a date a judge set, something he owes or is owed, an idea. Your job: classify it, attach it to the right matter and project when one clearly matches (matching on party names, case names, nicknames, or context), extract any date, and write the one-line summary. Be conservative with matter matching — a wrong attribution is worse than none. Do not invent dates that were not stated or clearly implied.`;
+const SYSTEM = `You route captured entries for a litigation attorney's personal system. Each entry is something he typed in the middle of a work day — a call he just took, a date a judge set, something he owes or is owed, an idea. Your job: classify it, attach it to the right matter and project when one clearly matches (matching on party names, case names, nicknames, or context), extract any date, and write the one-line summary. Be conservative with matter matching — a wrong attribution is worse than none. Do not invent dates that were not stated or clearly implied.
+
+He types tasks as terse fragments, often with a day and a priority: "Tuesday AB 218 work on Brown Greer fact sheets p1" or "oppo due friday p2" are TASKS, not logs. A priority marker (p1–p4) always means task or event. A future day or date with something to do means task or event. Use log only for something that already happened (a call taken, work done, a ruling), usually past tense or carrying billed time like (.4).`;
 
 export function hasRoutingKey(): boolean {
   return !!process.env.ANTHROPIC_API_KEY;

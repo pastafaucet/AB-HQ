@@ -5,6 +5,7 @@ import { getSupabase } from "@/lib/supabase";
 import type { Entry, EntryKind } from "@/lib/data";
 import { routeEntry, hasRoutingKey } from "@/lib/route-entry";
 import { todayISO } from "@/lib/task-map";
+import { parseQuickAdd } from "@/lib/quick-parse";
 import {
   ENTRY_COLUMNS,
   ENTRY_COLUMNS_LEGACY,
@@ -73,6 +74,31 @@ async function captureOne(
       madeTask: null,
       error: hasRoutingKey() ? undefined : "Saved unrouted — AI routing key not configured.",
     };
+  }
+
+  // Guardrail: an explicit priority marker (p1–p4) means Andy is assigning
+  // work, so it's a task even when the model reads it as a log ("Tuesday
+  // AB 218 work on fact sheets p1" was filed as a log on 2026-11-06 and no
+  // task appeared). Billed time (tenths) stays a log. The deterministic
+  // parser also fills a date, time, or priority the model dropped.
+  if (!tenths) {
+    const parsed = parseQuickAdd(
+      text,
+      todayISO(),
+      ctx.matters.map((m) => ({ id: m.id, name: m.name, client: m.client ?? undefined })),
+      ctx.projects
+    );
+    if ((route.kind === "log" || route.kind === "note") && parsed.priority) {
+      route.kind = parsed.type === "Event" ? "event" : "task";
+      route.taskType = route.taskType ?? parsed.type ?? "Task";
+      const t = parsed.title || text;
+      route.title = route.title ?? t.charAt(0).toUpperCase() + t.slice(1);
+    }
+    if (route.kind === "task" || route.kind === "event") {
+      route.doDate = route.doDate ?? parsed.doDate ?? null;
+      route.doTime = route.doTime ?? parsed.doTime ?? null;
+      route.priority = route.priority ?? parsed.priority ?? null;
+    }
   }
 
   // Derive a task when the entry implies one.
