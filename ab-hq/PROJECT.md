@@ -184,7 +184,8 @@ Server actions live in `app/(app)/*-actions.ts`. Reads are in `lib/queries.ts`. 
 - The capture toast says when the All/Work/Personal toggle hides what was just created ("Personal, hidden while Work is on").
 - HQ cards renamed to Start of Day and Inbox.
 - **End date and time, built early** (Andy asked): migration 0016, the drawer's ENDS row (`EndsField.tsx`), calendar chips on every covered day (later days show ↳, dragging moves the whole span), Today/Start of Day/HQ/Tasks views treat a span as current until its last day, ⌘K extracts ranges, recurring spans keep their length. Not yet: the quick-add parser (Today/Tasks boxes) doesn't read ranges like "11/6 - 11/9" (⌘K does), the Claude connector's `add_tasks`/`update_task` have no end fields, and the schedule grid ignores spans. After 0016 runs, set the Mammoth trip's end date to 11/9.
-- **Asked, not answered:** whether the per-plaintiff COLA AB 218 matters should roll up under one coordinated matter. 70 of 73 cases show as "gone silent" because individual plaintiffs are never touched one by one.
+- Task drawer: the Mark complete / Delete bar is pinned to the bottom (sticky `.mark-footer`), since the ENDS row made the drawer long enough to need a scroll.
+- **Roll-up of per-plaintiff matters: Andy said hold off** (2026-11-06). Was asked: whether the per-plaintiff COLA AB 218 matters should roll up under one coordinated matter. 70 of 73 cases show as "gone silent" because individual plaintiffs are never touched one by one.
 
 **Still to ask before steps 3–5:** goal areas; numeric targets vs. "done when its projects are done"; rolling 12 months vs. calendar year; quarterly goals.
 
