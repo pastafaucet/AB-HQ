@@ -36,7 +36,7 @@ AB HQ ("Andy's HQ") is a personal operating system for one user: Andy Baum, an e
 - **Next.js 16 is not the Next.js in training data.** Read `node_modules/next/dist/docs/` before using an unfamiliar API. `params` and `searchParams` are Promises.
 - **Secrets** live in `ab-hq/.env.local` (gitignored) and in Vercel env vars. Never commit them. Vars: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (a new-style `sb_secret_…` key), `APP_PASSWORD`, `SESSION_SECRET`, `ANTHROPIC_API_KEY`. Sensitive vars target production + preview only (Vercel won't allow `development`).
 - **Code hygiene Andy cares about:** reuse shared primitives, keep separation of concerns, aim for components under ~300 lines. Several screens are over that now; split them when you're already working in them, not as a drive-by.
-- **Notion is the home of meeting notes, and only meeting notes** (decided 2026-10-18). Notion holds the original: the recording, transcript, and Notion's summary. AB HQ gets the substance for context. One Note per meeting, tagged `#meeting` and linked to the case, titled `YYYY-MM-DD · <meeting title>`, with sections for Summary, Key points, Decisions, Action items, Attendees, and a link to the Notion page, then **the full transcript in a collapsible (details) block**. Andy wants the actual conversation for context and search. The import is keyed by the Notion page URL, so re-importing refreshes the same note. Action items are proposed as tasks and decisions as case-log entries, for Andy to approve. Claude does the import through the connector; no direct Notion API integration. Don't build a direct AB HQ–Notion API integration; it isn't confirmed that Notion's public API exposes AI meeting summaries.
+- **AB HQ is the one system for entry and viewing** (decided Nov 2026, replacing the 2026-10-18 rule that Notion was the home of meeting notes). Notion is retired object by object, with no double entry. Meetings can be pasted into AB HQ from any recorder; the Notion import is one option. When a meeting comes from Notion, Notion still holds the recording and transcript. The meeting-note format: One Note per meeting, tagged `#meeting` and linked to the case, titled `YYYY-MM-DD · <meeting title>`, with sections for Summary, Key points, Decisions, Action items, Attendees, and a link to the Notion page, then **the full transcript in a collapsible (details) block**. Andy wants the actual conversation for context and search. The import is keyed by the Notion page URL, so re-importing refreshes the same note. Action items are proposed as tasks and decisions as case-log entries, for Andy to approve. Claude drives the import through the connector's `save_meeting`, which fetches the full record with the read-only `NOTION_TOKEN` (see Core behaviors).
 - **Hours** (planned): the official record is the Google Sheet "2021 AB Daily Hours" (owned by andybaum@gmail.com, personal). AB HQ will write to it through its own Google service account, with the rules ported from Andy's Claude "log hours" skill into AB HQ as the single rulebook. The connector gets a `log_time` action so chat entries go through AB HQ too, giving one writer and no double entries.
 - **Don't re-propose** these settled questions: Notion as the store; Outlook/calendar integration (the firm locked down ICS publishing and Graph app registration, so manual event entry is the accepted state); Eisenhower important/urgent (P1–P4 replaced it); a Health domain (domains are Work / Personal only).
 
@@ -59,33 +59,35 @@ AB HQ ("Andy's HQ") is a personal operating system for one user: Andy Baum, an e
 
 ## The app, screen by screen
 
-The sidebar (`lib/nav.ts`) shows the full hub layout from the original prototype. Only some hubs are built. The rest route to a shared placeholder at `app/(app)/hub/[slug]`.
+Five destinations, each one page with tabs (`lib/nav.ts`; Nov 2026). The sidebar lists the destinations; `TabBar` shows the current one's tabs. A tab with `built: false` is hidden, and a destination with no built tabs (Life, for now) is hidden too. Old URLs (`/my-day`, `/hub/*`, and so on) redirect permanently in `next.config.ts`.
 
-**The daily loop**
-- **Start of Day** (`/start-up`, `StartUpClient`): the morning ritual. "On tap from yesterday," overdue and due-today triage, project obligations this week, the morning-body check-in, the morning routine, and the **MIT picker** that chooses today's three.
-- **Today** (`/my-day`, `MyDayClient`): quick-add, the protected Top 3 (MITs), Also Today, In Progress. The right rail has the capacity bar and the schedule grid.
-- **Wind Down** (`/wind-down`, `WindDownClient`): the evening ritual. Close out open tasks with one click, "On tap for tomorrow" (tomorrow's picks), the journal ("top things of the day"), habits, body metrics, the media log, and "A year ago today."
+**HQ**
+- **Command Center** (`/`, `CommandCenterClient`): an attention band, "The day" flow, UP NEXT (real task rows that open the drawer), and a live hub grid. Rings band planned (step 2).
 
-**Shell:** the header's **All / Work / Personal** toggle (`AppShell.tsx`) is display-only and filters nothing yet. It's the first item on Andy's wants list.
+**Plan**
+- **Today** (`/plan/today`): one page, three modes, switched by `TodayModeSwitch` (`?mode=start|today|wind`). With no `?mode`, the clock picks: before 11am Start of Day, from 6pm Wind Down, Today otherwise (`lib/today-mode.ts`). A mode picked by hand sticks for the rest of that time band (cookie `abhq_today_mode`). Locking in MITs moves to Today mode.
+  - **Start of Day** (`start-mode.tsx`, `StartUpClient`): "On tap from yesterday," overdue and due-today triage, project obligations this week, the morning-body check-in, the morning routine, and the **MIT picker**.
+  - **Today** (`today-mode.tsx`, `MyDayClient`): quick-add, the protected Top 3 (MITs), Also Today, In Progress. The right rail has the capacity bar and the schedule grid.
+  - **Wind Down** (`wind-mode.tsx`, `WindDownClient`): close out open tasks with one click, "On tap for tomorrow," the journal, habits, body metrics, the media log, and "A year ago today."
+- **Week** (`/plan/week`, `WeeklyClient`): the Friday review. The week that was, tasks done, captures, matters touched, matters with no next action, billed time entered, and the life week.
+- Month and Year: not built (step 5). The monthly review will live in Month; Calendar folds into Month and Year.
 
-**Home**
-- **Andy's HQ** (`/`, `CommandCenterClient`): the Command Center. An attention band, "The day" flow, UP NEXT (real task rows that open the drawer), and a live hub grid.
+**Work**
+- **Inbox** (`/work/inbox`): the capture ledger's inbox. Entries the AI router couldn't confidently file wait here.
+- **Tasks** (`/work/tasks`): the full task hub, including a calendar view.
+- **Projects** (`/work/projects`): projects as entities, with a terminal deadline, a matter link, and a drawer.
+- **Cases** (`/work/cases`): matters, with lifecycle (disposition, closed date) and people.
+- **Time** (`/work/time`): the day ledger per matter and first-draft billing narratives in Andy's format.
 
-**Action**
-- **Quick Drop / Inbox** (`/hub/inbox`): the capture ledger's inbox. Entries the AI router couldn't confidently file wait here.
-- **Tasks** (`/hub/tasks`): the full task hub, including a calendar view.
-- **Projects** (`/hub/projects`): projects as entities, with a terminal deadline, a matter link, and a drawer.
-- **Cases** (`/hub/cases`): matters, with lifecycle (disposition, closed date) and people.
+**Notes**
+- **Notes** (`/notes`): rich text (Tiptap) with links, @mentions, pins, tags, Inbox/Active/Archived status, search (AND terms, quoted phrases), and images (paste, drop, or the ▣ Image button; drag a bottom corner to resize). Knowledge hub and Tag list fold in here.
+- **People** (`/notes/people`): contacts linked to matters.
 
-**Reviews and tracking**
-- **Weekly** (`/hub/weekly`): the Friday review. The week that was, tasks done, captures, matters touched, matters with no next action, billed time entered, and the life week.
-- **Time** (`/hub/time`): the day ledger per matter and first-draft billing narratives in Andy's format.
+**Life** (hidden until built): Goals (step 4), Habits (step 6), Journal, Health. Habits, journal, and body metrics are captured inside the rituals today. Scuba, 3D Printing, Games, and hockey are **life areas** with their own dashboards and records, to come after the planning layer. They are not projects.
 
-**Knowledge**
-- **Notes** (`/hub/notes`): rich text (Tiptap) with links, @mentions, pins, tags, Inbox/Active/Archived status, search (AND terms, quoted phrases), and images (paste, drop, or the ▣ Image button; drag a bottom corner to resize).
-- **People** (`/hub/people`): contacts linked to matters.
+**Shell** (`AppShell.tsx`): sidebar of destinations, header with the **All / Work / Personal** toggle, capture field, clock. The toggle is stored in cookie `abhq_scope` (`lib/scope.ts`, read server-side by `lib/scope-server.ts`). Pages pass it to their query (`getMyDayData`, `getStartUpData`, `getWindDownData`, `getTasksPageData`, `getCommandCenterData` take a `scope` argument, default `"all"`, filtering task rows by `domain`) and key the client component by scope, so a flip remounts the screen with fresh data. **Not yet filtered:** Week, Projects (no domain column), Notes, People, Inbox, Time. The MIT cap still counts across both domains.
 
-**Placeholders (not built):** Goals, Calendar, Monthly, Knowledge hub, Tag list, Habits, Journal, Health, Scuba, 3D Printing, Games. Habits, journal, and body metrics are captured inside the rituals today. Their hubs don't exist yet.
+**Mobile** (below 900px, `MobileBar.tsx`): the sidebar hides; a bottom bar of Today, Capture, Tasks, Cases, More (a sheet with the rest). Pane and rail stack and the whole screen scrolls; drawers go full width.
 
 ---
 
@@ -148,7 +150,9 @@ Server actions live in `app/(app)/*-actions.ts`. Reads are in `lib/queries.ts`. 
 ## Design decisions and the reasons behind them
 
 - **Scope decides what gets built; the prototype decides how it looks.** `Design Docs/AB_HQ_Scope.md` set the lean V1. `Design Docs/AB HQ Example.html` sets the look: dark ground `#0b0e13`, accent `#5b8cff`, IBM Plex Sans/Mono plus Newsreader. Tokens live in `app/globals.css`. Names follow the prototype: "Andy's HQ," "Start of Day," "Today," "Wind Down."
-- **The full hub layout stays in the sidebar** even where hubs aren't built, because the sidebar is part of the look.
+- **Five destinations with tabs; unbuilt hubs hidden** (Nov 2026). This reversed the earlier rule that the full hub layout stays in the sidebar. The 22-item sidebar was too fragmented.
+- **The planning layer is in scope** (Nov 2026): year, month, and week views, goals, habits, progress rings, all from one period engine (`lib/progress.ts`, planned). This replaced "year-at-a-glance is out of scope for V1."
+- **Drawers are the standard:** any linked item opens in a side drawer over the current page. ⌘J jumps to anything; ⌘K stays capture.
 - **P1–P4 instead of important/urgent.** Andy's call. It's simpler and maps to colors he scans at a glance.
 - **One date per task.** A separate deadline field was folded into `do_date`. Deadlines are a task *type*.
 - **Matter and project are separate fields.** A project can span tasks under one matter, or have none.
@@ -162,9 +166,23 @@ Server actions live in `app/(app)/*-actions.ts`. Reads are in `lib/queries.ts`. 
 
 ## Where we left off
 
-*Updated 2026-10-18.*
+*Updated 2026-11-06.*
 
-**This session (2026-10-18):** Added this guide. Notes accept pasted, dropped, and picked images, resizable and private. Fixed three notes bugs found while testing: (1) clicking "+ Note" left the old note editable until the new one arrived, so a fast title went onto the old note; (2) editing one note and switching to another within 600 ms dropped the first note's last edit; (3) the save step stripped every node attribute (see Core behaviors).
+**This session (2026-11-06): step 1 of the planning-layer plan, first half.** Andy set six decisions (recorded above and in `BRIEF.md`) and a seven-step build order. Shipped in one push to `main` (`63ed9ec`): the five-destination nav with tabs, unbuilt hubs hidden, Today's three modes, the All / Work / Personal toggle filtering tasks, and the mobile bottom bar. Verified: clean build, and a local render of the new shell at desktop and phone width with a throwaway page (no live data; this sandbox can't reach Supabase or the live site). **Not verified:** the Vercel deploy reading Ready. The Vercel connector needed Andy to approve team access, and `npx vercel` isn't logged in here. **Not exercised against real data:** the Today mode switch, the scope toggle, and the redirects on the live site. Andy tests them live.
+
+**Next: step 1, second half (one push).**
+- `DrawerHost` in the shell, opened from anywhere with `openDrawer({kind, id})` (window event, same pattern as `openCapture`). Containers per kind (task, case, project, person, note) fetch by id and own the save and timer wiring now duplicated across six screens. A new `NoteDrawer` wraps `NoteEditor`.
+- Pages copy their data into state once, so the host must emit `abhq:changed` and the list screens patch themselves from it, or a drawer edit leaves the page stale.
+- ⌘J palette: one server action searching titles across matters (name, client), projects, tasks (open plus recently done), notes, and people (name, org). Enter opens the drawer; ⌘Enter goes to the item's home page.
+- Cross-links use the host: a task's case chip, a case's notes and people, a person's cases, @mentions in notes. Page rows keep their own drawers until each screen is next touched.
+
+**Answers from Andy this session:** rituals switch automatically by time of day, but he wants to pick any mode at any time (done: the switch is always visible). The toggle should really filter (done for tasks). Deploy from `main`. Scuba, 3D Printing, and Games are life areas with dashboards and databases, not projects; they wait.
+
+**Still to ask before steps 3–5:** goal areas; numeric targets vs. "done when its projects are done"; rolling 12 months vs. calendar year; quarterly goals.
+
+**Flagged to Andy:** his claude.ai skill `ab-hq-notion` calls itself the "Gateway to Andy's AB HQ system in Notion." That conflicts with AB HQ as the one system, and it could steer Claude to write tasks into Notion. It lives in his claude.ai account, not this repo.
+
+**Previous session (2026-10-18):** Added this guide. Notes accept pasted, dropped, and picked images, resizable and private. Fixed three notes bugs found while testing: (1) clicking "+ Note" left the old note editable until the new one arrived, so a fast title went onto the old note; (2) editing one note and switching to another within 600 ms dropped the first note's last edit; (3) the save step stripped every node attribute (see Core behaviors).
 
 Also this session: the **Claude connector** (see Core behaviors). The read-only version passed 22 local checks and then Andy's real first use ("Give me the rundown on COLA AB 218", which combined AB HQ with Notion meeting notes; he was "blown away"). The write actions (0.2.0) passed 14 local checks. Test rows were cleaned up through product states: the task was cancelled, the capture dismissed, and the "QA test · Notion webinar" note archived. **Andy must disconnect and reconnect AB HQ in claude.ai to get write access, and set up `NOTION_TOKEN`** (instructions were given in chat: a read-only internal integration connected to the Meeting Notes Database page).
 
