@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { Task } from "@/lib/data";
 import type { TaskPatch } from "@/app/(app)/task-actions";
 
@@ -14,6 +15,11 @@ const toHHMM = (min: number) =>
  * The task drawer's ENDS row. A later end date makes the item multi-day
  * (stored as end_date / end_time). On a single day, the end time is just
  * another way to set the duration: start + duration_min, one source of truth.
+ *
+ * Both inputs keep a local draft while focused. Typing a date digit by digit
+ * passes through values like year 0002, which fall before the start date; if
+ * the field reacted to those it would clear itself mid-typing (it did, on
+ * 2026-11-06). Only plausible, complete values are committed.
  */
 export default function EndsField({
   task,
@@ -23,17 +29,25 @@ export default function EndsField({
   onField: (patch: TaskPatch) => void;
 }) {
   const multi = !!(task.doDate && task.endDate && task.endDate > task.doDate);
+  const [dateDraft, setDateDraft] = useState<string | null>(null);
+  const [timeDraft, setTimeDraft] = useState<string | null>(null);
   const sameDayEnd =
     !multi && task.doTime && task.durationMin
       ? toHHMM(toMin(task.doTime) + task.durationMin)
       : "";
 
+  const plausible = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && v >= "2000-01-01";
+
   function setDate(v: string) {
-    if (!v || !task.doDate || v <= task.doDate) onField({ endDate: null, endTime: null });
-    else onField({ endDate: v });
+    setDateDraft(v);
+    if (!v) onField({ endDate: null, endTime: null });
+    else if (plausible(v) && task.doDate && v > task.doDate) onField({ endDate: v });
+    else if (plausible(v) && task.doDate && v === task.doDate) onField({ endDate: null, endTime: null });
+    // Anything else is mid-typing: hold the draft, commit nothing.
   }
 
   function setTime(v: string) {
+    setTimeDraft(v);
     if (multi) {
       onField({ endTime: v || null });
       return;
@@ -54,18 +68,20 @@ export default function EndsField({
         <input
           type="date"
           className="drawer-input"
-          value={multi ? task.endDate : ""}
+          value={dateDraft ?? (multi ? task.endDate : "")}
           min={task.doDate}
           disabled={!task.doDate}
           onChange={(e) => setDate(e.target.value)}
+          onBlur={() => setDateDraft(null)}
           aria-label="End date"
         />
         <input
           type="time"
           className="drawer-input"
-          value={multi ? task.endTime ?? "" : sameDayEnd}
+          value={timeDraft ?? (multi ? task.endTime ?? "" : sameDayEnd)}
           disabled={!multi && !task.doTime}
           onChange={(e) => setTime(e.target.value)}
+          onBlur={() => setTimeDraft(null)}
           aria-label="End time"
         />
       </div>
