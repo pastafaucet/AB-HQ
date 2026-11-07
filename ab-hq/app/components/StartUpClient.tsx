@@ -33,6 +33,7 @@ import { saveIntention } from "@/app/(app)/daily-actions";
 import TaskDrawer from "./TaskDrawer";
 import { HabitChecklist, BodyForm } from "./LifeBits";
 import type { LifeData } from "@/lib/queries";
+import { applyChange, useDrawerChanges } from "./drawers/bus";
 
 
 function isoShift(today: string, days: number): string {
@@ -83,6 +84,8 @@ export default function StartUpClient({
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  // A task edited in a drawer opened over this screen (⌘J, a link) updates here.
+  useDrawerChanges<Task>("task", (d) => setTasks((prev) => applyChange(prev, d)));
   const [intention, setIntention] = useState(initialIntention ?? "");
   const [error, setError] = useState<string | null>(null);
   const [locking, setLocking] = useState(false);

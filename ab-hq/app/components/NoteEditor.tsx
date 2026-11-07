@@ -16,6 +16,7 @@ import {
   type NoteTargetType,
 } from "@/app/(app)/note-actions";
 import ConfirmButton from "./ConfirmButton";
+import { openDrawer } from "./drawers/bus";
 
 interface MentionItem {
   id: string;
@@ -293,8 +294,21 @@ export default function NoteEditor({
     : linkType === "person" ? people.map((p) => ({ id: p.id, label: p.org ? `${p.name} — ${p.org}` : p.name }))
     : tasks.map((t) => ({ id: t.id, label: t.title }));
 
+  // An @mention (or a link chip) opens what it points to in a drawer.
+  function onEditorClick(e: React.MouseEvent<HTMLDivElement>) {
+    const el = (e.target as HTMLElement).closest<HTMLElement>(".mention[data-id]");
+    const ref = el?.dataset.id;
+    if (!ref) return;
+    const [type, id] = ref.split(":");
+    if (!id) return;
+    e.preventDefault();
+    if (type === "matter") openDrawer("case", id);
+    else if (type === "person") openDrawer("person", id);
+    else if (type === "task") openDrawer("task", id);
+  }
+
   return (
-    <div className="note-editor">
+    <div className="note-editor" onClick={onEditorClick}>
       <div className="note-ed-head">
         <span className="note-date">{fmtNoteDate(note.createdAt)}</span>
         <span className="head-spacer" />
@@ -341,7 +355,14 @@ export default function NoteEditor({
       <div className="note-links">
         {note.links.map((l) => (
           <span key={l.linkId} className={`note-chip nc-${l.type}`}>
-            {l.label}
+            <button
+              type="button"
+              className="link-btn"
+              title="Open"
+              onClick={() => openDrawer(l.type === "matter" ? "case" : l.type, l.id)}
+            >
+              {l.label}
+            </button>
             <button
               type="button"
               className="note-chip-x"

@@ -31,6 +31,7 @@ import {
   deleteSession,
 } from "@/app/(app)/time-actions";
 import TaskDrawer from "./TaskDrawer";
+import { applyChange, useDrawerChanges } from "./drawers/bus";
 
 const DRAFT = "draft";
 const VIEW_STORE = "abhq.tasksView";
@@ -306,6 +307,11 @@ export default function TasksClient({
     setTasks((prev) => prev.map((x) => (x.id === id ? fn(x) : x)));
     setDoneTasks((prev) => (prev ? prev.map((x) => (x.id === id ? fn(x) : x)) : prev));
   }
+  // A task edited in a drawer opened over this screen (⌘J, a link) updates here.
+  useDrawerChanges<Task>("task", (d) => {
+    setTasks((prev) => applyChange(prev, d));
+    setDoneTasks((prev) => (prev ? applyChange(prev, d) : prev));
+  });
   function findTask(id: string): Task | undefined {
     return tasksRef.current.find((x) => x.id === id) ?? doneRef.current?.find((x) => x.id === id);
   }

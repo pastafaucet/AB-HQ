@@ -38,6 +38,7 @@ import { updateEntry, entryToTask, deleteEntry, type EntryPatch } from "@/app/(a
 import { saveWindDown } from "@/app/(app)/daily-actions";
 import { draftNarratives, type NarrativeDraft } from "@/app/(app)/billing-actions";
 import ConfirmButton from "./ConfirmButton";
+import { applyChange, useDrawerChanges } from "./drawers/bus";
 
 const KINDS: EntryKind[] = ["log", "task", "note", "event"];
 
@@ -90,6 +91,8 @@ export default function WindDownClient({
     ...initialMits,
     ...initialCandidates,
   ]);
+  // A task edited in a drawer opened over this screen (⌘J, a link) updates here.
+  useDrawerChanges<Task>("task", (d) => setTasks((prev) => applyChange(prev, d)));
   const [entries, setEntries] = useState<Entry[]>(initialInbox);
   const [onTap, setOnTap] = useState(onTapForTomorrow ?? "");
   const [reflection, setReflection] = useState(initialReflection ?? "");

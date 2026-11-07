@@ -254,15 +254,17 @@ export interface NotesPageData {
 }
 
 /** Everything the Notes hub needs: all notes + link labels + pickers. */
-export async function getNotesPageData(): Promise<NotesPageData> {
+export async function getNotesPageData(noteId?: string): Promise<NotesPageData> {
   const sb = getSupabase();
+  // With a noteId, load just that note (the drawer); otherwise everything (the hub).
+  const notesQ = sb
+    .from("notes")
+    .select("id,title,body,body_json,pinned,status,created_at,updated_at");
+  const linksQ = sb.from("note_links").select("id,note_id,target_type,target_id");
   const [notesRes, linksRes, mattersRes, peopleRes, tasksRes, tagsRes, noteTagsRes] =
     await Promise.all([
-      sb
-        .from("notes")
-        .select("id,title,body,body_json,pinned,status,created_at,updated_at")
-        .order("created_at", { ascending: false }),
-      sb.from("note_links").select("id,note_id,target_type,target_id"),
+      noteId ? notesQ.eq("id", noteId) : notesQ.order("created_at", { ascending: false }),
+      noteId ? linksQ.eq("note_id", noteId) : linksQ,
       sb.from("matters").select("id,name,status,disposition"),
       sb.from("people").select("id,name,org").order("name"),
       sb.from("tasks").select("id,title").neq("status", "Cancelled").order("created_at", { ascending: false }),
@@ -354,6 +356,44 @@ export async function getNotesPageData(): Promise<NotesPageData> {
     people: peopleRes.data as NotesPageData["people"],
     tasks: tasksRes.data as NotesPageData["tasks"],
     allTags: tagRows.map((t) => ({ id: t.id, name: t.name, count: tagCounts.get(t.id) ?? 0 })),
+  };
+}
+
+/** One task plus what its drawer needs (the drawer host, opened from anywhere). */
+export async function getTaskDrawerData(id: string): Promise<{
+  task: Task | null;
+  matters: Matter[];
+  projects: Project[];
+  mitCount: number;
+  running: RunningTimer | null;
+}> {
+  const sb = getSupabase();
+  const today = todayISO();
+  const [rows, mattersRes, projects, mitRes, runRes] = await Promise.all([
+    selectTaskRows((cols) => sb.from("tasks").select(cols).eq("id", id)),
+    sb.from("matters").select("id,name,client,status,next_deadline"),
+    fetchProjects(),
+    sb.from("tasks").select("id", { count: "exact", head: true }).eq("mit", true),
+    sb
+      .from("time_sessions")
+      .select("id,task_id,started_at")
+      .is("ended_at", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  return {
+    task: rows[0] ? rowToTask(rows[0], today) : null,
+    matters: ((mattersRes.data ?? []) as MatterRowDB[]).map((r) => rowToMatter(r, today)),
+    projects,
+    mitCount: mitRes.count ?? 0,
+    running: runRes.data
+      ? {
+          sessionId: runRes.data.id as string,
+          taskId: runRes.data.task_id as string,
+          startedAt: runRes.data.started_at as string,
+        }
+      : null,
   };
 }
 

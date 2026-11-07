@@ -32,6 +32,7 @@ import {
 import TaskDrawer from "./TaskDrawer";
 import CapacityBar from "./CapacityBar";
 import ScheduleGrid, { type SchedItem } from "./ScheduleGrid";
+import { applyChange, useDrawerChanges } from "./drawers/bus";
 
 const DRAFT = "draft";
 
@@ -74,6 +75,8 @@ export default function MyDayClient({
   initialLogged: Record<string, number>;
 }) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  // A task edited in a drawer opened over this screen (⌘J, a link) updates here.
+  useDrawerChanges<Task>("task", (d) => setTasks((prev) => applyChange(prev, d)));
   const [draft, setDraft] = useState<Task | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

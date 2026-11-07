@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent } from "react";
+import { useState, type MouseEvent } from "react";
 import type {
   Task,
   Matter,
@@ -17,6 +17,7 @@ import { createProject } from "@/app/(app)/project-actions";
 import { parseRule, describeRule, ruleToJson, type RecurRule } from "@/lib/recur";
 import ConfirmButton from "./ConfirmButton";
 import EndsField from "./EndsField";
+import { openDrawer, useEscapeClose } from "./drawers/bus";
 
 const DOW_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -187,13 +188,7 @@ export default function TaskDrawer({
       setNewProjName("");
     }
   }
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscapeClose(onClose);
 
   const mitDisabled = !task.mit && mitCount >= 3;
   const done = task.status === "Done";
@@ -304,7 +299,22 @@ export default function TaskDrawer({
 
         <div className="drawer-grid">
           <label className="drawer-field">
-            <div className="drawer-label">MATTER</div>
+            <div className="drawer-label">
+              MATTER
+              {task.matterId && (
+                <button
+                  type="button"
+                  className="drawer-label-link"
+                  title="Open this case"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openDrawer("case", task.matterId!);
+                  }}
+                >
+                  open ↗
+                </button>
+              )}
+            </div>
             <select
               className="drawer-select"
               value={task.matterId ?? ""}

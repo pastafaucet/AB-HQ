@@ -76,7 +76,7 @@ None of this is committed or scheduled. It's the known horizon, roughly in the o
 - Shared components in the existing tokens: Ring, ProgressBar, MonthGrid, YearStrip, PriorityGroup (P1–P4 colored stacks).
 - One migration: a `goals` table (title, area, period, period_start, status; progress computed from linked projects and tasks); projects gain start_date, kind, horizon, goal_id; habits gain a weekly target and goal_id; a `reviews` table (period, period_start, reflection). (Tasks' optional end date and time for multi-day items shipped early, 2026-11-06, as migration 0016.)
 
-**Build order:** (1) nav restructure, ⌘J jump-to-anything, standard drawers; (2) period engine, primitives, rings on HQ from existing data; (3) the migration; (4) Goals tab; (5) Year and Month tabs; (6) Habits tab; (7) monthly review. Step 1 is partly shipped (nav, tabs, Today modes, scope toggle, mobile bar); ⌘J and drawers are next.
+**Build order:** (1) nav restructure, ⌘J jump-to-anything, standard drawers; (2) period engine, primitives, rings on HQ from existing data; (3) the migration; (4) Goals tab; (5) Year and Month tabs; (6) Habits tab; (7) monthly review. Step 1 shipped (nav, tabs, Today modes, scope toggle, mobile bar, then ⌘J jump-to-anything and drawers that open over any page, 2026-11-07). Step 2 is next.
 
 **Still open:** goal areas (the planner used Finances, Career, Personal Growth, Health, Relationships, Home; a field on goals only); numeric goal targets vs. "done when its projects are done" for V1; Year view as rolling 12 months vs. calendar year; whether quarterly goals are wanted.
 

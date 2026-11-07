@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { CaseRow } from "@/lib/queries";
 import type { MatterPatch, MatterPersonRow, PersonOption } from "@/app/(app)/matter-actions";
 import type { NoteStub } from "@/app/(app)/note-actions";
+import { useEscapeClose } from "./drawers/bus";
 
 const NOTE_MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 export function fmtStubDate(iso: string): string {
@@ -62,6 +63,7 @@ export default function CaseDrawer({
   notesLoading,
   onOpenNote,
   onNewNote,
+  onOpenPerson,
 }: {
   matter: CaseRow;
   saving: boolean;
@@ -78,18 +80,13 @@ export default function CaseDrawer({
   notesLoading: boolean;
   onOpenNote: (id: string) => void;
   onNewNote: () => void;
+  onOpenPerson?: (personId: string) => void;
 }) {
   const [pName, setPName] = useState("");
   const [pOrg, setPOrg] = useState("");
   const [pRole, setPRole] = useState(ROLES[0]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscapeClose(onClose);
 
   // Typing a known person's name auto-fills their org.
   function onNameChange(v: string) {
@@ -236,7 +233,13 @@ export default function CaseDrawer({
           {people.map((p) => (
             <div key={p.linkId} className="person-row">
               <span className="person-role">{p.role.toUpperCase()}</span>
-              <span className="person-name">{p.name}</span>
+              {onOpenPerson ? (
+                <button type="button" className="person-name link-btn" onClick={() => onOpenPerson(p.personId)}>
+                  {p.name}
+                </button>
+              ) : (
+                <span className="person-name">{p.name}</span>
+              )}
               {p.org && <span className="person-org">{p.org}</span>}
               <button
                 type="button"

@@ -1,17 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
-import type { Task } from "@/lib/data";
+import { useState, useTransition } from "react";
 import type { ProjectRow, MatterOption } from "@/lib/queries";
-import {
-  createProject,
-  updateProject,
-  deleteProject,
-  listProjectTasks,
-  type ProjectPatch,
-} from "@/app/(app)/project-actions";
-import { createTask, setTaskDone } from "@/app/(app)/task-actions";
-import ProjectDrawer from "./ProjectDrawer";
+import { createProject } from "@/app/(app)/project-actions";
+import ProjectDrawerContainer from "./drawers/ProjectDrawerContainer";
+import { applyChange, useDrawerChanges } from "./drawers/bus";
 
 const MONTHS_SHORT = [
   "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
@@ -37,31 +30,6 @@ function fmtDeadline(
 type SortKey = "deadline" | "name" | "open";
 type Lifecycle = "active" | "done" | "archived" | "all";
 
-function applyProjectPatch(p: ProjectRow, patch: ProjectPatch, matters: MatterOption[]): ProjectRow {
-  const next = { ...p };
-  if (patch.name !== undefined) next.name = patch.name;
-  if (patch.matterId !== undefined) {
-    next.matterId = patch.matterId;
-    next.matterName = patch.matterId
-      ? matters.find((m) => m.id === patch.matterId)?.name ?? null
-      : null;
-  }
-  if (patch.deadline !== undefined) next.deadline = patch.deadline;
-  if (patch.status !== undefined) next.status = patch.status;
-  if (patch.notes !== undefined) next.notes = patch.notes;
-  return next;
-}
-
-function fullProjectPatch(p: ProjectRow): ProjectPatch {
-  return {
-    name: p.name,
-    matterId: p.matterId,
-    deadline: p.deadline,
-    status: p.status,
-    notes: p.notes,
-  };
-}
-
 export default function ProjectsClient({
   projects: initialProjects,
   matters,
@@ -79,32 +47,8 @@ export default function ProjectsClient({
   const [life, setLife] = useState<Lifecycle>("active");
   const [quickName, setQuickName] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
-
-  const projectsRef = useRef(projects);
-  projectsRef.current = projects;
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // --- tasks for the open project ---
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [tasksLoading, setTasksLoading] = useState(false);
-  useEffect(() => {
-    if (!openId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale drawer data (same pattern as CasesClient)
-      setTasks([]);
-      return;
-    }
-    setTasksLoading(true);
-    (async () => {
-      const r = await listProjectTasks(openId);
-      setTasksLoading(false);
-      if (r.ok) setTasks(r.tasks);
-      else flash(r.error ?? "Couldn't load tasks.");
-    })();
-  }, [openId]);
 
   function flash(msg: string) {
     setError(msg);
@@ -113,38 +57,8 @@ export default function ProjectsClient({
 
   const openProject = projects.find((p) => p.id === openId) ?? null;
 
-  function onField(patch: ProjectPatch) {
-    if (!openId) return;
-    setProjects((prev) =>
-      prev.map((p) => (p.id === openId ? applyProjectPatch(p, patch, matters) : p))
-    );
-    setSaving(true);
-    setSaved(false);
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    const id = openId;
-    saveTimer.current = setTimeout(() => {
-      const p = projectsRef.current.find((x) => x.id === id);
-      if (!p) return;
-      startTransition(async () => {
-        const r = await updateProject(id, fullProjectPatch(p));
-        setSaving(false);
-        if (r.ok) {
-          setSaved(true);
-          setTimeout(() => setSaved(false), 1500);
-        } else flash(r.error ?? "Couldn't save.");
-      });
-    }, 450);
-  }
-
-  function closeDrawer() {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    if (openId) {
-      const p = projectsRef.current.find((x) => x.id === openId);
-      if (p) startTransition(async () => void (await updateProject(p.id, fullProjectPatch(p))));
-    }
-    setOpenId(null);
-    setSaved(false);
-  }
+  // Edits made in any project drawer (this page's or the shell's) land here.
+  useDrawerChanges<ProjectRow>("project", (d) => setProjects((prev) => applyChange(prev, d)));
 
   function submitQuick() {
     const name = quickName.trim();
@@ -171,62 +85,6 @@ export default function ProjectsClient({
         setProjects((prev) => [created, ...prev]);
         setOpenId(created.id);
       } else flash(r.error ?? "Couldn't create project.");
-    });
-  }
-
-  function onDelete() {
-    if (!openId) return;
-    const id = openId;
-    setOpenId(null);
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    startTransition(async () => {
-      const r = await deleteProject(id);
-      if (!r.ok) flash(r.error ?? "Couldn't delete.");
-    });
-  }
-
-  function onToggleTask(t: Task) {
-    const done = t.status !== "Done";
-    setTasks((prev) =>
-      prev.map((x) => (x.id === t.id ? { ...x, status: done ? "Done" : "To Do" } : x))
-    );
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === t.projectId
-          ? {
-              ...p,
-              openCount: p.openCount + (done ? -1 : 1),
-              doneCount: p.doneCount + (done ? 1 : -1),
-            }
-          : p
-      )
-    );
-    startTransition(async () => {
-      const r = await setTaskDone(t.id, done);
-      if (!r.ok) flash(r.error ?? "Couldn't save.");
-    });
-  }
-
-  function onAddTask(title: string) {
-    if (!openId) return;
-    const proj = projectsRef.current.find((p) => p.id === openId);
-    startTransition(async () => {
-      const r = await createTask({
-        title,
-        status: "To Do",
-        projectId: openId,
-        matterId: proj?.matterId ?? null,
-      });
-      if (r.ok && r.task) {
-        setTasks((prev) => [...prev, r.task!]);
-        setProjects((prev) =>
-          prev.map((p) =>
-            p.id === openId
-              ? { ...p, openCount: p.openCount + 1, totalCount: p.totalCount + 1 }
-              : p
-          )
-        );
-      } else flash(r.error ?? "Couldn't add task.");
     });
   }
 
@@ -393,19 +251,12 @@ export default function ProjectsClient({
       </section>
 
       {openProject && (
-        <ProjectDrawer
+        <ProjectDrawerContainer
+          key={openProject.id}
           project={openProject}
           matters={matters}
           today={today}
-          saving={saving}
-          saved={saved}
-          onField={onField}
-          onClose={closeDrawer}
-          onDelete={onDelete}
-          tasks={tasks}
-          tasksLoading={tasksLoading}
-          onToggleTask={onToggleTask}
-          onAddTask={onAddTask}
+          onClose={() => setOpenId(null)}
         />
       )}
 

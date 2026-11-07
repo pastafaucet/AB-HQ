@@ -9,6 +9,8 @@ import { logout } from "@/app/auth-actions";
 import CaptureOverlay, { openCapture } from "./CaptureOverlay";
 import TabBar from "./TabBar";
 import MobileBar from "./MobileBar";
+import DrawerHost from "./drawers/DrawerHost";
+import JumpPalette, { openJump } from "./drawers/JumpPalette";
 
 const SCOPES: { key: Scope; label: string }[] = [
   { key: "all", label: "All" },
@@ -161,6 +163,11 @@ export default function AppShell({
             <span className="grow">Capture a thought…</span>
             <span className="keycap">⌘K</span>
           </button>
+          <button className="jump-btn" type="button" onClick={() => openJump()} title="Jump to anything (⌘J)">
+            <span>↗</span>
+            <span className="jump-btn-label">Jump</span>
+            <span className="keycap">⌘J</span>
+          </button>
           <div className="header-spacer" />
           <div className="header-datetime">{clock}</div>
         </header>
@@ -176,6 +183,8 @@ export default function AppShell({
 
       <MobileBar pathname={pathname} />
       <CaptureOverlay />
+      <JumpPalette />
+      <DrawerHost />
     </div>
   );
 }

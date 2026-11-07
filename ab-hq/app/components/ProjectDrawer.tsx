@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Task } from "@/lib/data";
 import type { ProjectRow, MatterOption } from "@/lib/queries";
 import type { ProjectPatch } from "@/app/(app)/project-actions";
 import ConfirmButton from "./ConfirmButton";
+import { useEscapeClose } from "./drawers/bus";
 
 const STATUSES = ["Active", "Done", "Archived"];
 const MONTHS_SHORT = [
@@ -33,6 +34,7 @@ export default function ProjectDrawer({
   tasksLoading,
   onToggleTask,
   onAddTask,
+  onOpenTask,
 }: {
   project: ProjectRow;
   matters: MatterOption[];
@@ -46,16 +48,11 @@ export default function ProjectDrawer({
   tasksLoading: boolean;
   onToggleTask: (t: Task) => void;
   onAddTask: (title: string) => void;
+  onOpenTask?: (taskId: string) => void;
 }) {
   const [newTask, setNewTask] = useState("");
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscapeClose(onClose);
 
   function submitTask() {
     const title = newTask.trim();
@@ -190,7 +187,13 @@ export default function ProjectDrawer({
                   aria-label="Mark done"
                   onClick={() => onToggleTask(t)}
                 />
-                <span className="ptask-title">{t.title}</span>
+                {onOpenTask ? (
+                  <button type="button" className="ptask-title link-btn" onClick={() => onOpenTask(t.id)}>
+                    {t.title}
+                  </button>
+                ) : (
+                  <span className="ptask-title">{t.title}</span>
+                )}
                 {due && <span className={due.cls}>{due.label}</span>}
               </div>
             );

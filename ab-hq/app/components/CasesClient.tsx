@@ -1,25 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { CaseRow } from "@/lib/queries";
-import {
-  updateMatter,
-  createMatter,
-  listMatterPeople,
-  listAllPeople,
-  addPersonToMatter,
-  removePersonFromMatter,
-  type MatterPatch,
-  type MatterPersonRow,
-  type PersonOption,
-} from "@/app/(app)/matter-actions";
-import {
-  listNotesForTarget,
-  createNoteForTarget,
-  type NoteStub,
-} from "@/app/(app)/note-actions";
-import CaseDrawer from "./CaseDrawer";
+import { createMatter } from "@/app/(app)/matter-actions";
+import CaseDrawerContainer from "./drawers/CaseDrawerContainer";
+import { applyChange, useDrawerChanges } from "./drawers/bus";
 
 const MONTHS_SHORT = [
   "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
@@ -45,30 +31,6 @@ function fmtDeadline(
 type SortKey = "deadline" | "name" | "open";
 type Lifecycle = "active" | "closed" | "all";
 
-function applyMatterPatch(c: CaseRow, p: MatterPatch): CaseRow {
-  const next = { ...c };
-  if (p.name !== undefined) next.name = p.name;
-  if (p.client !== undefined) next.client = p.client ?? "";
-  if (p.status !== undefined) next.status = p.status ?? "";
-  if (p.caseNumber !== undefined) next.caseNumber = p.caseNumber;
-  if (p.court !== undefined) next.court = p.court;
-  if (p.nextDeadline !== undefined) next.nextDeadline = p.nextDeadline;
-  if (p.disposition !== undefined) next.disposition = p.disposition;
-  return next;
-}
-
-function fullMatterPatch(c: CaseRow): MatterPatch {
-  return {
-    name: c.name,
-    client: c.client || null,
-    status: c.status || null,
-    caseNumber: c.caseNumber,
-    court: c.court,
-    nextDeadline: c.nextDeadline,
-    disposition: c.disposition,
-  };
-}
-
 export default function CasesClient({
   cases: initialCases,
   today,
@@ -83,53 +45,8 @@ export default function CasesClient({
   const [life, setLife] = useState<Lifecycle>("active");
   const [quickName, setQuickName] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
-
-  const casesRef = useRef(cases);
-  casesRef.current = cases;
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // --- people + notes for the open case ---
-  const [people, setPeople] = useState<MatterPersonRow[]>([]);
-  const [peopleLoading, setPeopleLoading] = useState(false);
-  const [allPeople, setAllPeople] = useState<PersonOption[]>([]);
-  const [notes, setNotes] = useState<NoteStub[]>([]);
-  const [notesLoading, setNotesLoading] = useState(false);
-  useEffect(() => {
-    if (!openId) {
-      setPeople([]);
-      setNotes([]);
-      return;
-    }
-    setPeopleLoading(true);
-    setNotesLoading(true);
-    (async () => {
-      const [mine, all, nts] = await Promise.all([
-        listMatterPeople(openId),
-        listAllPeople(),
-        listNotesForTarget("matter", openId),
-      ]);
-      setPeopleLoading(false);
-      setNotesLoading(false);
-      if (mine.ok) setPeople(mine.people);
-      else flash(mine.error ?? "Couldn't load people.");
-      if (all.ok) setAllPeople(all.people);
-      if (nts.ok) setNotes(nts.notes);
-    })();
-  }, [openId]);
-
-  function onNewNote() {
-    if (!openId) return;
-    const id = openId;
-    startTransition(async () => {
-      const r = await createNoteForTarget("matter", id);
-      if (r.ok && r.id) router.push(`/notes?note=${r.id}`);
-      else flash(r.error ?? "Couldn't create note.");
-    });
-  }
 
   function flash(msg: string) {
     setError(msg);
@@ -138,36 +55,8 @@ export default function CasesClient({
 
   const openCase = cases.find((c) => c.id === openId) ?? null;
 
-  function onField(patch: MatterPatch) {
-    if (!openId) return;
-    setCases((prev) => prev.map((c) => (c.id === openId ? applyMatterPatch(c, patch) : c)));
-    setSaving(true);
-    setSaved(false);
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    const id = openId;
-    saveTimer.current = setTimeout(() => {
-      const c = casesRef.current.find((x) => x.id === id);
-      if (!c) return;
-      startTransition(async () => {
-        const r = await updateMatter(id, fullMatterPatch(c));
-        setSaving(false);
-        if (r.ok) {
-          setSaved(true);
-          setTimeout(() => setSaved(false), 1500);
-        } else flash(r.error ?? "Couldn't save.");
-      });
-    }, 450);
-  }
-
-  function closeDrawer() {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    if (openId) {
-      const c = casesRef.current.find((x) => x.id === openId);
-      if (c) startTransition(async () => void (await updateMatter(c.id, fullMatterPatch(c))));
-    }
-    setOpenId(null);
-    setSaved(false);
-  }
+  // Edits made in any case drawer (this page's or the shell's) land here.
+  useDrawerChanges<CaseRow>("case", (d) => setCases((prev) => applyChange(prev, d)));
 
   function submitQuick() {
     const name = quickName.trim();
@@ -193,30 +82,6 @@ export default function CasesClient({
         setCases((prev) => [created, ...prev]);
         setOpenId(r.id);
       } else flash(r.error ?? "Couldn't create case.");
-    });
-  }
-
-  function onAddPerson(name: string, org: string | null, role: string) {
-    if (!openId) return;
-    startTransition(async () => {
-      const r = await addPersonToMatter(openId, name, org, role);
-      if (r.ok && r.person) {
-        setPeople((prev) => [...prev, r.person!]);
-        if (!allPeople.some((p) => p.id === r.person!.personId))
-          setAllPeople((prev) =>
-            [...prev, { id: r.person!.personId, name: r.person!.name, org: r.person!.org }].sort(
-              (a, b) => a.name.localeCompare(b.name)
-            )
-          );
-      } else flash(r.error ?? "Couldn't add person.");
-    });
-  }
-
-  function onRemovePerson(linkId: string) {
-    setPeople((prev) => prev.filter((p) => p.linkId !== linkId));
-    startTransition(async () => {
-      const r = await removePersonFromMatter(linkId);
-      if (!r.ok) flash(r.error ?? "Couldn't remove.");
     });
   }
 
@@ -373,22 +238,10 @@ export default function CasesClient({
       </section>
 
       {openCase && (
-        <CaseDrawer
+        <CaseDrawerContainer
+          key={openCase.id}
           matter={openCase}
-          saving={saving}
-          saved={saved}
-          onField={onField}
-          onClose={closeDrawer}
-          onViewTasks={() => router.push(`/work/tasks?matter=${openCase.id}`)}
-          people={people}
-          peopleLoading={peopleLoading}
-          allPeople={allPeople}
-          onAddPerson={onAddPerson}
-          onRemovePerson={onRemovePerson}
-          notes={notes}
-          notesLoading={notesLoading}
-          onOpenNote={(id) => router.push(`/notes?note=${id}`)}
-          onNewNote={onNewNote}
+          onClose={() => setOpenId(null)}
         />
       )}
 

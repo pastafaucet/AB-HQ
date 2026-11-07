@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { MOBILE_MORE } from "@/lib/nav";
 import { openCapture } from "./CaptureOverlay";
+import { openJump } from "./drawers/JumpPalette";
 
 const BAR = [
   { href: "/plan/today", label: "Today", glyph: "☼" },
@@ -31,6 +32,16 @@ export default function MobileBar({ pathname }: { pathname: string }) {
       {moreOpen && (
         <div className="mbar-sheet-wrap" onClick={() => setMoreOpen(false)}>
           <div className="mbar-sheet" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="mbar-sheet-item mbar-sheet-search"
+              onClick={() => {
+                setMoreOpen(false);
+                openJump();
+              }}
+            >
+              ↗ Search everything
+            </button>
             {MOBILE_MORE.map((m) => (
               <Link key={m.href} href={m.href} className="mbar-sheet-item" data-active={on(pathname, m.href)}>
                 {m.label}

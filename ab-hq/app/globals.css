@@ -4719,3 +4719,145 @@ button.check {
 .drawer-hint-row {
   margin-top: 6px;
 }
+
+/* ============================================================
+   Drawer host, ⌘J, cross-links (2026-11)
+   ============================================================ */
+/* Host drawers open over a page's own drawer. */
+.drawer-host .drawer-scrim {
+  z-index: 60;
+}
+.drawer-note {
+  width: 640px;
+}
+.drawer-note .note-editor,
+.drawer-note .notes-editor {
+  padding: 0;
+}
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.link-btn:hover {
+  color: var(--accent-2);
+  text-decoration: underline;
+}
+.drawer-label-link {
+  margin-left: 8px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+}
+.drawer-label-link:hover {
+  color: var(--accent-2);
+}
+.jump-input {
+  width: 100%;
+  font-size: 16px;
+}
+.jump-list {
+  margin-top: 10px;
+  max-height: 52vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.jump-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: none;
+  border: none;
+  color: var(--ink-body);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.jump-row[data-sel="true"] {
+  background: rgba(91, 140, 255, 0.12);
+  color: var(--ink);
+}
+.jump-kind {
+  flex: none;
+  width: 62px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+.jump-kind.k-case { color: var(--accent); }
+.jump-kind.k-project { color: var(--accent-2); }
+.jump-kind.k-task { color: var(--green); }
+.jump-kind.k-note { color: var(--ink-2); }
+.jump-kind.k-person { color: var(--teal); }
+.jump-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.jump-sub {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.jump-empty {
+  padding: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.jump-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  background: var(--inset);
+  border: 1px solid var(--line-field);
+  border-radius: 9px;
+  padding: 7px 11px;
+  color: var(--ink-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+.jump-btn:hover {
+  border-color: var(--line-raised-2);
+  color: var(--ink-body-2);
+}
+.jump-btn .keycap {
+  background: #1a212b;
+}
+.mbar-sheet-search {
+  grid-column: 1 / -1;
+  background: none;
+  border: none;
+  text-align: left;
+  font: inherit;
+  color: var(--accent-2);
+  cursor: pointer;
+}
+@media (max-width: 900px) {
+  .jump-btn .keycap,
+  .jump-btn-label {
+    display: none;
+  }
+}
+.note-body .ProseMirror .mention[data-id] {
+  cursor: pointer;
+}

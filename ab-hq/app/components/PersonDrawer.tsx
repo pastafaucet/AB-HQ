@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { PersonRow, MatterOption } from "@/lib/queries";
 import type { PersonPatch } from "@/app/(app)/people-actions";
 import type { NoteStub } from "@/app/(app)/note-actions";
 import { fmtStubDate } from "./CaseDrawer";
 import ConfirmButton from "./ConfirmButton";
+import { useEscapeClose } from "./drawers/bus";
 
 const ROLES = [
   "Opposing Counsel",
@@ -33,6 +34,7 @@ export default function PersonDrawer({
   notesLoading,
   onOpenNote,
   onNewNote,
+  onOpenCase,
 }: {
   person: PersonRow;
   matters: MatterOption[];
@@ -47,17 +49,12 @@ export default function PersonDrawer({
   notesLoading: boolean;
   onOpenNote: (id: string) => void;
   onNewNote: () => void;
+  onOpenCase?: (matterId: string) => void;
 }) {
   const [caseId, setCaseId] = useState("");
   const [role, setRole] = useState(ROLES[0]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscapeClose(onClose);
 
   function submitCase() {
     if (!caseId) return;
@@ -147,7 +144,13 @@ export default function PersonDrawer({
           {person.links.map((l) => (
             <div key={l.linkId} className="person-row">
               <span className="person-role">{l.role.toUpperCase()}</span>
-              <span className="person-name">{l.matterName}</span>
+              {onOpenCase ? (
+                <button type="button" className="person-name link-btn" onClick={() => onOpenCase(l.matterId)}>
+                  {l.matterName}
+                </button>
+              ) : (
+                <span className="person-name">{l.matterName}</span>
+              )}
               {l.closed && <span className="person-org">CLOSED</span>}
               <button
                 type="button"

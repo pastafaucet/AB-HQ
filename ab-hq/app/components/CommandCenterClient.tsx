@@ -22,6 +22,7 @@ import {
   deleteSession,
 } from "@/app/(app)/time-actions";
 import TaskDrawer from "./TaskDrawer";
+import { applyChange, useDrawerChanges } from "./drawers/bus";
 
 const MO = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
 
@@ -40,6 +41,8 @@ export default function CommandCenterClient({
   const router = useRouter();
   const { matters, projects, today } = data;
   const [tasks, setTasks] = useState<Task[]>(data.upNextTasks);
+  // A task edited in a drawer opened over this screen (⌘J, a link) updates here.
+  useDrawerChanges<Task>("task", (d) => setTasks((prev) => applyChange(prev, d)));
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 

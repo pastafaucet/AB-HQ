@@ -14,6 +14,7 @@ import {
   type NoteTargetType,
 } from "@/app/(app)/note-actions";
 import NoteEditor from "./NoteEditor";
+import { applyChange, useDrawerChanges } from "./drawers/bus";
 
 const MONTHS_SHORT = [
   "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
@@ -46,6 +47,8 @@ export default function NotesClient({
   initialSelectedId: string | null;
 }) {
   const [notes, setNotes] = useState<NoteDoc[]>(initial.notes);
+  // A note edited in a drawer (opened from a case, person or ⌘J) updates the list here.
+  useDrawerChanges<NoteDoc>("note", (d) => setNotes((prev) => applyChange(prev, d)));
   const [selectedId, setSelectedId] = useState<string | null>(
     initialSelectedId && initial.notes.some((n) => n.id === initialSelectedId)
       ? initialSelectedId
