@@ -59,10 +59,9 @@ AB HQ succeeds only if the daily loop is frictionless: **pick → do → review 
 **Around the loop:**
 - **Andy's HQ, the home screen (Command Center):** an attention band, the day's flow, UP NEXT (real task rows), and a live grid of hubs.
 - **⌘K Capture:** one box for everything. Andy types naturally; AI classifies it (task, note, event, log), matches it to a case or project, pulls out dates and delegation, and drafts a one-line summary. Anything it can't confidently file waits in **Work → Inbox**.
-- **Quick-add syntax** everywhere: `hearing Theberge 10/30 at 9:30` · `oppo due friday p1` · `every tuesday` · `(.5)` or `~2h` for estimates · `2-3:30pm` · `#personal`.
+- **Quick-add syntax** everywhere: `hearing Theberge 10/30 at 9:30` · `oppo due friday p1` · `every tuesday` · `~2h` or `~30m` for estimates (parentheses are billed time) · `2-3:30pm` · `#personal`.
 - **Tasks**, **Projects**, and **Cases** hubs, plus **People** linked to cases.
 - **Time entry to the hours sheet** (Nov 2026): type `AB 218 - review memo (.4); call with Jason (.2)` into Capture and it's written to Andy's Google Sheet "2021 AB Daily Hours" (the record), placed by the sheet's own logic, merged with a same-day row for the same matter when there is one, with Undo. Anything uncertain (an unknown matter, a bare "(4)", a time that isn't a clean increment) becomes a card to confirm; nothing is guessed, and descriptions are Andy's words. Work → Time shows the sheet's day and pace.
-- **Time and billing:** a day ledger per matter, and AI first drafts of billing narratives in Andy's house format, `activity (.4); activity (.2)`, rounded up to tenths.
 - **Weekly (the Friday review):** the week that was, tasks done, captures, matters touched, matters with no next action, billed time entered, and the life week.
 - **Notes:** a rich-text editor with @mentions of cases and people, #tags, pins, an Inbox/Active/Archived lifecycle, search, and pasted or dropped images that can be resized.
 - **Recurring tasks:** daily, weekly, monthly, the nth weekday of the month, the last workday.

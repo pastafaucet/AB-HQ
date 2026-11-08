@@ -36,15 +36,11 @@ import {
 import TaskDrawer from "./TaskDrawer";
 import { updateEntry, entryToTask, deleteEntry, type EntryPatch } from "@/app/(app)/entry-actions";
 import { saveWindDown } from "@/app/(app)/daily-actions";
-import { draftNarratives, type NarrativeDraft } from "@/app/(app)/billing-actions";
 import ConfirmButton from "./ConfirmButton";
 import { applyChange, useDrawerChanges } from "./drawers/bus";
+import Link from "next/link";
 
 const KINDS: EntryKind[] = ["log", "task", "note", "event"];
-
-function fmtTenthsTotal(t: number): string {
-  return `${(t / 10).toFixed(1)}h`;
-}
 
 export default function WindDownClient({
   today,
@@ -55,7 +51,6 @@ export default function WindDownClient({
   candidates: initialCandidates,
   inboxEntries: initialInbox,
   capturedToday,
-  tenthsToday,
   matters,
   matterOptions,
   projects,
@@ -74,7 +69,6 @@ export default function WindDownClient({
   candidates: Task[];
   inboxEntries: Entry[];
   capturedToday: number;
-  tenthsToday: number;
   matters: Matter[];
   matterOptions: MatterOption[];
   projects: Project[];
@@ -101,9 +95,6 @@ export default function WindDownClient({
   const [mediaKind, setMediaKind] = useState<MediaItem["kind"]>("show");
   const [mediaTitle, setMediaTitle] = useState("");
   const [mediaNote, setMediaNote] = useState("");
-  const [drafts, setDrafts] = useState<NarrativeDraft[] | null>(null);
-  const [drafting, setDrafting] = useState(false);
-  const [copied, setCopied] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [closed, setClosed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -403,27 +394,6 @@ export default function WindDownClient({
     });
   }
 
-  function onDraft() {
-    setDrafting(true);
-    setDrafts(null);
-    startTransition(async () => {
-      const r = await draftNarratives(today);
-      setDrafting(false);
-      if (r.ok) setDrafts(r.drafts);
-      else flash(r.error ?? "Couldn't draft.");
-    });
-  }
-
-  async function copy(text: string, key: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(key);
-      setTimeout(() => setCopied(null), 1500);
-    } catch {
-      flash("Couldn't copy.");
-    }
-  }
-
   function closeDay() {
     if (closing) return;
     setClosing(true);
@@ -487,12 +457,6 @@ export default function WindDownClient({
           </div>
           <div className="day-head-summary">
             {doneList.length} DONE · {capturedToday} CAPTURED
-            {tenthsToday > 0 ? (
-              <>
-                <br />
-                {fmtTenthsTotal(tenthsToday)} ENTERED
-              </>
-            ) : null}
           </div>
         </div>
 
@@ -789,43 +753,13 @@ export default function WindDownClient({
           </div>
         )}
 
-        <div className="section-label">BILLING · {fmtTenthsTotal(tenthsToday)} ENTERED TODAY</div>
-        {!drafts && (
-          <button className="btn-lock wd-draft-btn" type="button" disabled={drafting} onClick={onDraft}>
-            {drafting ? "Drafting…" : "Draft today's narratives →"}
-            {!drafting && <span className="lock-load">edit · copy · done before you close</span>}
-          </button>
-        )}
-        {drafts &&
-          drafts.map((dr) => (
-            <div key={dr.matterId ?? "x"} className="narrative-card">
-              <div className="narrative-head">
-                <span className="narrative-matter">{dr.matterName.toUpperCase()}</span>
-                {dr.enteredTenths > 0 && (
-                  <span className="narrative-time">{(dr.enteredTenths / 10).toFixed(1)}h</span>
-                )}
-                <span className="head-spacer" />
-                <button
-                  type="button"
-                  className="ov-chip"
-                  onClick={() => {
-                    const el = document.getElementById(
-                      `wd-narr-${dr.matterId}`
-                    ) as HTMLTextAreaElement | null;
-                    copy(el?.value ?? dr.narrative, dr.matterId ?? "x");
-                  }}
-                >
-                  {copied === (dr.matterId ?? "x") ? "COPIED ✓" : "COPY"}
-                </button>
-              </div>
-              <textarea
-                id={`wd-narr-${dr.matterId}`}
-                className="narrative-text"
-                defaultValue={dr.narrative}
-                rows={3}
-              />
-            </div>
-          ))}
+        <div className="section-label">HOURS</div>
+        <div className="wd-hours">
+          Time is logged from Capture (<code>AB 218 - review memo (.4)</code>) straight to the hours sheet.{" "}
+          <Link href="/work/time" className="tc-link">
+            See today&rsquo;s hours →
+          </Link>
+        </div>
 
         <button className="btn-lock wd-close" type="button" disabled={closing} onClick={closeDay}>
           {closed ? "Day closed ✓" : closing ? "Closing…" : "Close the day →"}

@@ -5121,3 +5121,8 @@ button.check {
   padding: 3px 6px;
   resize: vertical;
 }
+.wd-hours {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-bottom: 18px;
+}

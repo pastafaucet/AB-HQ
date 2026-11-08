@@ -20,19 +20,6 @@ export const LIVE_SHEET_ID = "1bYUEgVJfO6nzMYEmvrGG-xXmGk4TO0WCy14EM6bm_u4";
 const TAB = "'Andy''s Hours'";
 const SHEET_GID = 1100000001;
 
-/** Seed aliases, used if migration 0017 (the alias table) isn't applied yet. */
-const SEED_ALIASES: AliasRow[] = [
-  { typed: "AB 218", canonical: "COLA/Does" },
-  { typed: "GW Fire", canonical: "Fire cases" },
-  { typed: "GW - Fire", canonical: "Fire cases" },
-  { typed: "Morales", canonical: "COLA/Fight Club 2" },
-  { typed: "LOJHK", canonical: "COLA/Fight Club 3" },
-  { typed: "Tia", canonical: "Cedars/Tia" },
-  { typed: "Cedars Huntington", canonical: "Cedars/Huntington" },
-  { typed: "RS Gen", canonical: "RS/General" },
-  { typed: "Biz dev", canonical: "GW/Business Dev." },
-  { typed: "GW Admin", canonical: "GW/Administration" },
-];
 
 // ---------------------------------------------------------------- reference data
 
@@ -50,8 +37,10 @@ export async function loadClients(): Promise<ClientRow[]> {
 }
 
 export async function loadAliases(): Promise<AliasRow[]> {
+  // Andy's shorthand table (migration 0017). The client list itself always
+  // comes live from the Clients tab (loadClients); this only maps shorthand.
   const { data, error } = await getSupabase().from("time_entry_aliases").select("typed,canonical");
-  if (error) return SEED_ALIASES;
+  if (error) return [];
   return data as AliasRow[];
 }
 

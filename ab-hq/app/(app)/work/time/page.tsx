@@ -1,5 +1,4 @@
 import TimeClient from "@/app/components/TimeClient";
-import { getDayLedgerData } from "@/lib/queries";
 import { todayISO } from "@/lib/task-map";
 import { getHoursToday, type HoursToday } from "@/lib/hours-sheet";
 import { sheetsConfigured } from "@/lib/google-sheets";
@@ -14,17 +13,15 @@ export default async function TimePage({
 }) {
   const { date } = await searchParams;
   const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayISO();
-  // The hours sheet is the record; read it alongside the capture ledger.
   let hours: HoursToday | null = null;
   let hoursError: string | null = null;
   if (!sheetsConfigured()) hoursError = "The hours sheet isn't connected yet.";
-  const [data] = await Promise.all([
-    getDayLedgerData(day),
-    sheetsConfigured()
-      ? getHoursToday(day)
-          .then((h) => (hours = h))
-          .catch((e) => (hoursError = e instanceof Error ? e.message : "Couldn't read the hours sheet."))
-      : null,
-  ]);
-  return <TimeClient data={data} hours={hours} hoursError={hoursError} />;
+  else {
+    try {
+      hours = await getHoursToday(day);
+    } catch (e) {
+      hoursError = e instanceof Error ? e.message : "Couldn't read the hours sheet.";
+    }
+  }
+  return <TimeClient date={day} hours={hours} hoursError={hoursError} />;
 }

@@ -21,7 +21,6 @@ export default async function WindMode({ scope }: { scope: Scope }) {
       candidates={data.candidates}
       inboxEntries={data.inboxEntries}
       capturedToday={data.capturedToday}
-      tenthsToday={data.tenthsToday}
       matters={data.matters}
       matterOptions={data.matterOptions}
       projects={data.projects}

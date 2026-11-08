@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSupabase } from "@/lib/supabase";
 import { todayISO } from "@/lib/task-map";
 import { sheetsConfigured } from "@/lib/google-sheets";
+import { fixTypos } from "@/lib/typo-fix";
 import {
   addClient,
   editEntry,
@@ -59,13 +60,21 @@ function notesFor(r: Awaited<ReturnType<typeof writeEntry>>): string[] {
   return n;
 }
 
-async function write(e: ParsedEntry, raw: string): Promise<LoggedItem> {
+/**
+ * Write one entry. Obvious typos are corrected first and reported (Andy's rule),
+ * unless Andy typed the description himself on the confirm card.
+ */
+async function write(e: ParsedEntry, raw: string, userEdited = false): Promise<LoggedItem> {
+  const typo = userEdited ? { text: e.description, fixes: [] as string[] } : await fixTypos(e.description);
   const r = await writeEntry(
-    { date: e.date, client: e.client!, hours: e.hours!, description: e.description },
+    { date: e.date, client: e.client!, hours: e.hours!, description: typo.text },
     raw,
-    e
+    { ...e, description: typo.text, typoFixes: typo.fixes }
   );
-  return { logId: r.logId, message: r.message, flag: r.flag, notes: notesFor(r) };
+  const corrected = [...e.fixes, ...typo.fixes];
+  const notes = notesFor(r);
+  if (corrected.length) notes.unshift(`Corrected: ${corrected.join(", ")}`);
+  return { logId: r.logId, message: r.message, flag: r.flag, notes };
 }
 
 /** Keep the raw capture in AB HQ's ledger too (never lost), marked as a time entry. */
@@ -121,7 +130,7 @@ export async function confirmTimeEntry(
     const next = applyAnswers(entry, answers, ctx);
     if (next.questions.length) return { pending: { entry: next, questions: next.questions.map(questionText) } };
     if (answers.saveAliasAs && answers.client) await saveAlias(answers.saveAliasAs, answers.client);
-    const logged = await write(next, entry.line);
+    const logged = await write(next, entry.line, answers.description !== undefined);
     revalidatePath("/work/time");
     return { logged };
   } catch (e) {

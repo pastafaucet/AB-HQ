@@ -338,7 +338,7 @@ interface DurationHit {
   durationMin: number;
 }
 
-/** "for 45 min", "~1.5h", "(30m)", "(1h)", "(.5)" — the estimate on a task. */
+/** "for 45 min", "~1.5h", "~30m" — the estimate on a task. Parentheses mean billed time (Capture → hours sheet), never an estimate. */
 function findDuration(text: string): DurationHit | null {
   const toMin = (nStr: string, unit: string): number | null => {
     const n = parseFloat(nStr);
@@ -346,31 +346,10 @@ function findDuration(text: string): DurationHit | null {
     const min = Math.round(unit.toLowerCase().startsWith("h") ? n * 60 : n);
     return min >= 5 && min <= 12 * 60 ? min : null;
   };
-  let m: RegExpExecArray | null;
-
-  m = /(?:\bfor\s+|~\s*)(\d+(?:\.\d+)?)\s*(m|min|mins|minutes|h|hr|hrs|hour|hours)\b/i.exec(text);
+  const m = /(?:\bfor\s+|~\s*)(\d+(?:\.\d+)?)\s*(m|min|mins|minutes|h|hr|hrs|hour|hours)\b/i.exec(text);
   if (m) {
     const min = toMin(m[1], m[2]);
     if (min) return { index: m.index, length: m[0].length, durationMin: min };
-  }
-
-  // "(30m)", "(1.5h)"
-  m = /\((\d+(?:\.\d+)?)\s*(m|min|mins|minutes|h|hr|hrs|hour|hours)\)/i.exec(text);
-  if (m) {
-    const min = toMin(m[1], m[2]);
-    if (min) return { index: m.index, length: m[0].length, durationMin: min };
-  }
-
-  // Bare parenthesized number = hours, matching the billing convention:
-  // "(.5)" → 30m, "(1)" → 1h, "(1.5)" → 90m. Two digits max, so "(2024)"
-  // and other big numbers stay in the title.
-  m = /\((\d{0,2}(?:\.\d+)?)\)/.exec(text);
-  if (m && m[1] && m[1] !== ".") {
-    const h = parseFloat(m[1]);
-    if (isFinite(h) && h >= 0.1 && h <= 12) {
-      const min = Math.round(h * 60);
-      if (min >= 5) return { index: m.index, length: m[0].length, durationMin: min };
-    }
   }
 
   return null;

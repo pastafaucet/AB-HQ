@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { captureEntry, type CaptureResult } from "@/app/(app)/entry-actions";
 import { parseQuickAdd } from "@/lib/quick-parse";
-import { splitBillingLine } from "@/lib/entry-map";
 import { hasTimeEntry } from "@/lib/time-entry";
 import TimeCaptureResults from "./TimeCaptureResults";
 import type { TimeCaptureResult } from "@/app/(app)/hours-actions";
@@ -163,25 +162,10 @@ export default function CaptureOverlay() {
                     </span>
                   </div>
                 );
-              const segs = splitBillingLine(text.trim());
-              if (segs.length > 1) {
-                const total = segs.reduce((a, s) => a + (s.tenths ?? 0), 0);
-                return (
-                  <div className="quick-parse-hint">
-                    ↳ billing line · {segs.length} activities · {(total / 10).toFixed(1)}h
-                  </div>
-                );
-              }
               const p = parseQuickAdd(text.trim(), localTodayISO());
               return (
                 <div className="quick-parse-hint">
                   ↳ {p.title || "…"}
-                  {segs[0].tenths && (
-                    <span className="qp-chip" style={{ color: "var(--teal)" }}>
-                      {" "}
-                      · logs .{segs[0].tenths}
-                    </span>
-                  )}
                   {p.type && (
                     <span
                       className="qp-chip"
@@ -193,7 +177,7 @@ export default function CaptureOverlay() {
                   )}
                   {p.dateLabel && <span className="qp-chip"> · {p.dateLabel}</span>}
                   {p.timeLabel && <span className="qp-chip"> · {p.timeLabel}</span>}
-                  {p.durationLabel && !segs[0].tenths && (
+                  {p.durationLabel && (
                     <span className="qp-chip"> · {p.durationLabel}</span>
                   )}
                   {p.priority && (
