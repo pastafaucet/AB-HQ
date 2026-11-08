@@ -151,6 +151,18 @@ export async function changeTask(c: TaskChange) {
 /** Exactly what ⌘K does: saved verbatim, routed to a case, tenths logged. */
 export async function capture(text: string) {
   const r = await captureEntry(text);
+  if (r.time) {
+    // A time entry: it went to (or is waiting for) the hours sheet.
+    return {
+      timeEntry: true,
+      logged: r.time.logged.map((l) => ({ message: l.message, flag: l.flag, notes: l.notes })),
+      needsAndy: r.time.pending.map((p) => ({ line: p.entry.line, questions: p.questions })),
+      errors: r.time.errors,
+      ...(r.time.pending.length
+        ? { instruction: "Lines in needsAndy were NOT written. Ask Andy the questions, then capture the corrected line again." }
+        : {}),
+    };
+  }
   if (!r.ok) return { error: r.error ?? "Couldn't save." };
   return {
     saved: true,

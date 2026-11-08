@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { captureEntry, type CaptureResult } from "@/app/(app)/entry-actions";
 import { parseQuickAdd } from "@/lib/quick-parse";
 import { splitBillingLine } from "@/lib/entry-map";
+import { hasTimeEntry } from "@/lib/time-entry";
+import TimeCaptureResults from "./TimeCaptureResults";
+import type { TimeCaptureResult } from "@/app/(app)/hours-actions";
 import { currentScope, hiddenByScope } from "@/lib/scope";
 
 function localTodayISO(): string {
@@ -27,6 +30,7 @@ interface Sent {
   raw: string;
   state: "pending" | "done" | "error";
   label: string; // routing outcome line
+  time?: TimeCaptureResult; // a time entry for the hours sheet
 }
 
 export default function CaptureOverlay() {
@@ -40,7 +44,14 @@ export default function CaptureOverlay() {
     setIsOpen(true);
     setTimeout(() => inputRef.current?.focus(), 30);
   }, []);
+  const sentRef = useRef<Sent[]>([]);
+  useEffect(() => {
+    sentRef.current = sent;
+  });
   const close = useCallback(() => {
+    // Unconfirmed time cards would vanish with the box; check first.
+    const waiting = sentRef.current.some((s) => s.time && s.time.pending.length > 0);
+    if (waiting && !window.confirm("A time entry is waiting for your confirmation. Close anyway? (It won't be logged.)")) return;
     setIsOpen(false);
     setSent([]);
     setText("");
@@ -68,6 +79,13 @@ export default function CaptureOverlay() {
   }, [open, close, isOpen]);
 
   function describe(r: CaptureResult): string {
+    if (r.time) {
+      const bits: string[] = [];
+      if (r.time.logged.length) bits.push(`${r.time.logged.length} logged to the hours sheet`);
+      if (r.time.pending.length) bits.push(`${r.time.pending.length} need${r.time.pending.length === 1 ? "s" : ""} you`);
+      if (!bits.length) bits.push(r.time.errors[0] ?? "nothing logged");
+      return bits.join(" · ");
+    }
     if (!r.ok) return r.error ?? "Couldn't save.";
     if (r.label) return r.label;
     const bits: string[] = [];
@@ -92,7 +110,7 @@ export default function CaptureOverlay() {
       setSent((prev) =>
         prev.map((s) =>
           s.id === id
-            ? { ...s, state: (r.ok ? "done" : "error") as Sent["state"], label: describe(r) }
+            ? { ...s, state: (r.ok ? "done" : "error") as Sent["state"], label: describe(r), time: r.time }
             : s
         )
       );
@@ -129,12 +147,22 @@ export default function CaptureOverlay() {
             {!text.trim() && (
               <div className="qp-cheat">
                 hearing Theberge 10/30 at 9:30 &nbsp;·&nbsp; oppo due friday p1 &nbsp;·&nbsp;
-                every tuesday &nbsp;·&nbsp; emails with CoCo re same (.2) = logs time
+                every tuesday &nbsp;·&nbsp; AB 218 - review memo (.4) = hours sheet
                 &nbsp;·&nbsp; 2-3:30pm &nbsp;·&nbsp; case names auto-file
               </div>
             )}
             {(() => {
               if (!text.trim()) return null;
+              if (hasTimeEntry(text))
+                return (
+                  <div className="quick-parse-hint">
+                    ↳ time entry → hours sheet
+                    <span className="capture-modal-hint">
+                      {" "}
+                      — matter - task (.4); task (.2) · one entry per line (Shift+Enter) · date first if not today
+                    </span>
+                  </div>
+                );
               const segs = splitBillingLine(text.trim());
               if (segs.length > 1) {
                 const total = segs.reduce((a, s) => a + (s.tenths ?? 0), 0);
@@ -198,6 +226,7 @@ export default function CaptureOverlay() {
                     <span className="capture-log-result">
                       {s.state === "pending" ? "⋯ routing" : s.label}
                     </span>
+                    {s.time && <TimeCaptureResults result={s.time} />}
                   </div>
                 ))}
               </div>

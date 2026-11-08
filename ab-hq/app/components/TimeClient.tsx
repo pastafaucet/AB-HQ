@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import type { DayLedgerData, LedgerGroup } from "@/lib/queries";
 import { stripTimeMarkers } from "@/lib/entry-map";
 import { draftNarratives, type NarrativeDraft } from "@/app/(app)/billing-actions";
+import HoursTodayPanel from "./HoursTodayPanel";
+import { todayISO } from "@/lib/task-map";
+import type { HoursToday } from "@/lib/hours-sheet";
 
 function fmtMin(min: number): string {
   if (min < 60) return `${min}m`;
@@ -37,7 +40,15 @@ function billingLine(g: LedgerGroup): string {
   return parts.join("; ");
 }
 
-export default function TimeClient({ data }: { data: DayLedgerData }) {
+export default function TimeClient({
+  data,
+  hours,
+  hoursError,
+}: {
+  data: DayLedgerData;
+  hours: HoursToday | null;
+  hoursError: string | null;
+}) {
   const router = useRouter();
   const [drafts, setDrafts] = useState<NarrativeDraft[] | null>(null);
   const [drafting, setDrafting] = useState(false);
@@ -103,6 +114,8 @@ export default function TimeClient({ data }: { data: DayLedgerData }) {
             {attributed.length} MATTER{attributed.length === 1 ? "" : "S"} TOUCHED
           </div>
         </div>
+
+        <HoursTodayPanel data={hours} error={hoursError} isToday={data.date === todayISO()} />
 
         <div className="ledger-datebar">
           <button className="ov-chip" type="button" onClick={() => shiftDay(-1)}>

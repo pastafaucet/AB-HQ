@@ -13,6 +13,8 @@ import {
   splitBillingLine,
   type EntryRowDB,
 } from "@/lib/entry-map";
+import { hasTimeEntry } from "@/lib/time-entry";
+import { captureTime, type TimeCaptureResult } from "./hours-actions";
 
 function revalidate() {
   revalidatePath("/work/inbox");
@@ -28,6 +30,7 @@ export interface CaptureResult {
   madeTask?: string | null; // created task title, if any
   madeDomain?: "Work" | "Personal" | null; // the created task's domain
   label?: string; // precomputed outcome line (used for multi-segment captures)
+  time?: TimeCaptureResult; // set when the capture was a time entry for the hours sheet
 }
 
 interface RoutingContext {
@@ -203,6 +206,14 @@ async function captureOne(
 export async function captureEntry(raw: string): Promise<CaptureResult> {
   const clean = raw.trim();
   if (!clean) return { ok: false, error: "Empty entry." };
+
+  // A time in parentheses makes it a time entry: it goes to the hours sheet
+  // (the record), checked before any task/event parsing.
+  if (hasTimeEntry(clean)) {
+    const time = await captureTime(clean);
+    const ok = time.logged.length > 0 || time.pending.length > 0;
+    return { ok, time, error: ok ? undefined : time.errors[0] ?? "Couldn't log that time." };
+  }
   const sb = getSupabase();
 
   // Fetch routing context once (open matters + active projects).
