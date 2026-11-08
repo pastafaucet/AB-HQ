@@ -53,6 +53,10 @@ export async function saveAlias(typed: string, canonical: string): Promise<{ ok:
 /** Add a new client row to the Clients tab (A name, B type, C increment, E Active; never D). */
 export async function addClient(name: string, billable: boolean, increment: number): Promise<void> {
   const col = await getRange("Clients!A2:A300");
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) throw new Error("Give the new matter a name.");
+  if (col.some((r) => String(r[0] ?? "").trim().toLowerCase() === wanted))
+    throw new Error(`"${name.trim()}" is already on the Clients tab.`);
   let row = 2;
   for (let i = 0; i < 299; i++) {
     const v = col[i]?.[0];

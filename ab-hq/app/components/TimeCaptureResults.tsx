@@ -100,6 +100,9 @@ function TimeEntryCard({
   const [questions, setQuestions] = useState(item.questions);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [added, setAdded] = useState<string[]>([]); // matters added to the Clients tab from this card
+  const known = (n: string) => clientNames.includes(n) || added.includes(n);
   const [newClient, setNewClient] = useState<{ open: boolean; billable: boolean; inc: number }>({
     open: false,
     billable: true,
@@ -134,7 +137,14 @@ function TimeEntryCard({
     start(async () => {
       const r = await addHoursClient(client.trim(), newClient.billable, newClient.inc);
       setBusy(false);
-      if (r.ok) setNewClient((n) => ({ ...n, open: false }));
+      if (r.ok) {
+        setAdded((a) => [...a, client.trim()]);
+        setNotice(
+          `Added "${client.trim()}" to the Clients tab (${newClient.billable ? "Billable" : "Non-billable"}, ${newClient.inc === 0.25 ? "quarters" : "tenths"}). Now log it.`
+        );
+        setNewClient((n) => ({ ...n, open: false }));
+        setQuestions((qs) => qs.filter((q) => !q.toLowerCase().includes("matter")));
+      }
       else setError(r.error ?? "Couldn't add the client.");
     });
   }
@@ -238,7 +248,7 @@ function TimeEntryCard({
           </button>
         </div>
       ) : (
-        !clientNames.includes(client) &&
+        !known(client.trim()) &&
         client.trim() && (
           <button type="button" className="tc-link" onClick={() => setNewClient((n) => ({ ...n, open: true }))}>
             ＋ &ldquo;{client}&rdquo; is a new matter
@@ -246,6 +256,7 @@ function TimeEntryCard({
         )
       )}
 
+      {notice && <div className="tc-note" style={{ marginLeft: 0 }}>{notice}</div>}
       {error && <div className="tc-error">{error}</div>}
       <div className="tc-actions">
         <span className="tc-preview">
