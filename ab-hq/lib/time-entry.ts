@@ -49,6 +49,7 @@ export interface ParseContext {
   today: string; // YYYY-MM-DD, Pacific
   clients: ClientRow[];
   aliases: AliasRow[];
+  defaultDate?: { date: string; question?: Question }; // from a date-only line above
 }
 
 // "(.4)", "(1.3)", "(0.75)", "(4)", "(1.3 total)", "(total 1.3)"
@@ -199,6 +200,20 @@ export function resolveMatter(
   return { client: null, options: suggestMatters(typed, clients) };
 }
 
+/** True when shorthand resolves by an exact rule (alias table, name, column D, after-slash), not a guess. */
+function exactMatch(typed: string, ctx: ParseContext): boolean {
+  const t = norm(typed);
+  return (
+    ctx.aliases.some((a) => norm(a.typed) === t) ||
+    ctx.clients.some(
+      (c) =>
+        norm(c.name) === t ||
+        c.aliases.some((a) => norm(a) === t) ||
+        (c.name.includes("/") && norm(c.name.split("/").slice(1).join("/")) === t)
+    )
+  );
+}
+
 /** Likely matters for an unknown shorthand: names or aliases sharing a word. */
 export function suggestMatters(typed: string, clients: ClientRow[]): string[] {
   const words = norm(typed)
@@ -234,6 +249,16 @@ function splitMatter(
     else if (!r.client && r.options.length && !firstAmbiguous) firstAmbiguous = { typed, rest, options: r.options };
   }
   if (best) return { typed: best.typed, rest: best.rest, client: best.client, options: [] };
+  // No dash: a known matter name (exact name, alias, or Clients!D) at the very
+  // start, e.g. "Cedars/Huntington emails from Elspeth (.1)". Longest wins;
+  // fuzzy suggestions never count here.
+  const words = line.split(/\s+/);
+  for (let n = Math.min(4, words.length - 1); n >= 1; n--) {
+    const typed = words.slice(0, n).join(" ");
+    if (hasTimeEntry(typed)) continue;
+    const r = resolveMatter(typed, ctx.clients, ctx.aliases);
+    if (r.client && exactMatch(typed, ctx)) return { typed, rest: words.slice(n).join(" "), client: r.client, options: [] };
+  }
   if (seps.length && !hasTimeEntry(line.slice(0, seps[0].index))) {
     const typed = line.slice(0, seps[0].index).trim();
     const rest = line.slice((seps[0].index ?? 0) + seps[0][0].length);
@@ -289,7 +314,9 @@ function parseLine(lineRaw: string, ctx: ParseContext): ParsedEntry {
   const questions: Question[] = [];
   const fixes: string[] = [];
   const line = lineRaw.trim();
-  const d = parseDatePrefix(line, ctx.today);
+  const own = parseDatePrefix(line, ctx.today);
+  const hasOwnDate = own.rest !== line;
+  const d = hasOwnDate || !ctx.defaultDate ? own : { date: ctx.defaultDate.date, rest: line, question: ctx.defaultDate.question };
   if (d.question) questions.push(d.question);
   const m = splitMatter(d.rest.trim(), ctx);
   if (!m.client) questions.push({ kind: "matter", typed: m.typed, options: m.options });
@@ -349,12 +376,33 @@ function parseLine(lineRaw: string, ctx: ParseContext): ParsedEntry {
   };
 }
 
-/** Parse a capture into one entry per non-empty line. */
+/** A line that is only a date ("11/4", "Wed 11/4:", "yesterday") with nothing to log. */
+export function dateOnlyLine(line: string, today: string): { date: string; question?: Question } | null {
+  const t = line.trim().replace(/[:,\-–—]+$/, "").trim();
+  if (!t || hasTimeEntry(t)) return null;
+  const d = parseDatePrefix(`${t} §`, today);
+  return d.rest.trim() === "§" ? { date: d.date, question: d.question } : null;
+}
+
+/**
+ * Parse a capture into one entry per non-empty line. A line holding only a
+ * date sets the date for the lines below it (Andy typed "11/4" above three
+ * entries on 2026-11-07 and they landed on today); a date at the start of an
+ * entry line still wins for that line.
+ */
 export function parseTimeCapture(text: string, ctx: ParseContext): ParsedEntry[] {
-  return text
-    .split(/\r?\n/)
-    .filter((l) => l.trim())
-    .map((l) => parseLine(l, ctx));
+  const out: ParsedEntry[] = [];
+  let carried: { date: string; question?: Question } | null = null;
+  for (const l of text.split(/\r?\n/)) {
+    if (!l.trim()) continue;
+    const only = dateOnlyLine(l, ctx.today);
+    if (only) {
+      carried = only;
+      continue;
+    }
+    out.push(parseLine(l, carried ? { ...ctx, today: ctx.today, defaultDate: carried } : ctx));
+  }
+  return out;
 }
 
 /**

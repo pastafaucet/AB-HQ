@@ -137,3 +137,28 @@ test("answering the bare integer clears the question", () => {
   assert.equal(fixed.hours, 0.4);
   assert.deepEqual(fixed.questions, []);
 });
+
+test("a date on its own line carries to the lines below (11/7 regression)", () => {
+  const es = parseTimeCapture(
+    "11/4\n\nAb 218 - call with Nicole re fraud report (.3)\n\nBiz dev - dinner with Tim Hall (2.25)\n10/30 AB 218 - review (.2)",
+    ctx
+  );
+  assert.equal(es.length, 3);
+  assert.equal(es[0].date, "2026-11-04");
+  assert.equal(es[1].date, "2026-11-04");
+  assert.equal(es[1].client, "GW/Business Dev.");
+  assert.equal(es[2].date, "2026-10-30"); // its own date wins
+  assert.ok(es.every((e) => !e.questions.some((q) => q.kind === "matter")));
+});
+
+test("a matter at the start without a dash", () => {
+  const e = one("11/3 Cedars/Huntington emails from Elspeth re dispute notice (.1); draft dispute notice (.6)");
+  assert.equal(e.client, "Cedars/Huntington");
+  assert.equal(e.date, "2026-11-03");
+  assert.equal(e.description, "Emails from Elspeth re dispute notice (.1); draft dispute notice (.6)");
+});
+
+test("no dash and no known matter at the start: still asks", () => {
+  const e = one("Nicole call re strategy (.3)");
+  assert.ok(e.questions.some((q) => q.kind === "matter"));
+});
