@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import {
   addHoursClient,
   confirmTimeEntry,
+  skipPendingTime,
   undoTimeEntry,
   type LoggedItem,
   type PendingItem,
@@ -78,7 +79,8 @@ function LoggedLine({ item }: { item: LoggedItem }) {
   );
 }
 
-function TimeEntryCard({
+/** A time entry waiting for Andy: parsed fields, the questions, and Log it / Skip. */
+export function TimeEntryCard({
   item,
   clientNames,
   onDone,
@@ -91,7 +93,9 @@ function TimeEntryCard({
   const matterQ = e.questions.find((q) => q.kind === "matter");
   const bareQs = e.questions.filter((q) => q.kind === "bare-integer");
   const incQ = e.questions.find((q) => q.kind === "increment");
-  const [client, setClient] = useState(e.client ?? (matterQ && matterQ.kind === "matter" ? matterQ.options[0] ?? "" : ""));
+  // Never pre-fill a guessed matter: suggestions are buttons to click, the field starts blank.
+  const [client, setClient] = useState(e.client ?? "");
+  const suggestions = matterQ && matterQ.kind === "matter" ? matterQ.options : [];
   const [saveAlias, setSaveAlias] = useState(!!e.typedMatter && !e.client);
   const [date, setDate] = useState(e.date);
   const [hours, setHours] = useState<string>(e.hours != null ? String(e.hours) : "");
@@ -114,14 +118,18 @@ function TimeEntryCard({
     setBusy(true);
     setError(null);
     start(async () => {
-      const r = await confirmTimeEntry(e, {
+      const r = await confirmTimeEntry(
+        e,
+        {
         client: client || undefined,
         date,
         hours: hours ? Number(hours) : undefined,
         bareIntegers: bare.every((b) => b !== null) && bare.length ? (bare as number[]) : undefined,
         description: description !== e.description ? description : undefined,
-        saveAliasAs: saveAlias && e.typedMatter && client ? e.typedMatter : undefined,
-      });
+          saveAliasAs: saveAlias && e.typedMatter && client ? e.typedMatter : undefined,
+        },
+        item.pendingId
+      );
       setBusy(false);
       if (r.error) setError(r.error);
       else if (r.pending) {
@@ -158,6 +166,17 @@ function TimeEntryCard({
         </div>
       ))}
 
+      {suggestions.length > 0 && !client && (
+        <div className="tc-choices">
+          <span>Did you mean</span>
+          {suggestions.map((n) => (
+            <button key={n} type="button" onClick={() => setClient(n)}>
+              {n}
+            </button>
+          ))}
+          <span>or type the right one below.</span>
+        </div>
+      )}
       <div className="tc-grid">
         <label>
           <span>Matter</span>
@@ -262,7 +281,15 @@ function TimeEntryCard({
         <span className="tc-preview">
           {toSheetDate(date)} · {client || "?"} · {hours ? formatHours(Number(hours)) : "?"}
         </span>
-        <button type="button" className="tc-secondary" onClick={() => onDone(null)} disabled={busy}>
+        <button
+          type="button"
+          className="tc-secondary"
+          onClick={() => {
+            if (item.pendingId) void skipPendingTime(item.pendingId);
+            onDone(null);
+          }}
+          disabled={busy}
+        >
           Skip
         </button>
         <button type="button" className="tc-primary" onClick={confirm} disabled={busy}>

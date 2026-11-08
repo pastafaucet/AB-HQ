@@ -50,7 +50,7 @@ export default function CaptureOverlay() {
   const close = useCallback(() => {
     // Unconfirmed time cards would vanish with the box; check first.
     const waiting = sentRef.current.some((s) => s.time && s.time.pending.length > 0);
-    if (waiting && !window.confirm("A time entry is waiting for your confirmation. Close anyway? (It won't be logged.)")) return;
+    if (waiting && !window.confirm("A time entry still needs your confirmation. Close anyway? It will wait for you on Work → Time.")) return;
     setIsOpen(false);
     setSent([]);
     setText("");

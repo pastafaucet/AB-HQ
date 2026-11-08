@@ -5,6 +5,8 @@ import type { HoursToday } from "@/lib/hours-sheet";
 import { todayISO } from "@/lib/task-map";
 import HoursTodayPanel from "./HoursTodayPanel";
 import HoursCalendar from "./HoursCalendar";
+import { TimeEntryCard } from "./TimeCaptureResults";
+import type { PendingItem } from "@/app/(app)/hours-actions";
 
 // Work → Time: the hours Google Sheet's view of a day (the sheet is the
 // record), with a month calendar to move between days. Time is logged from
@@ -15,12 +17,14 @@ export default function TimeClient({
   hours,
   hoursError,
   clients,
+  pending,
 }: {
   date: string;
   month: string;
   hours: HoursToday | null;
   hoursError: string | null;
   clients: { name: string; increment: number }[];
+  pending: PendingItem[];
 }) {
   const router = useRouter();
   const today = todayISO();
@@ -48,6 +52,21 @@ export default function TimeClient({
             <h1 className="display-h1">{isToday ? "Today" : dateLabel}</h1>
           </div>
         </div>
+        {pending.length > 0 && (
+          <div className="hs-panel">
+            <div className="section-label overdue">WAITING FOR YOU · {pending.length}</div>
+            <div className="tc-results">
+              {pending.map((p) => (
+                <TimeEntryCard
+                  key={p.pendingId ?? p.entry.line}
+                  item={p}
+                  clientNames={clients.map((c) => c.name)}
+                  onDone={() => router.refresh()}
+                />
+              ))}
+            </div>
+          </div>
+        )}
         <HoursTodayPanel key={date} data={hours} error={hoursError} isToday={isToday} clients={clients} />
       </section>
       <aside className="rail">

@@ -41,6 +41,40 @@ export interface LoggedItem {
 export interface PendingItem {
   entry: ParsedEntry;
   questions: string[];
+  pendingId?: string | null; // saved in time_entry_log so it survives closing the Capture box
+}
+
+/** Save an unconfirmed entry so it waits on the Time screen until logged or skipped. */
+async function savePending(e: ParsedEntry): Promise<string | null> {
+  const { data } = await getSupabase()
+    .from("time_entry_log")
+    .insert({ raw: e.line, parsed: e, action: "ASK", status: "pending" })
+    .select("id")
+    .single();
+  return (data as { id: string } | null)?.id ?? null;
+}
+
+async function closePending(id: string | null | undefined, status: "resolved" | "skipped") {
+  if (id) await getSupabase().from("time_entry_log").update({ status }).eq("id", id).eq("status", "pending");
+}
+
+/** Time entries still waiting for Andy (newest first). */
+export async function loadPendingTime(): Promise<PendingItem[]> {
+  const { data } = await getSupabase()
+    .from("time_entry_log")
+    .select("id,parsed")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  return ((data ?? []) as { id: string; parsed: ParsedEntry }[])
+    .filter((r) => r.parsed && Array.isArray(r.parsed.tasks))
+    .map((r) => ({ entry: r.parsed, questions: (r.parsed.questions ?? []).map(questionText), pendingId: r.id }));
+}
+
+export async function skipPendingTime(id: string): Promise<{ ok: boolean }> {
+  await closePending(id, "skipped");
+  revalidatePath("/work/time");
+  return { ok: true };
 }
 
 export interface TimeCaptureResult {
@@ -108,7 +142,7 @@ export async function captureTime(raw: string): Promise<TimeCaptureResult> {
   // One entry at a time, each fully finished before the next.
   for (const e of entries) {
     if (e.questions.length) {
-      out.pending.push({ entry: e, questions: e.questions.map(questionText) });
+      out.pending.push({ entry: e, questions: e.questions.map(questionText), pendingId: await savePending(e) });
       continue;
     }
     try {
@@ -125,16 +159,18 @@ export async function captureTime(raw: string): Promise<TimeCaptureResult> {
 /** Andy's answers on a card: re-check, then write if nothing's left to ask. */
 export async function confirmTimeEntry(
   entry: ParsedEntry,
-  answers: { client?: string; date?: string; hours?: number; bareIntegers?: number[]; description?: string; saveAliasAs?: string }
+  answers: { client?: string; date?: string; hours?: number; bareIntegers?: number[]; description?: string; saveAliasAs?: string },
+  pendingId?: string | null
 ): Promise<{ logged?: LoggedItem; pending?: PendingItem; error?: string }> {
   try {
     const ctx = await context();
     if (answers.client && !ctx.clients.some((c) => c.name === answers.client))
       return { error: `"${answers.client}" isn't on the Clients tab. Add it as a new client first.` };
     const next = applyAnswers(entry, answers, ctx);
-    if (next.questions.length) return { pending: { entry: next, questions: next.questions.map(questionText) } };
+    if (next.questions.length) return { pending: { entry: next, questions: next.questions.map(questionText), pendingId } };
     if (answers.saveAliasAs && answers.client) await saveAlias(answers.saveAliasAs, answers.client);
     const logged = await write(next, entry.line, answers.description !== undefined);
+    await closePending(pendingId, "resolved");
     revalidatePath("/work/time");
     return { logged };
   } catch (e) {
