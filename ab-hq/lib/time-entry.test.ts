@@ -7,6 +7,7 @@ import {
   formatHours,
   parseDatePrefix,
   applyAnswers,
+  descriptionTimes,
   type ClientRow,
   type AliasRow,
 } from "./time-entry.ts";
@@ -161,4 +162,12 @@ test("a matter at the start without a dash", () => {
 test("no dash and no known matter at the start: still asks", () => {
   const e = one("Nicole call re strategy (.3)");
   assert.ok(e.questions.some((q) => q.kind === "matter"));
+});
+
+test("descriptionTimes reads times the way the sheet's Check column does", () => {
+  const t = descriptionTimes("Emails (.1); draft notice (.6); call (1.0); review (2)");
+  assert.equal(t.sum, 1.7);
+  assert.equal(t.count, 3);
+  assert.deepEqual(t.bareIntegers, ["(2)"]);
+  assert.equal(descriptionTimes("Management call with fire team").count, 0);
 });

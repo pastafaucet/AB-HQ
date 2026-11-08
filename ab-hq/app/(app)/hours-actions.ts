@@ -21,6 +21,7 @@ import {
   applyAnswers,
   isCleanMultiple,
   formatHours,
+  descriptionTimes,
   parseTimeCapture,
   questionText,
   type ParseContext,
@@ -204,6 +205,12 @@ export async function saveTimeEdit(
     const clients = await loadClients();
     const c = clients.find((x) => x.name === next.client);
     if (!c) return { ok: false, message: `"${next.client}" isn't on the Clients tab.` };
+    // Times written in the description must match the hours (the sheet's own check).
+    const dt = descriptionTimes(next.description);
+    if (dt.bareIntegers.length)
+      return { ok: false, message: `Write whole hours with a decimal, e.g. (1.0), so the sheet counts them: ${dt.bareIntegers.join(", ")}.` };
+    if (dt.count > 0 && Math.abs(dt.sum - next.hours) > 0.001)
+      return { ok: false, message: `The times in the description add to ${formatHours(dt.sum)}, but hours say ${formatHours(next.hours)}.` };
     if (!isCleanMultiple(next.hours, c.increment))
       return {
         ok: false,

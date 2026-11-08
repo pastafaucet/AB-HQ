@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteTimeEntry, saveTimeEdit } from "@/app/(app)/hours-actions";
 import type { HoursToday } from "@/lib/hours-sheet";
-import { formatHours } from "@/lib/time-entry";
+import { descriptionTimes, formatHours } from "@/lib/time-entry";
 import { openCapture } from "./CaptureOverlay";
 
 type Row = HoursToday["rows"][number];
@@ -77,6 +77,14 @@ function HoursRow({ row, clients }: { row: Row; clients: ClientOpt[] }) {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, start] = useTransition();
   const inc = clients.find((c) => c.name === client)?.increment;
+  // Hours follow the times written in the description, the way the sheet checks them.
+  const dt = descriptionTimes(desc);
+  const mismatch = dt.count > 0 && Math.abs(dt.sum - Number(hours)) > 0.001;
+  function onDesc(v: string) {
+    setDesc(v);
+    const t = descriptionTimes(v);
+    if (t.count > 0) setHours(String(t.sum));
+  }
 
   function reset() {
     setDate(row.date);
@@ -154,8 +162,24 @@ function HoursRow({ row, clients }: { row: Row; clients: ClientOpt[] }) {
           </div>
           <label className="tc-desc">
             <span>Description (goes on the bill)</span>
-            <textarea rows={3} value={desc} onChange={(e) => setDesc(e.target.value)} />
+            <textarea rows={3} value={desc} onChange={(e) => onDesc(e.target.value)} />
           </label>
+          {dt.count > 0 && !mismatch && (
+            <div className="tc-note" style={{ marginLeft: 0 }}>
+              Hours follow the times in the description ({dt.count} {dt.count === 1 ? "time" : "times"}, {formatHours(dt.sum)}).
+            </div>
+          )}
+          {mismatch && (
+            <div className="tc-question">
+              The description&rsquo;s times add to {formatHours(dt.sum)}, but hours say {hours}.{" "}
+              <button type="button" className="tc-link" onClick={() => setHours(String(dt.sum))}>
+                Use {formatHours(dt.sum)}
+              </button>
+            </div>
+          )}
+          {dt.bareIntegers.length > 0 && (
+            <div className="tc-question">Write whole hours with a decimal, like (1.0), so the sheet counts them.</div>
+          )}
           {(date !== row.date || client.trim() !== row.client) && (
             <div className="tc-note" style={{ marginLeft: 0 }}>
               A new date or matter logs this as a fresh entry (the sheet places it, merging with a same-day row for that

@@ -71,6 +71,22 @@ export function formatHours(n: number): string {
   return s.startsWith("0.") ? s.slice(1) : s;
 }
 
+/**
+ * The times written in a description, the way the sheet's Check column reads
+ * them: decimals in parentheses only, "(.3)" or "(1.0)". Also reports any
+ * bare whole number "(1)", which the sheet doesn't count.
+ */
+export function descriptionTimes(desc: string): { sum: number; count: number; bareIntegers: string[] } {
+  let sum = 0;
+  let count = 0;
+  for (const m of desc.matchAll(/\((\d*\.\d+)\)/g)) {
+    sum += Number(m[1].startsWith(".") ? `0${m[1]}` : m[1]);
+    count++;
+  }
+  const bareIntegers = [...desc.matchAll(/\((\d+)\)/g)].map((m) => m[0]);
+  return { sum: Math.round(sum * 100) / 100, count, bareIntegers };
+}
+
 /** Hours with two decimals, for messages ("0.75", "1.30"). */
 export function hoursLabel(n: number): string {
   return round2(n).toFixed(2);
