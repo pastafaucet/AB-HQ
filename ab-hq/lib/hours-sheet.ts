@@ -301,6 +301,24 @@ export async function editEntry(
   });
 }
 
+/** Clear a row's B, C, D, F (rows are never deleted), found by date + client + description. */
+export async function clearEntry(key: { date: string; client: string; description: string }): Promise<{ ok: boolean; message: string; entered: boolean }> {
+  return withLock(async () => {
+    const hit = await findRow(key.date, key.client, key.description);
+    if (!hit) return { ok: false, message: "Couldn't find that row (it may have changed). Nothing changed.", entered: false };
+    await setRange(`${TAB}!B${hit.row}:F${hit.row}`, [["", "", "", null, ""]]);
+    await log({
+      raw: `DELETE ${key.client} ${key.date}`,
+      action: "DELETE",
+      row_written: hit.row,
+      status: "ok",
+      parsed: { key, prior: { hours: hit.d, description: hit.f } },
+    });
+    const warn = hit.entered ? " It was already ticked Entered: Lara needs to fix the firm system too." : "";
+    return { ok: true, message: `Removed ${shortDate(key.date)} | ${key.client}.${warn}`, entered: hit.entered };
+  });
+}
+
 // ---------------------------------------------------------------- today
 
 export interface HoursToday {
@@ -308,17 +326,34 @@ export interface HoursToday {
   month: string; // C3
   pace: string; // F3
   rows: { date: string; client: string; hours: number; description: string; type: string; flag: string; entered: boolean }[];
+  /** Totals per day for the calendar month shown (YYYY-MM-DD → hours). */
+  days: Record<string, { billable: number; nonBillable: number }>;
 }
 
-export async function getHoursToday(date: string): Promise<HoursToday> {
+/** A day's rows plus per-day totals for one calendar month (YYYY-MM), from one read of the sheet. */
+export async function getHoursToday(date: string, month: string = date.slice(0, 7)): Promise<HoursToday> {
   const [top, i3] = await getRanges([`${TAB}!B3:F3`, `${TAB}!I3`], "FORMATTED_VALUE");
   const last = Math.max(5, num(i3[0]?.[0]));
   const rows = await getRange(`${TAB}!A5:H${last}`, "UNFORMATTED_VALUE");
   const serial = serialOf(date);
+  const [y, m] = month.split("-").map(Number);
+  const first = serialOf(`${month}-01`);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const end = first + lastDay - 1;
+  const days: HoursToday["days"] = {};
+  for (const r of rows) {
+    const s = num(r[1]);
+    if (s < first || s > end || blank(r[2])) continue;
+    const iso = new Date(Date.UTC(1899, 11, 30) + s * 86400000).toISOString().slice(0, 10);
+    const d = (days[iso] ??= { billable: 0, nonBillable: 0 });
+    if (String(r[6] ?? "") === "Non-billable") d.nonBillable = round2(d.nonBillable + num(r[3]));
+    else d.billable = round2(d.billable + num(r[3]));
+  }
   return {
     today: String(top[0]?.[0] ?? ""),
     month: String(top[0]?.[1] ?? ""),
     pace: String(top[0]?.[4] ?? ""),
+    days,
     rows: rows
       .filter((r) => num(r[1]) === serial && !blank(r[2]))
       .map((r) => ({

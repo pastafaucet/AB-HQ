@@ -7,6 +7,7 @@ import { sheetsConfigured } from "@/lib/google-sheets";
 import { fixTypos } from "@/lib/typo-fix";
 import {
   addClient,
+  clearEntry,
   editEntry,
   getHoursToday,
   loadAliases,
@@ -18,6 +19,8 @@ import {
 } from "@/lib/hours-sheet";
 import {
   applyAnswers,
+  isCleanMultiple,
+  formatHours,
   parseTimeCapture,
   questionText,
   type ParseContext,
@@ -180,5 +183,60 @@ export async function loadHoursToday(date?: string): Promise<{ data?: HoursToday
     return { data: await getHoursToday(date ?? todayISO()) };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Couldn't read the hours sheet." };
+  }
+}
+
+type RowKey = { date: string; client: string; description: string };
+
+/**
+ * Change any part of a logged row. Same date and client: hours and
+ * description change in place. A new date or client: log it fresh (the sheet
+ * places it, merging if it should), then clear the old row. In that order, so
+ * a failure can leave a duplicate but never lose time.
+ */
+export async function saveTimeEdit(
+  key: RowKey,
+  next: { date: string; client: string; hours: number; description: string }
+): Promise<{ ok: boolean; message: string }> {
+  try {
+    if (!next.description.trim()) return { ok: false, message: "The description can't be empty." };
+    if (!(next.hours > 0)) return { ok: false, message: "Hours must be more than zero." };
+    const clients = await loadClients();
+    const c = clients.find((x) => x.name === next.client);
+    if (!c) return { ok: false, message: `"${next.client}" isn't on the Clients tab.` };
+    if (!isCleanMultiple(next.hours, c.increment))
+      return {
+        ok: false,
+        message: `${formatHours(next.hours)} isn't a clean ${c.increment === 0.25 ? "quarter-hour" : "tenth"} for ${c.name}.`,
+      };
+    if (next.date === key.date && next.client === key.client) {
+      const r = await editEntry(key, { hours: next.hours, description: next.description.trim() });
+      revalidatePath("/work/time");
+      return r;
+    }
+    const w = await writeEntry(
+      { date: next.date, client: next.client, hours: next.hours, description: next.description.trim() },
+      `MOVE from ${key.client} ${key.date}`,
+      { from: key, to: next }
+    );
+    if (!w.ok) return { ok: false, message: w.message };
+    const cleared = await clearEntry(key);
+    revalidatePath("/work/time");
+    if (!cleared.ok)
+      return { ok: false, message: `${w.message} But the old row couldn't be cleared, so it may now appear twice. Check the sheet.` };
+    const notes = [cleared.entered ? "The old row was already ticked Entered: Lara needs to fix the firm system too." : "", ...notesFor(w)].filter(Boolean);
+    return { ok: true, message: [w.message, ...notes].join(" ") };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Couldn't save the change." };
+  }
+}
+
+export async function deleteTimeEntry(key: RowKey): Promise<{ ok: boolean; message: string }> {
+  try {
+    const r = await clearEntry(key);
+    revalidatePath("/work/time");
+    return { ok: r.ok, message: r.message };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Couldn't remove it." };
   }
 }
