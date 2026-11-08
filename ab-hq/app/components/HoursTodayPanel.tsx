@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { deleteTimeEntry, saveTimeEdit } from "@/app/(app)/hours-actions";
+import { addHoursClient, deleteTimeEntry, saveTimeEdit } from "@/app/(app)/hours-actions";
 import type { HoursToday } from "@/lib/hours-sheet";
 import { descriptionTimes, formatHours } from "@/lib/time-entry";
 import { openCapture } from "./CaptureOverlay";
@@ -76,7 +76,32 @@ function HoursRow({ row, clients }: { row: Row; clients: ClientOpt[] }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, start] = useTransition();
-  const inc = clients.find((c) => c.name === client)?.increment;
+  // Matters added to the Clients tab from this form (so the form knows them without a reload).
+  const [added, setAdded] = useState<ClientOpt[]>([]);
+  const all = [...clients, ...added];
+  const known = all.some((c) => c.name.toLowerCase() === client.trim().toLowerCase());
+  const [newMatter, setNewMatter] = useState<{ open: boolean; billable: boolean; inc: number }>({
+    open: false,
+    billable: true,
+    inc: 0.1,
+  });
+  const inc = all.find((c) => c.name === client)?.increment;
+
+  function createMatter() {
+    const name = client.trim();
+    if (!name) return;
+    start(async () => {
+      const r = await addHoursClient(name, newMatter.billable, newMatter.inc);
+      if (r.ok) {
+        setAdded((a) => [...a, { name, increment: newMatter.inc }]);
+        setNewMatter((n) => ({ ...n, open: false }));
+        setMsg({
+          ok: true,
+          text: `Added "${name}" to the Clients tab (${newMatter.billable ? "Billable" : "Non-billable"}, ${newMatter.inc === 0.25 ? "quarters" : "tenths"}). Now Save.`,
+        });
+      } else setMsg({ ok: false, text: r.error ?? "Couldn't add the matter." });
+    });
+  }
   // Hours follow the times written in the description, the way the sheet checks them.
   const dt = descriptionTimes(desc);
   const mismatch = dt.count > 0 && Math.abs(dt.sum - Number(hours)) > 0.001;
@@ -179,6 +204,34 @@ function HoursRow({ row, clients }: { row: Row; clients: ClientOpt[] }) {
           )}
           {dt.bareIntegers.length > 0 && (
             <div className="tc-question">Write whole hours with a decimal, like (1.0), so the sheet counts them.</div>
+          )}
+          {client.trim() && !known && !newMatter.open && (
+            <button type="button" className="tc-link" style={{ alignSelf: "flex-start" }} onClick={() => setNewMatter((n) => ({ ...n, open: true }))}>
+              ＋ &ldquo;{client.trim()}&rdquo; is a new matter
+            </button>
+          )}
+          {newMatter.open && (
+            <div className="tc-newclient">
+              <span>Add &ldquo;{client.trim()}&rdquo; to the Clients tab as</span>
+              <button type="button" data-on={newMatter.billable} onClick={() => setNewMatter((n) => ({ ...n, billable: true }))}>
+                Billable
+              </button>
+              <button type="button" data-on={!newMatter.billable} onClick={() => setNewMatter((n) => ({ ...n, billable: false }))}>
+                Non-billable
+              </button>
+              <button type="button" data-on={newMatter.inc === 0.1} onClick={() => setNewMatter((n) => ({ ...n, inc: 0.1 }))}>
+                tenths
+              </button>
+              <button type="button" data-on={newMatter.inc === 0.25} onClick={() => setNewMatter((n) => ({ ...n, inc: 0.25 }))}>
+                quarters
+              </button>
+              <button type="button" className="tc-primary" disabled={busy} onClick={createMatter}>
+                Add matter
+              </button>
+              <button type="button" className="tc-link" onClick={() => setNewMatter((n) => ({ ...n, open: false }))}>
+                cancel
+              </button>
+            </div>
           )}
           {(date !== row.date || client.trim() !== row.client) && (
             <div className="tc-note" style={{ marginLeft: 0 }}>
