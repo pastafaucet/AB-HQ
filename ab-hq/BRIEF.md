@@ -57,7 +57,7 @@ AB HQ succeeds only if the daily loop is frictionless: **pick → do → review 
 - **Wind Down** (evening ritual): close out open tasks with one click, pick what's "on tap for tomorrow," write the journal ("top things of the day"), check habits, log body metrics and media (shows and movies watched, often with his wife), and see "a year ago today."
 
 **Around the loop:**
-- **Andy's HQ, the home screen (Command Center):** an attention band, the day's flow, UP NEXT (real task rows), and a live grid of hubs.
+- **Andy's HQ, the home screen (Command Center):** an attention band, progress rings (Tasks and Billable, this week and this month), the day's flow, and UP NEXT (real task rows). The hubs grid was removed 2026-11-11; the sidebar reaches every hub.
 - **⌘K Capture:** one box for everything. Andy types naturally; AI classifies it (task, note, event, log), matches it to a case or project, pulls out dates and delegation, and drafts a one-line summary. Anything it can't confidently file waits in **Work → Inbox**.
 - **Quick-add syntax** everywhere: `hearing Theberge 10/30 at 9:30` · `oppo due friday p1` · `every tuesday` · `~2h` or `~30m` for estimates (parentheses are billed time) · `2-3:30pm` · `#personal`.
 - **Tasks**, **Projects**, and **Cases** hubs, plus **People** linked to cases.
@@ -76,7 +76,7 @@ None of this is committed or scheduled. It's the known horizon, roughly in the o
 - Shared components in the existing tokens: Ring, ProgressBar, MonthGrid, YearStrip, PriorityGroup (P1–P4 colored stacks).
 - One migration: a `goals` table (title, area, period, period_start, status; progress computed from linked projects and tasks); projects gain start_date, kind, horizon, goal_id; habits gain a weekly target and goal_id; a `reviews` table (period, period_start, reflection). (Tasks' optional end date and time for multi-day items shipped early, 2026-11-06, as migration 0016.)
 
-**Build order:** (1) nav restructure, ⌘J jump-to-anything, standard drawers; (2) period engine, primitives, rings on HQ from existing data; (3) the migration; (4) Goals tab; (5) Year and Month tabs; (6) Habits tab; (7) monthly review. Step 1 shipped (nav, tabs, Today modes, scope toggle, mobile bar, then ⌘J jump-to-anything and drawers that open over any page, 2026-11-07). Step 2 is next.
+**Build order:** (1) nav restructure, ⌘J jump-to-anything, standard drawers; (2) period engine, primitives, rings on HQ from existing data; (3) the migration; (4) Goals tab; (5) Year and Month tabs; (6) Habits tab; (7) monthly review. Step 1 shipped (nav, tabs, Today modes, scope toggle, mobile bar, then ⌘J jump-to-anything and drawers that open over any page, 2026-11-07). Step 2's first part shipped 2026-11-11: `lib/progress.ts` and four rings on HQ. Settled: weeks start Monday; the Tasks ring counts Tasks and Deadlines dated in the period (events left out, since they score attendance, not work); billable target 180 hours a month, a week's target is that spread over workdays.
 
 **Still open:** goal areas (the planner used Finances, Career, Personal Growth, Health, Relationships, Home; a field on goals only); numeric goal targets vs. "done when its projects are done" for V1; Year view as rolling 12 months vs. calendar year; whether quarterly goals are wanted.
 

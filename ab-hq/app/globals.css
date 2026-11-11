@@ -4358,21 +4358,6 @@ button.check {
 .cc-flow-card.is-done .cc-flow-status {
   color: var(--green);
 }
-.cc-hub-card {
-  text-align: left;
-  font-family: inherit;
-}
-.cc-hub-line {
-  margin-top: 6px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-}
-.cc-hub-line.is-hot {
-  color: var(--orange);
-}
-
 /* command center detail lists + hub sublines */
 .cc-cols {
   display: grid;
@@ -5220,4 +5205,96 @@ button.check {
   color: var(--amber);
   font-weight: 600;
   margin-right: 6px;
+}
+
+/* ============================================================
+   Progress rings (HQ, step 2): Tasks and Billable, week and month
+   ============================================================ */
+.ring-band {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 4px;
+}
+@media (max-width: 1200px) {
+  .ring-band { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .ring-card { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .ring-svg { width: 56px; height: 56px; }
+}
+.ring-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+.ring-card:hover {
+  border-color: var(--line-raised-2);
+}
+.ring-svg {
+  width: 64px;
+  height: 64px;
+  flex: none;
+}
+.ring-track {
+  fill: none;
+  stroke: var(--line-raised);
+  stroke-width: 7;
+}
+.ring-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+.ring-card.is-ahead .ring-fill {
+  stroke: var(--green);
+}
+.ring-card.is-off .ring-fill {
+  stroke: var(--disabled);
+}
+.ring-pace {
+  stroke: var(--ink-2);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.ring-num {
+  fill: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 15px;
+}
+.ring-text {
+  min-width: 0;
+}
+.ring-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.ring-of {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.ring-status {
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.ring-card.is-behind:not(.is-off) .ring-status {
+  color: var(--amber);
+}
+.ring-card.is-ahead .ring-status {
+  color: var(--green);
 }

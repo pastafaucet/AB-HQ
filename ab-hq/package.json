@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:time": "node --experimental-strip-types --test lib/time-entry.test.ts"
+    "test:time": "node --experimental-strip-types --test lib/time-entry.test.ts",
+    "test:progress": "node --experimental-strip-types --test lib/progress.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

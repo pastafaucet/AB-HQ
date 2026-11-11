@@ -23,6 +23,8 @@ import {
 } from "@/app/(app)/time-actions";
 import TaskDrawer from "./TaskDrawer";
 import { applyChange, useDrawerChanges } from "./drawers/bus";
+import ProgressRings from "./ProgressRings";
+import type { Ring } from "@/lib/progress";
 
 const MO = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
 
@@ -33,9 +35,11 @@ function fmtDate(iso: string): string {
 
 export default function CommandCenterClient({
   data,
+  rings,
   dateLabel,
 }: {
   data: CommandCenterData;
+  rings: Ring[];
   dateLabel: string;
 }) {
   const router = useRouter();
@@ -284,54 +288,6 @@ export default function CommandCenterClient({
     },
   ];
 
-  const hubs: { title: string; line: string; sub?: string; href: string; hot?: boolean }[] = [
-    {
-      title: "Tasks",
-      line: `${data.openTasks} open${data.overdue ? ` · ${data.overdue} overdue` : ""}`,
-      sub: tasks[0] ? `next: ${tasks[0].title}` : undefined,
-      href: "/work/tasks",
-      hot: data.overdue > 0,
-    },
-    {
-      title: "Cases",
-      line: `${data.activeMatters} active${data.silent ? ` · ${data.silent} silent` : ""}`,
-      sub: data.silentTop[0]
-        ? `quietest: ${data.silentTop[0].name} (${data.silentTop[0].daysSilent ?? "—"}d)`
-        : undefined,
-      href: "/work/cases",
-      hot: data.silent > 0,
-    },
-    {
-      title: "Projects",
-      line: `${data.activeProjects} active`,
-      sub: data.nextProjectName
-        ? `${data.nextProjectName} due ${fmtDate(data.nextProjectDeadline!)}`
-        : undefined,
-      href: "/work/projects",
-    },
-    {
-      title: "Inbox",
-      line: `${data.needsHome} need a home · ${data.ledgerCount} in the ledger`,
-      sub: data.unfiledLatest ? `“${data.unfiledLatest.slice(0, 60)}”` : undefined,
-      href: "/work/inbox",
-    },
-    {
-      title: "Weekly review",
-      line: `${data.due30} due in 30d · ${data.waiting} sitting with others`,
-      href: "/plan/week",
-    },
-    {
-      title: "Day ledger",
-      line: `${(data.tenthsToday / 10).toFixed(1)}h entered today`,
-      sub: data.touchedToday
-        ? `${data.touchedToday} matter${data.touchedToday === 1 ? "" : "s"} touched`
-        : undefined,
-      href: "/work/time",
-    },
-    { title: "Notes", line: `${data.noteCount} notes`, href: "/notes" },
-    { title: "People", line: `${data.peopleCount} people`, href: "/notes/people" },
-  ];
-
   function daysOut(iso: string): string {
     const d = Math.round(
       (new Date(`${iso}T12:00:00`).getTime() - new Date(`${today}T12:00:00`).getTime()) / 86400000
@@ -362,6 +318,9 @@ export default function CommandCenterClient({
             </button>
           ))}
         </div>
+
+        <div className="section-label">PROGRESS</div>
+        <ProgressRings rings={rings} />
 
         <div className="section-label">THE DAY</div>
         <div className="cc-flow">
@@ -479,21 +438,6 @@ export default function CommandCenterClient({
           </div>
         )}
 
-        <div className="section-label">HUBS</div>
-        <div className="case-grid cc-hubs">
-          {hubs.map((h) => (
-            <button
-              key={h.title}
-              type="button"
-              className="case-card clickable cc-hub-card"
-              onClick={() => router.push(h.href)}
-            >
-              <div className="case-name">{h.title}</div>
-              <div className={`cc-hub-line${h.hot ? " is-hot" : ""}`}>{h.line}</div>
-              {h.sub && <div className="cc-hub-sub">{h.sub}</div>}
-            </button>
-          ))}
-        </div>
       </section>
 
       {openTask && (

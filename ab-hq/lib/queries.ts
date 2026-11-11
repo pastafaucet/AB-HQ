@@ -774,26 +774,11 @@ export interface CommandCenterData {
   dayClosed: boolean; // reflection or on-tap written
   habitsDone: number;
   habitsTotal: number;
-  // hub cards
-  openTasks: number;
-  activeMatters: number;
-  quietMatters: number;
-  activeProjects: number;
-  nextProjectDeadline: string | null;
-  ledgerCount: number; // total entries in the ledger
-  tenthsToday: number;
-  due30: number;
-  waiting: number;
-  noteCount: number;
-  peopleCount: number;
   // the actual things, not just counts
   upNextTasks: Task[]; // next dated open tasks, richest form — drawer-editable
   upNextMarkers: { date: string; title: string; kind: "project" | "matter"; matterName: string | null }[];
   overdueTop: { id: string; title: string; matterName: string | null; doDate: string }[];
   silentTop: { name: string; daysSilent: number | null; openCount: number }[];
-  unfiledLatest: string | null; // newest entry still needing a home
-  touchedToday: number; // distinct matters with activity today
-  nextProjectName: string | null;
   matters: Matter[]; // for the drawer + name lookups
   projects: Project[];
   running: RunningTimer | null;
@@ -803,14 +788,13 @@ export interface CommandCenterData {
 export async function getCommandCenterData(scope: Scope = "all"): Promise<CommandCenterData> {
   const sb = getSupabase();
   const today = todayISO();
-  const { startIso, endIso } = dayBounds(today);
   const hour = Number(
     new Intl.DateTimeFormat("en-US", { timeZone: APP_TZ, hour: "numeric", hour12: false }).format(
       new Date()
     )
   );
 
-  const [weekly, life, allTaskRows, entriesCounts, todayEntries, daily, notesRes, peopleRes] =
+  const [weekly, life, allTaskRows, entriesCounts, daily] =
     await Promise.all([
       getWeeklyReviewData(),
       fetchLifeData(today),
@@ -823,18 +807,10 @@ export async function getCommandCenterData(scope: Scope = "all"): Promise<Comman
         .order("created_at", { ascending: false })
         .limit(2000),
       sb
-        .from("entries")
-        .select("billed_tenths,matter_id")
-        .gte("created_at", startIso)
-        .lt("created_at", endIso)
-        .neq("status", "dismissed"),
-      sb
         .from("daily_entries")
         .select("intention,reflection,on_tap_for_tomorrow")
         .eq("date", today)
         .maybeSingle(),
-      sb.from("notes").select("id", { count: "exact", head: true }),
-      sb.from("people").select("id", { count: "exact", head: true }),
     ]);
   const taskRows = inScope(allTaskRows, scope);
   const [{ data: matterNamesData }, runRes] = await Promise.all([
@@ -863,18 +839,9 @@ export async function getCommandCenterData(scope: Scope = "all"): Promise<Comman
     status: string;
     raw: string;
   }[];
-  const todayEntryRows = (todayEntries.error
-    ? []
-    : todayEntries.data) as { billed_tenths: number | null; matter_id: string | null }[];
-  const todaysTenths = todayEntryRows.reduce((a, e) => a + (e.billed_tenths ?? 0), 0);
-  const touchedToday = new Set(todayEntryRows.map((e) => e.matter_id).filter(Boolean)).size;
 
   const projects = await fetchProjects();
   const activeP = projects.filter((p) => p.status === "Active");
-  const nextProject =
-    activeP
-      .filter((p) => p.deadline && p.deadline >= today)
-      .sort((a, b) => (a.deadline! < b.deadline! ? -1 : 1))[0] ?? null;
 
   const overdueTop = open
     .filter((t) => isPastDue(t, today))
@@ -937,20 +904,12 @@ export async function getCommandCenterData(scope: Scope = "all"): Promise<Comman
     dayClosed: !!(daily.data?.reflection || daily.data?.on_tap_for_tomorrow),
     habitsDone: life.habits.filter((h) => h.checkedToday).length,
     habitsTotal: life.habits.length,
-    openTasks: open.length,
-    activeMatters: weekly.activeMatters,
-    quietMatters: weekly.quiet.length,
-    activeProjects: activeP.length,
-    nextProjectDeadline: nextProject?.deadline ?? null,
-    nextProjectName: nextProject?.name ?? null,
     upNextTasks,
     upNextMarkers,
     overdueTop,
     silentTop: weekly.silent
       .slice(0, 5)
       .map((m) => ({ name: m.name, daysSilent: m.daysSilent, openCount: m.openCount })),
-    unfiledLatest: entryRows.find((e) => e.status === "inbox")?.raw ?? null,
-    touchedToday,
     matters: matterRows.map((r) => rowToMatter(r, today)),
     projects,
     running: runRes.data
@@ -960,12 +919,6 @@ export async function getCommandCenterData(scope: Scope = "all"): Promise<Comman
           startedAt: runRes.data.started_at as string,
         }
       : null,
-    ledgerCount: entriesCounts.count ?? entryRows.length,
-    tenthsToday: todaysTenths,
-    due30: weekly.dueTasks.length + weekly.dueMarkers.length,
-    waiting: weekly.waitingTasks.length,
-    noteCount: notesRes.count ?? 0,
-    peopleCount: peopleRes.count ?? 0,
   };
 }
 

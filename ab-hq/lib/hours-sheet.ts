@@ -337,6 +337,23 @@ export interface HoursToday {
   days: Record<string, { billable: number; nonBillable: number }>;
 }
 
+/** Billable hours per day (YYYY-MM-DD → hours) from `start` through `end`, from one read of the sheet. */
+export async function getBillableByDay(start: string, end: string): Promise<Record<string, number>> {
+  const i3 = await getRange(`${TAB}!I3`, "FORMATTED_VALUE");
+  const last = Math.max(5, num(i3[0]?.[0]));
+  const rows = await getRange(`${TAB}!A5:H${last}`, "UNFORMATTED_VALUE");
+  const first = serialOf(start);
+  const stop = serialOf(end);
+  const out: Record<string, number> = {};
+  for (const r of rows) {
+    const s = num(r[1]);
+    if (s < first || s > stop || blank(r[2]) || String(r[6] ?? "") === "Non-billable") continue;
+    const iso = new Date(Date.UTC(1899, 11, 30) + s * 86400000).toISOString().slice(0, 10);
+    out[iso] = round2((out[iso] ?? 0) + num(r[3]));
+  }
+  return out;
+}
+
 /** A day's rows plus per-day totals for one calendar month (YYYY-MM), from one read of the sheet. */
 export async function getHoursToday(date: string, month: string = date.slice(0, 7)): Promise<HoursToday> {
   const [top, i3] = await getRanges([`${TAB}!B3:F3`, `${TAB}!I3`], "FORMATTED_VALUE");

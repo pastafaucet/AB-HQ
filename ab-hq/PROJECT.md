@@ -70,7 +70,7 @@ AB HQ ("Andy's HQ") is a personal operating system for one user: Andy Baum, an e
 Five destinations, each one page with tabs (`lib/nav.ts`; Nov 2026). The sidebar lists the destinations; `TabBar` shows the current one's tabs. A tab with `built: false` is hidden, and a destination with no built tabs (Life, for now) is hidden too. Old URLs (`/my-day`, `/hub/*`, and so on) redirect permanently in `next.config.ts`.
 
 **HQ**
-- **Command Center** (`/`, `CommandCenterClient`): an attention band, "The day" flow, UP NEXT (real task rows that open the drawer), and a live hub grid. Rings band planned (step 2).
+- **Command Center** (`/`, `CommandCenterClient`): an attention band, PROGRESS rings (`ProgressRings`, data from `lib/rings.ts`), "The day" flow, UP NEXT (real task rows that open the drawer), and the Overdue / Gone silent lists. The HUBS grid was removed 2026-11-11.
 
 **Plan**
 - **Today** (`/plan/today`): one page, three modes, switched by `TodayModeSwitch` (`?mode=start|today|wind`). With no `?mode`, the clock picks: before 11am Start of Day, from 6pm Wind Down, Today otherwise (`lib/today-mode.ts`). A mode picked by hand sticks for the rest of that time band (cookie `abhq_today_mode`). Locking in MITs moves to Today mode.
@@ -174,7 +174,9 @@ Server actions live in `app/(app)/*-actions.ts`. Reads are in `lib/queries.ts`. 
 
 ## Where we left off
 
-*Updated 2026-11-06.*
+*Updated 2026-11-11.*
+
+**2026-11-11: step 2, rings on HQ.** Andy's answers: weeks start Monday; events stay out of the Tasks ring (they score attendance, not work; deadlines count); billable target **180 a month**; remove the HUBS grid (its "Day ledger" card read entry tenths and was stuck at 0). Built: `lib/progress.ts`, the pure period engine (`periodOf` week/month, `workdays`, `elapsedShare`, `billableTarget` = 180 / the month's workdays per workday, so a week split across months takes each month's share; `tasksRing`, `billableRing`, `fill`, `onPace`), tests `npm run test:progress` (6). `lib/rings.ts` loads Tasks and Billable for this week and this month: tasks (any status) dated in the span, filtered by the scope toggle; billable hours per day from the sheet (`getBillableByDay` in `lib/hours-sheet.ts`, Non-billable rows excluded). On Personal scope the Billable rings hide. A sheet failure shows "Hours sheet unavailable" instead of breaking HQ. The tick on each ring is even pace: for tasks, everything dated before today done; for hours, the target times workdays elapsed (today counts as elapsed). Green = on pace, amber = behind. HQ no longer queries notes/people counts or today's entry tenths. Verified: build clean, tests pass, a throwaway page with sample numbers at desktop and phone width. **Not verified:** real data (sandbox can't reach Supabase or the sheet as the app). Still to come in step 2 if Andy wants: habit rings. Next: step 3 (the migration) needs the four goal questions answered.
 
 **This session (2026-11-06): step 1 of the planning-layer plan, first half.** Andy set six decisions (recorded above and in `BRIEF.md`) and a seven-step build order. Shipped in one push to `main` (`63ed9ec`): the five-destination nav with tabs, unbuilt hubs hidden, Today's three modes, the All / Work / Personal toggle filtering tasks, and the mobile bottom bar. Verified: clean build, and a local render of the new shell at desktop and phone width with a throwaway page (no live data; this sandbox can't reach Supabase or the live site). **Not verified:** the Vercel deploy reading Ready. The Vercel connector needed Andy to approve team access, and `npx vercel` isn't logged in here. **Not exercised against real data:** the Today mode switch, the scope toggle, and the redirects on the live site. Andy tests them live.
 
@@ -208,7 +210,7 @@ Server actions live in `app/(app)/*-actions.ts`. Reads are in `lib/queries.ts`. 
 
 **Date headers and task capitals (2026-11-11, Andy's bug report):** a line with a date but no time ("11/6", "please add for 11/6:", "For Thursday 11/5:", "yesterday:") is a **date header** (`dateHeader` in `lib/time-entry.ts`): it sets the date for every following line until the next header; a date at the start of an entry line still applies to that line only. Guards: a line starting with a known matter is an entry missing its time (asks, never a header); headers are ≤ 8 words; a weekday that doesn't match the date asks. After "; " a stray opening capital on an ordinary task word is lowercased (`lowerTaskStart`, a fixed word list: "Call", "Emails", "Review"…; names like "Brown Greer" and acronyms keep theirs), both when parsing and when merging into an existing row. The confirm card shows the weekday and date in its header and preview. Tests: 27.
 
-**Known side effect:** HQ's Time card and the Friday review's "billed time entered" read entry tenths, which time entries no longer carry; point them at the sheet when next touched. **Step 2 (rings) is next after this**, with four questions already asked (week start, events in the ring, billed-hours ring target, removing the HUBS grid).
+**Known side effect:** the Friday review's "billed time entered" reads entry tenths, which time entries no longer carry; point it at the sheet (`getBillableByDay`) when next touched. (HQ's card is gone; the Billable rings read the sheet.)
 
 **Still to ask before steps 3–5:** goal areas; numeric targets vs. "done when its projects are done"; rolling 12 months vs. calendar year; quarterly goals.
 
