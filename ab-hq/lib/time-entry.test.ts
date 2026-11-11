@@ -171,3 +171,53 @@ test("descriptionTimes reads times the way the sheet's Check column does", () =>
   assert.deepEqual(t.bareIntegers, ["(2)"]);
   assert.equal(descriptionTimes("Management call with fire team").count, 0);
 });
+
+// ---- date headers (2026-11-11) ----
+// ctx.today is Fri 2026-11-06 in these tests; headers use earlier dates.
+
+test('"please add for 11/6:" is a header for the line below', () => {
+  const es = parseTimeCapture("please add for 11/6:\nCOLA/Does - call with X (.5)", { ...ctx, today: "2026-11-09" });
+  assert.equal(es.length, 1);
+  assert.equal(es[0].date, "2026-11-06");
+  assert.equal(es[0].client, "COLA/Does");
+});
+
+test('"For Thursday 11/5:" applies to every line below', () => {
+  const es = parseTimeCapture("For Thursday 11/5:\nAB 218 - task (.2)\nTia - task (.1)", ctx);
+  assert.equal(es.length, 2);
+  assert.deepEqual(es.map((e) => e.date), ["2026-11-05", "2026-11-05"]);
+  assert.ok(es.every((e) => !e.questions.some((q) => q.kind === "date")));
+});
+
+test("a date at the start of an entry line applies to that line only", () => {
+  const es = parseTimeCapture("11/5 COLA/Does - task (.2)\nTia - task (.1)", ctx);
+  assert.deepEqual(es.map((e) => e.date), ["2026-11-05", "2026-11-06"]);
+});
+
+test("a later header replaces the earlier one", () => {
+  const es = parseTimeCapture("11/3\nAB 218 - a (.2)\nyesterday:\nTia - b (.1)", ctx);
+  assert.deepEqual(es.map((e) => e.date), ["2026-11-03", "2026-11-05"]);
+});
+
+test("an entry that forgot its time is not mistaken for a header", () => {
+  const es = parseTimeCapture("Tia - review memo 11/2\nAB 218 - call (.2)", ctx);
+  assert.equal(es.length, 2);
+  assert.equal(es[1].date, "2026-11-06"); // no header carried
+});
+
+test("a header whose weekday doesn't match its date asks", () => {
+  const [e] = parseTimeCapture("For Wednesday 11/5:\nAB 218 - task (.2)", ctx);
+  assert.ok(e.questions.some((q) => q.kind === "date"));
+});
+
+// ---- capitals after "; " ----
+
+test('a stray capital at the start of a later task is lowercased', () => {
+  const e = one("AB 218 - review memo (.2); Call with Jonathan re strategy (.3); Emails with CoCo (.1)");
+  assert.equal(e.description, "Review memo (.2); call with Jonathan re strategy (.3); emails with CoCo (.1)");
+});
+
+test("names and acronyms after \"; \" keep their capitals", () => {
+  const e = one("AB 218 - review memo (.2); Brown Greer call (.3); DA production review (.1)");
+  assert.equal(e.description, "Review memo (.2); Brown Greer call (.3); DA production review (.1)");
+});

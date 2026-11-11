@@ -158,7 +158,7 @@ export default function CaptureOverlay() {
                     ↳ time entry → hours sheet
                     <span className="capture-modal-hint">
                       {" "}
-                      — matter - task (.4); task (.2) · one entry per line (Shift+Enter) · a date at the start of a line, or alone on a line above, sets the day
+                      — matter - task (.4); task (.2) · one entry per line (Shift+Enter) · a date at the start of a line sets that line; a date line above ("For 11/6:") sets every line under it
                     </span>
                   </div>
                 );

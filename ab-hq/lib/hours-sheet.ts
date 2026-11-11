@@ -4,6 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 import { batchUpdate, getRange, getRanges, hoursSheetId, setRange, type Cell } from "@/lib/google-sheets";
 import {
   formatHours,
+  lowerTaskStart,
   parseAliasCell,
   shortDate,
   toSheetDate,
@@ -155,9 +156,11 @@ export interface WriteResult {
 function mergeDescription(oldF: string, oldD: number, add: WriteInput): string {
   const rs = add.client === "RS/General";
   const strip = (s: string) => s.replace(/\s*\((\d*\.\d+)\)/g, "").trim();
-  if (rs) return [strip(oldF), strip(add.description)].filter(Boolean).join("; ");
+  if (rs) return [strip(oldF), strip(add.description)].filter(Boolean).map((p, i) => (i ? lowerTaskStart(p) : p)).join("; ");
   const prior = oldF.trim() ? (hasTime(oldF) ? oldF.trim() : `${oldF.trim()} (${formatHours(oldD)})`) : "";
-  const fresh = hasTime(add.description) ? add.description.trim() : `${add.description.trim()} (${formatHours(add.hours)})`;
+  const freshRaw = hasTime(add.description) ? add.description.trim() : `${add.description.trim()} (${formatHours(add.hours)})`;
+  // The added task now follows "; ", so a stray opening capital goes ("; Call with" → "; call with").
+  const fresh = prior ? lowerTaskStart(freshRaw) : freshRaw;
   return [prior, fresh].filter(Boolean).join("; ");
 }
 

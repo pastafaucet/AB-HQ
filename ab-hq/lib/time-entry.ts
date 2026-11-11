@@ -286,6 +286,28 @@ function splitMatter(
 
 // ---------------------------------------------------------------- description
 
+// Ordinary words that open a task. After "; " these are lowercased ("; Call
+// with" → "; call with"); anything else (names like "Brown Greer", "Jason",
+// acronyms) keeps its capital.
+const TASK_WORDS = new Set(
+  (
+    "address analysis analyze answer appear arrange attend begin brief call calls calendar check circulate " +
+    "communicate complete conduct confer conference confirm consider continue coordinate correspond correspondence " +
+    "deposition determine discuss discussion download draft edit email emails exchange file finalize follow " +
+    "gather handle identify incorporate investigate letter locate look manage meet meeting memo note obtain " +
+    "organize outline participate plan prep prepare proofread provide read receive reply report request " +
+    "research respond response review revise schedule send serve set speak start status strategize strategy " +
+    "submit summarize summary talk telephone text texts travel update work write zoom"
+  ).split(" ")
+);
+
+/** "Call with Jonathan" → "call with Jonathan" when it follows "; ". Names and acronyms are left alone. */
+export function lowerTaskStart(s: string): string {
+  const m = s.match(/^([A-Z])([a-z'’]+)(\b|$)/);
+  if (!m || !TASK_WORDS.has((m[1] + m[2]).toLowerCase())) return s;
+  return m[1].toLowerCase() + s.slice(1);
+}
+
 /** "PRepare" → "Prepare": two leading capitals then lowercase. Acronyms untouched. */
 function fixStrayCapitals(s: string, fixes: string[]): string {
   return s.replace(/\b([A-Z])([A-Z])([a-z]{2,})\b/g, (w, a, b, rest) => {
@@ -320,7 +342,10 @@ export function buildDescription(tasks: ParsedTask[], client: string | null): st
     });
     return tidy(s);
   });
-  const joined = parts.filter(Boolean).join("; ");
+  const joined = parts
+    .filter(Boolean)
+    .map((p, i) => (i === 0 ? p : lowerTaskStart(p)))
+    .join("; ");
   return joined ? joined.charAt(0).toUpperCase() + joined.slice(1) : joined;
 }
 
@@ -392,17 +417,38 @@ function parseLine(lineRaw: string, ctx: ParseContext): ParsedEntry {
   };
 }
 
-/** A line that is only a date ("11/4", "Wed 11/4:", "yesterday") with nothing to log. */
-export function dateOnlyLine(line: string, today: string): { date: string; question?: Question } | null {
-  const t = line.trim().replace(/[:,\-–—]+$/, "").trim();
+const DOW_RE = Object.keys(DOW).sort((a, b) => b.length - a.length).join("|");
+
+/**
+ * A date header: a line with a date but no time to log, such as "11/6",
+ * "please add for 11/6:", "For Thursday 11/5:" or "yesterday". It sets the
+ * date for every following line until the next header. A line that starts
+ * with a known matter is an entry missing its time, never a header, and long
+ * lines aren't headers either (a header is a few words around a date).
+ */
+export function dateHeader(line: string, ctx: ParseContext): { date: string; question?: Question } | null {
+  const t = line.trim().replace(/[:,.\-–—]+$/, "").trim();
   if (!t || hasTimeEntry(t)) return null;
-  const d = parseDatePrefix(`${t} §`, today);
-  return d.rest.trim() === "§" ? { date: d.date, question: d.question } : null;
+  if (t.split(/\s+/).length > 8) return null;
+  const first = t.split(/\s+-\s+|\s*:\s+/)[0];
+  if (resolveMatter(first, ctx.clients, ctx.aliases).client && exactMatch(first, ctx)) return null;
+  const candidates = [
+    new RegExp(String.raw`(?:\b(?:${DOW_RE})\.?\s+)?\b\d{1,2}/\d{1,2}(?:/(?:\d{4}|\d{2}))?\b`, "i"),
+    /\b(?:today|yesterday)\b/i,
+    new RegExp(String.raw`\b(?:last\s+)?(?:${DOW_RE})\b`, "i"),
+  ];
+  for (const re of candidates) {
+    const m = t.match(re);
+    if (!m || m.index === undefined) continue;
+    const d = parseDatePrefix(`${m[0]} §`, ctx.today);
+    if (d.rest.trim() === "§") return { date: d.date, question: d.question };
+  }
+  return null;
 }
 
 /**
- * Parse a capture into one entry per non-empty line. A line holding only a
- * date sets the date for the lines below it (Andy typed "11/4" above three
+ * Parse a capture into one entry per non-empty line. A date header line
+ * ("11/6", "please add for 11/6:") sets the date for the lines below it (Andy typed "11/4" above three
  * entries on 2026-11-07 and they landed on today); a date at the start of an
  * entry line still wins for that line.
  */
@@ -411,7 +457,7 @@ export function parseTimeCapture(text: string, ctx: ParseContext): ParsedEntry[]
   let carried: { date: string; question?: Question } | null = null;
   for (const l of text.split(/\r?\n/)) {
     if (!l.trim()) continue;
-    const only = dateOnlyLine(l, ctx.today);
+    const only = dateHeader(l, ctx);
     if (only) {
       carried = only;
       continue;

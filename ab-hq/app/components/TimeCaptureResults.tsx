@@ -10,7 +10,7 @@ import {
   type PendingItem,
   type TimeCaptureResult,
 } from "@/app/(app)/hours-actions";
-import { formatHours, toSheetDate } from "@/lib/time-entry";
+import { formatHours, shortDate } from "@/lib/time-entry";
 
 /** What a time-entry capture did: logged lines (with Undo) and cards to confirm. */
 export default function TimeCaptureResults({ result }: { result: TimeCaptureResult }) {
@@ -159,7 +159,9 @@ export function TimeEntryCard({
 
   return (
     <div className="tc-card">
-      <div className="tc-card-line">{e.line}</div>
+      <div className="tc-card-line">
+        <span className="tc-card-date">{shortDate(date)}</span> {e.line}
+      </div>
       {questions.map((q, i) => (
         <div key={i} className="tc-question">
           {q}
@@ -279,7 +281,7 @@ export function TimeEntryCard({
       {error && <div className="tc-error">{error}</div>}
       <div className="tc-actions">
         <span className="tc-preview">
-          {toSheetDate(date)} · {client || "?"} · {hours ? formatHours(Number(hours)) : "?"}
+          {shortDate(date)} · {client || "?"} · {hours ? formatHours(Number(hours)) : "?"}
         </span>
         <button
           type="button"

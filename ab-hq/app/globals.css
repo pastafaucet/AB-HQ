@@ -5216,3 +5216,8 @@ button.check {
   display: block;
   margin: 10px auto 0;
 }
+.tc-card-date {
+  color: var(--amber);
+  font-weight: 600;
+  margin-right: 6px;
+}
